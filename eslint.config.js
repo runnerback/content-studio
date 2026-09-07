@@ -138,6 +138,13 @@ export default [
       "views/settings/feishu-tab.js",
       "views/settings/apple-style-setting-tab.js",
       "views/settings/multi-platform-tab.js",
+      "views/settings/setting-pages.js",
+      "views/settings-panel/rednote-settings-panel.js",
+      "views/publish-modal/card-publish-mixin.js",
+      "views/publish-modal/x-publish.js",
+      "services/card-publish.js",
+      "services/x-publish.js",
+      "views/ai-layout/ai-layout-state.js",
     ],
     languageOptions: {
       ecmaVersion: 2022,

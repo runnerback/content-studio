@@ -1,7 +1,8 @@
 // tests/settings_platform_chip.test.js
 //
-// Locks the DOM contract of the「其他平台」settings tab platform section
-// after the 方案 i redesign (2026-07):
+// Locks the DOM contract of the「其他平台」settings sub-page platform section
+// after the 方案 i redesign (2026-07). Since 3.10.0 the section lives in a
+// SettingPage rendered through the mock helper `tab.renderPage(name)`.
 //
 //   1. Settings is READ-ONLY info, not an interactive checkbox picker.
 //   2. Enabled platforms (小红书 / X) render as read-only chips with
@@ -17,6 +18,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { createObsidianLikeElement } = require('./helpers/obsidian-dom.js');
 const { loadInputModule } = require('./helpers/input-module.cjs');
 const { AppleStyleSettingTab } = loadInputModule();
+const { MULTI_PLATFORM_TAB_LABEL } = await import('../services/settings-defaults.js');
 
 function makePlugin({ connection = null } = {}) {
   const defaultConnection = {
@@ -73,15 +75,16 @@ function makePlugin({ connection = null } = {}) {
   };
 }
 
-function renderTab(plugin) {
+// 渲染顶层定义后打开「其他平台」子页面；返回 SettingPage（内容在 page.containerEl）
+function renderPlatformPage(plugin) {
   const tab = new AppleStyleSettingTab(plugin.app, plugin);
   tab.containerEl = createObsidianLikeElement('div');
-  tab.renderSettingsContent();
-  return tab;
+  tab.update();
+  return tab.renderPage(MULTI_PLATFORM_TAB_LABEL);
 }
 
-function findChipByName(tab, name) {
-  return Array.from(tab.containerEl.querySelectorAll('.wechat-platform-chip'))
+function findChipByName(page, name) {
+  return Array.from(page.containerEl.querySelectorAll('.wechat-platform-chip'))
     .find((chip) => chip.querySelector('.wechat-platform-chip-name')?.textContent === name);
 }
 
@@ -91,8 +94,8 @@ describe('settings page - platform section (方案 i read-only)', () => {
   });
 
   it('已接入平台(小红书)只读展示:name + status 同在 chip-body 内(堆叠,非兄弟)', () => {
-    const tab = renderTab(makePlugin());
-    const chip = findChipByName(tab, '小红书');
+    const page = renderPlatformPage(makePlugin());
+    const chip = findChipByName(page, '小红书');
     expect(chip).toBeDefined();
 
     const body = chip.querySelector('.wechat-platform-chip-body');
@@ -106,8 +109,8 @@ describe('settings page - platform section (方案 i read-only)', () => {
   });
 
   it('已接入平台带 is-selected + 认证状态类,状态文本在 DOM 中', () => {
-    const tab = renderTab(makePlugin());
-    const chip = findChipByName(tab, '小红书');
+    const page = renderPlatformPage(makePlugin());
+    const chip = findChipByName(page, '小红书');
     expect(chip.classList.contains('is-selected')).toBe(true);
     expect(chip.classList.contains('is-ok')).toBe(true);
     const status = chip.querySelector('.wechat-platform-chip-status');
@@ -115,15 +118,15 @@ describe('settings page - platform section (方案 i read-only)', () => {
   });
 
   it('X 作为已接入平台一并展示', () => {
-    const tab = renderTab(makePlugin());
-    const chip = findChipByName(tab, 'X');
+    const page = renderPlatformPage(makePlugin());
+    const chip = findChipByName(page, 'X');
     expect(chip).toBeDefined();
     expect(chip.classList.contains('is-selected')).toBe(true);
   });
 
   it('计划支持平台(知乎)为 is-disabled、标「计划中」,且在折叠区内', () => {
-    const tab = renderTab(makePlugin());
-    const chip = findChipByName(tab, '知乎');
+    const page = renderPlatformPage(makePlugin());
+    const chip = findChipByName(page, '知乎');
     expect(chip).toBeDefined();
     expect(chip.classList.contains('is-disabled')).toBe(true);
     expect(chip.querySelector('.wechat-platform-chip-status')?.textContent).toBe('计划中');
@@ -132,8 +135,8 @@ describe('settings page - platform section (方案 i read-only)', () => {
   });
 
   it('整个平台区不再有任何可交互 checkbox(方案 i)', () => {
-    const tab = renderTab(makePlugin());
-    const picker = tab.containerEl.querySelector('.wechat-platform-picker');
+    const page = renderPlatformPage(makePlugin());
+    const picker = page.containerEl.querySelector('.wechat-platform-picker');
     expect(picker).not.toBeNull();
     expect(picker.querySelectorAll('input[type="checkbox"]').length).toBe(0);
   });

@@ -3959,7 +3959,9 @@ div.modal.wechat-sync-shell-mobile div.modal-content.wechat-sync-modal-mobile {
 }
 
 /* ========================================
-   设置面板 Tab 导航
+   设置子页面（飞书 / 其他平台 / 小红书）顶部说明
+   顶层内容自 3.10.0 起由 Obsidian 1.13 声明式 Settings API 渲染，
+   不再有手写 Tab 栏。
    ======================================== */
 
 
@@ -3973,54 +3975,6 @@ div.modal.wechat-sync-shell-mobile div.modal-content.wechat-sync-modal-mobile {
   color: var(--text-muted);
   font-size: 12px;
   line-height: 1.55;
-}
-
-.apple-settings-tabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid var(--background-modifier-border);
-  margin: 16px 0;
-  overflow-x: auto;
-  white-space: nowrap;
-  -webkit-overflow-scrolling: touch;
-}
-
-.apple-settings-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 20px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  color: var(--text-muted);
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
-  user-select: none;
-  flex-shrink: 0;
-}
-
-@media (max-width: 480px) {
-  .apple-settings-tabs {
-    margin: 12px 0;
-  }
-  .apple-settings-tab {
-    padding: 8px 12px;
-    font-size: 13px;
-  }
-}
-
-.apple-settings-tab:hover {
-  color: var(--text-normal);
-}
-
-.apple-settings-tab.active {
-  color: var(--text-accent);
-  border-bottom-color: var(--text-accent);
-}
-
-.apple-settings-tab-content {
-  padding: 0;
 }
 
 

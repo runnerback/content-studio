@@ -12,6 +12,7 @@ export const Notice = mock.Notice;
 export const MarkdownView = mock.MarkdownView;
 export const MarkdownRenderer = mock.MarkdownRenderer;
 export const PluginSettingTab = mock.PluginSettingTab;
+export const SettingPage = mock.SettingPage;
 export const Setting = mock.Setting;
 export const Modal = mock.Modal;
 export const requestUrl = mock.requestUrl;

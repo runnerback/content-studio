@@ -91,8 +91,8 @@ export const settingsPanelMixin = {
     });
     this.rednoteSettingsBtn = rednoteSettingsButton;
     this.rednoteDownloadBtn = createIconBtn('download', '下载图卡', (evt) => this.openRednoteDownloadMenu(evt));
-    this.rednoteSettingsBtn.style.display = 'none';
-    this.rednoteDownloadBtn.style.display = 'none';
+    this.rednoteSettingsBtn.setCssStyles({ display: 'none' });
+    this.rednoteDownloadBtn.setCssStyles({ display: 'none' });
 
     // [同步] 按钮（始终显示）:所有平台统一走「发布与分发」窗口。
     // 弹窗跟随顶栏平台下拉:公众号→微信草稿箱 tab;小红书/X→其他平台 tab,
