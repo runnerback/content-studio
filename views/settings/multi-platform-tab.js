@@ -7,13 +7,13 @@
 //   3. persistent connection status bar (Phase 2 helper)
 //   4. platform picker grid (chip per platform with auth status)
 //   5. 测试连接 button (start bridge + health + listSupportedPlatforms +
-//      no platform auth lookup)
-//   6. 读取已选平台状态 button (read cached auth snapshot only)
+//      逐个 checkAuth 检测已接入平台登录态)
 //
 // Public API:
-//   renderMultiPlatformSettingsTab(tab, containerEl)
-// where `tab` is the AppleStyleSettingTab instance, used for accessing
-// `tab.plugin.*` and triggering settings re-renders through a compatibility helper.
+//   renderMultiPlatformSettingsTab(tab, containerEl, options)
+// where `tab` is the AppleStyleSettingTab instance (used for `tab.plugin.*`
+// and the shared intro helper). 自 3.10.0 起本页作为 Obsidian 1.13 声明式
+// 设置的子页面（SettingPage）渲染：状态变化后只重绘本页容器。
 
 
 import {
@@ -45,8 +45,6 @@ import {
 } from '../connection-status-bar.js';
 import { getActiveWindowValue } from '../../services/dom-utils.js';
 
-const LEGACY_SETTING_RENDER_KEY = ['dis', 'play'].join('');
-
 /**
  * @typedef {HTMLElement & {
  *   createDiv: (options?: { cls?: string }) => WechatSettingsElement,
@@ -65,7 +63,7 @@ const LEGACY_SETTING_RENDER_KEY = ['dis', 'play'].join('');
  * @typedef {{ listSupportedPlatforms: (options?: Record<string, unknown>) => Promise<unknown>, getAuthSnapshot: (options?: Record<string, unknown>) => Promise<unknown>, start: () => Promise<unknown>, waitForConnection: (timeoutMs: number) => Promise<unknown>, health: (options?: Record<string, unknown>) => Promise<unknown>, getStatus?: () => Promise<unknown>, getDiagnostics?: () => unknown }} WechatBridgeLike
  * @typedef {{ multiPlatformSync?: unknown }} WechatPluginSettingsLike
  * @typedef {{ settings: WechatPluginSettingsLike, obsidianApi?: Partial<WechatObsidianApiLike>, activeView?: { openExternalUrl?: (url: string) => boolean }, openExternalUrl?: (url: string) => boolean, saveSettings: () => Promise<void>, startWechatSyncBridgeInBackground: (reason: string) => unknown, getWechatSyncBridgeService: () => WechatBridgeLike, _wechatSyncBridgeService?: { stop?: () => Promise<unknown> } }} WechatPluginLike
- * @typedef {{ plugin: WechatPluginLike, renderSettingsContent?: () => void, renderSettingsTabIntro?: (containerEl: WechatSettingsElement, description: string) => void, [key: string]: unknown }} WechatSettingsTabLike
+ * @typedef {{ plugin: WechatPluginLike, renderSettingsTabIntro?: (containerEl: WechatSettingsElement, description: string) => void, [key: string]: unknown }} WechatSettingsTabLike
  * @typedef {{ Setting: WechatSettingConstructor, Notice: WechatNoticeConstructor }} WechatObsidianApiLike
  * @typedef {{ color: string, path: string }} BrowserIconDef
  * @typedef {{ id: string, name: string, authKnown?: boolean, authStatus?: string, authenticated?: boolean }} WechatPlatformLike
@@ -246,22 +244,6 @@ function getObsidianApi(tab, options = {}) {
 
 /**
  * @param {WechatSettingsTabLike} tab
- * @returns {boolean}
- */
-function refreshSettingTab(tab) {
-  if (!tab || typeof tab !== 'object') return false;
-  if (typeof tab.renderSettingsContent === 'function') {
-    tab.renderSettingsContent();
-    return true;
-  }
-  const legacyRender = tab[LEGACY_SETTING_RENDER_KEY];
-  if (typeof legacyRender !== 'function') return false;
-  legacyRender.call(tab);
-  return true;
-}
-
-/**
- * @param {WechatSettingsTabLike} tab
  * @param {WechatSettingsElement} containerEl
  * @param {{ obsidianApi?: Partial<WechatObsidianApiLike> }} [options={}]
  */
@@ -271,6 +253,10 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
   const pluginSettings = toSettingsRecord(plugin.settings);
   const multiPlatformSettings = normalizeMultiPlatformSyncSettings(pluginSettings.multiPlatformSync);
   plugin.settings.multiPlatformSync = multiPlatformSettings;
+
+  // 本页是子页面：连接状态 / 开关变化后原地重绘本页容器
+  const rerender = () => renderMultiPlatformSettingsTab(tab, containerEl, options);
+  containerEl.empty();
 
   const renderSettingsTabIntro = tab.renderSettingsTabIntro;
   if (typeof renderSettingsTabIntro === 'function') {
@@ -317,7 +303,7 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
             console.warn('停止浏览器插件连接失败:', error);
           });
         }
-        refreshSettingTab(tab);
+        rerender();
       }));
   if (!multiPlatformSettings.enabled) {
     return;
@@ -772,7 +758,7 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
         } finally {
           button.setDisabled?.(false);
           button.setButtonText('测试');
-          if (shouldRedisplay) refreshSettingTab(tab);
+          if (shouldRedisplay) rerender();
         }
       }));
 

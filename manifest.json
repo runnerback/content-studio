@@ -1,8 +1,8 @@
 {
 	"id": "content-studio",
 	"name": "Content Studio",
-	"version": "3.9.43",
-	"minAppVersion": "1.4.0",
+	"version": "3.10.0",
+	"minAppVersion": "1.13.0",
 	"description": "Turn notes into WeChat Official Account articles, Xiaohongshu image cards, and Feishu docs, with live preview.",
 	"author": "runnerback",
 	"authorUrl": "https://github.com/runnerback/obsidian-wechat-converter",

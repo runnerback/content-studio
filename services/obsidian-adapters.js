@@ -74,10 +74,6 @@ export function isMobileClient(app) {
   return !!(app && app.isMobile);
 }
 
-// Obfuscated on purpose (avoid literal legacy `display` method reference in
-// scan-sensitive contexts); mirrors the original input.js constant.
-const LEGACY_SETTING_RENDER_KEY = ['dis', 'play'].join('');
-
 export function getActiveDocumentCompat() {
   return getActiveDocument();
 }
@@ -136,36 +132,20 @@ export function setPluginSettings(plugin, settings) {
 }
 
 /**
- * @param {any} button
- * @returns {any}
- */
-export function setDestructiveButtonCompat(button) {
-  if (!button) return button;
-  const setDestructive = button.setDestructive;
-  if (typeof setDestructive === 'function') {
-    setDestructive.call(button);
-    return button;
-  }
-  const setWarning = button.setWarning;
-  if (typeof setWarning === 'function') {
-    setWarning.call(button);
-    return button;
-  }
-  return button;
-}
-
-/**
- * @param {any} tab
- * @returns {boolean}
+ * 重绘插件设置面板（Obsidian 1.13+ 声明式 Settings API）。
+ * 若当前正打开某个子页面（飞书 / 其他平台 / 小红书），只重绘该子页面；
+ * 否则调用 tab.update() 让宿主按 getSettingDefinitions() 重新渲染顶层内容。
+ * @param {any} tab AppleStyleSettingTab 实例
+ * @returns {boolean} 是否触发了重绘
  */
 export function refreshSettingTabCompat(tab) {
   if (!tab || typeof tab !== 'object') return false;
-  if (typeof tab.renderSettingsContent === 'function') {
-    tab.renderSettingsContent();
+  const activePage = tab.activeSettingPage;
+  if (activePage && typeof activePage.display === 'function') {
+    activePage.display();
     return true;
   }
-  const legacyRender = tab[LEGACY_SETTING_RENDER_KEY];
-  if (typeof legacyRender !== 'function') return false;
-  legacyRender.call(tab);
+  if (typeof tab.update !== 'function') return false;
+  tab.update();
   return true;
 }

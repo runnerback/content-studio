@@ -71,10 +71,9 @@
  * @typedef {{ updateConfig?: (values: Record<string, unknown>) => void, reinit?: () => void, initMarkdownIt?: () => Promise<void> }} ConverterRuntimeLike
  * @typedef {{ renderForPreview: (markdown: string, context: { sourcePath: string, settings: PluginSettingsLike }) => Promise<string> }} RenderPipelineLike
  * @typedef {{ updateAiToolbarState?: () => void, refreshAiLayoutPanel?: () => void }} ConverterViewRefreshLike
- * @typedef {PluginBaseLike & { settings: PluginSettingsLike, obsidianApi?: ObsidianApiLike, _wechatSyncBridgeService?: WechatSyncBridgeServiceLike, _wechatSyncBridgeCacheKey?: string, _lastSaveSettingsErrorAt?: number, openConverter: () => Promise<void>, openExternalUrl?: (url: string) => boolean, getConverterView?: () => unknown, getWechatSyncBridgeService?: () => WechatSyncBridgeServiceLike, saveSettings: () => Promise<boolean>, getArticleLayoutState?: (sourcePath: string, selection?: AiLayoutSelectionLike | Record<string, unknown>) => AiLayoutStateLike | null, saveArticleLayoutState?: (sourcePath: string, nextState: AiLayoutStateLike | Record<string, unknown>, selection?: AiLayoutSelectionLike | Record<string, unknown>) => Promise<AiLayoutStateLike | null> }} AppleStylePluginLike
+ * @typedef {PluginBaseLike & { settings: PluginSettingsLike, obsidianApi?: ObsidianApiLike, _wechatSyncBridgeService?: WechatSyncBridgeServiceLike, _wechatSyncBridgeCacheKey?: string, settingTab?: SettingTabCompatLike, _lastSaveSettingsErrorAt?: number, openConverter: () => Promise<void>, openExternalUrl?: (url: string) => boolean, getConverterView?: () => unknown, getWechatSyncBridgeService?: () => WechatSyncBridgeServiceLike, saveSettings: () => Promise<boolean>, getArticleLayoutState?: (sourcePath: string, selection?: AiLayoutSelectionLike | Record<string, unknown>) => AiLayoutStateLike | null, saveArticleLayoutState?: (sourcePath: string, nextState: AiLayoutStateLike | Record<string, unknown>, selection?: AiLayoutSelectionLike | Record<string, unknown>) => Promise<AiLayoutStateLike | null> }} AppleStylePluginLike
  * @typedef {{ settings?: PluginSettingsLike | Record<string, unknown> }} PluginWithSettingsLike
- * @typedef {{ setDestructive?: () => unknown, setWarning?: () => unknown }} ButtonCompatLike
- * @typedef {{ renderSettingsContent?: () => void, [key: string]: unknown }} SettingTabCompatLike
+ * @typedef {{ update?: () => void, activeSettingPage?: { display: () => void } | null, [key: string]: unknown }} SettingTabCompatLike
  * @typedef {{ commandName: string, zhTitle: string, enTitle: string, zhPlaceholder: string[], enPlaceholder: string[], zhNotice: string, enNotice: string }} ImageSwipeCopyLike
  * @typedef {{ message: string, isFatal?: boolean, isProxyAuth?: boolean }} ReadableErrorLike
  * @typedef {{ method?: string, body?: string, headers?: Record<string, string>, contentType?: string, throw?: boolean }} RequestUrlOptionsLike
@@ -2028,7 +2027,9 @@ class AppleStylePlugin extends Plugin {
 
     // Command 'convert-to-apple-style' removed as per user request
 
-    this.addSettingTab(new AppleStyleSettingTab(this.app, this));
+    // 持有设置面板实例：浏览器插件连接状态变化时只重绘自己的面板（见 getWechatSyncBridgeService）
+    this.settingTab = new AppleStyleSettingTab(this.app, this);
+    this.addSettingTab(this.settingTab);
 
     this.app.workspace.onLayoutReady(() => {
       this.migrateLegacyConverterLeafTitles().catch((error) => {
@@ -2202,7 +2203,11 @@ class AppleStylePlugin extends Plugin {
           connectedClients: Array.isArray(clients) ? clients : [],
         });
         await this.saveSettings();
-        refreshSettingTabCompat(/** @type {SettingTabCompatLike | null | undefined} */ (this.app?.setting?.activeTab));
+        // 仅当设置窗口当前停留在本插件面板时重绘（顶层走 update()，子页面走 page.display()）
+        const activeTab = this.app?.setting?.activeTab;
+        if (activeTab && activeTab === this.settingTab) {
+          refreshSettingTabCompat(/** @type {SettingTabCompatLike} */ (activeTab));
+        }
       },
     });
     return this._wechatSyncBridgeService;

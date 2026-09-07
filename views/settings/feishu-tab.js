@@ -155,7 +155,8 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
       .onChange(async (value) => {
         settings.enabled = value;
         await plugin.saveSettings();
-        tab.display(); // re-render setting tab
+        // 飞书已是独立子页面：只重绘本页容器，不再重绘整个设置面板
+        renderFeishuSettingsTab(tab, containerEl, { obsidianApi: obsidian });
       })
     );
 
