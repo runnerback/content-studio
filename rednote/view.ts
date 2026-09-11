@@ -305,12 +305,16 @@ export class RedPreviewController {
         this.previewEl.empty();
 
         const content = await this.app.vault.cachedRead(this.currentFile);
+        // 第 5 参必须是真正的 Obsidian Component：渲染图片嵌入（![]()）时 Obsidian 会调
+        // component.addChild() 挂载 MarkdownRenderChild。本类不是 Component（生命周期已委托宿主视图），
+        // 从 note-to-red 移植时残留的 `this` 在文案带配图后直接 TypeError: addChild is not a function，
+        // 渲染中断 → 切卡/套主题都没跑 → 预览排版崩成一排（2026-09-11 事故）。
         await MarkdownRenderer.render(
             this.app,
             content,
             this.previewEl,
             this.currentFile.path,
-            this
+            this.hostComponent
         );
 
         RedConverter.formatContent(this.previewEl);

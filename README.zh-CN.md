@@ -1,6 +1,6 @@
 # Content Studio
 
-> 版本 3.10.0 · 更新 2026-09-04 · [English](./README.md)
+> 版本 3.10.1 · 更新 2026-09-11 · [English](./README.md)
 
 把 Obsidian 笔记变成可直接发布的内容：**微信公众号**文章、**小红书**图文卡片、**飞书**云文档——全部在 Obsidian 内实时预览。
 
