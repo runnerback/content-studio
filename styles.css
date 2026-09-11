@@ -2446,6 +2446,23 @@ input[type="range"].apple-slider:active::-webkit-slider-thumb {
   line-height: 1.55;
 }
 
+/* 指南步骤（ol/li）：与同卡片内 p 同规格。此前无规则、继承正文 15px，与上方 12px 说明文字失衡（2026-09-11） */
+.wechat-multiplatform-onboarding-steps {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--apple-secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.wechat-multiplatform-onboarding-steps li {
+  margin: 3px 0;
+}
+
+.wechat-multiplatform-onboarding-steps li::marker {
+  color: var(--apple-secondary);
+}
+
 
 .wechat-multiplatform-token-status {
   display: flex;

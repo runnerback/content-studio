@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 定义插件名称
-PLUGIN_NAME="obsidian-wechat-converter"
+PLUGIN_NAME="content-studio"
 ZIP_FILE="${PLUGIN_NAME}.zip"
 
 echo "📦 开始打包 $PLUGIN_NAME..."

@@ -269,7 +269,7 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
 
   new Setting(containerEl)
     .setName('浏览器插件发布')
-    .setDesc('Obsidian 负责写作、预览和平台选择；浏览器插件使用当前的浏览器登录态，把文章保存到知乎、掘金、CSDN 等平台草稿箱。微信仍可使用上方公众号 API。')
+    .setDesc('Obsidian 负责写作、预览和平台选择；浏览器插件使用当前的浏览器登录态，把文章保存到小红书、X 的草稿箱。微信公众号走上方的公众号 API。')
     .setHeading();
 
   const guide = containerEl.createDiv({
@@ -280,10 +280,10 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
     text: '多平台发布依赖配套浏览器扩展「多栖 Crosspost」',
   });
   const steps = guide.createEl('ol', { cls: 'wechat-multiplatform-onboarding-steps' });
-  steps.createEl('li', { text: '下载：目前仅支持从 GitHub 下载扩展包（Chrome 应用商店待上架）。' });
-  steps.createEl('li', { text: '安装：Chrome → 扩展程序 → 打开「开发者模式」→「加载已解压的扩展程序」→ 选择扩展的 dist 目录。' });
+  steps.createEl('li', { text: '获取：扩展随本仓库维护（crosspost/packages/extension/dist，pnpm run build:extension 构建），不上应用商店。' });
+  steps.createEl('li', { text: '安装：Edge / Chrome → 扩展程序 → 打开「开发者模式」→「加载已解压的扩展程序」→ 选择上述 dist 目录；仓库目录改名或重建 dist 后需重新加载并重新配对。' });
   steps.createEl('li', { text: '配对：打开扩展弹窗 → 设置 → 复制「连接令牌」，填到下方；两端令牌一致即完成配对。' });
-  steps.createEl('li', { text: '发布：在「发布与分发」勾选目标平台，文章会经扩展用你的浏览器登录态存入各平台草稿箱。' });
+  steps.createEl('li', { text: '发布：在「发布与分发」选择小红书或 X，图卡与正文会经扩展用你的浏览器登录态存入草稿箱。' });
 
   new Setting(containerEl)
     .setName('启用浏览器插件发布')

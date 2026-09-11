@@ -43,7 +43,7 @@ Obsidian 插件 ──HTTPS──►  ECS(nginx) ──►  app.js(:3000) ──
 在本机项目根目录执行（也可用 `npm run deploy:server`，见插件根 `package.json`）：
 
 ```bash
-cd obsidian-plugin/obsidian-wechat-converter
+cd obsidian-plugin/content-studio
 rsync -avz --delete \
   --exclude='node_modules' \
   --exclude='.env' \
