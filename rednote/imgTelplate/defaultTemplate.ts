@@ -32,9 +32,13 @@ export class DefaultTemplate implements ImgTemplate {
             const header = element.querySelector('.red-preview-header');
             const footer = element.querySelector('.red-preview-footer');
 
-            // 更新头部内容
+            // 更新头部内容（与页脚同款开关：showHeader=false 时整块移除，备忘录主题的专属头部也随之不渲染）
             if (this.sections.header && header) {
-                this.createHeaderContent(header as HTMLElement);
+                if (settings.showHeader !== false) {
+                    this.createHeaderContent(header as HTMLElement);
+                } else {
+                    header.remove();
+                }
             }
 
             // 页脚内容

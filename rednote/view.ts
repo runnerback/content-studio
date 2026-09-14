@@ -243,6 +243,18 @@ export class RedPreviewController {
     }
 
     /** 导出当前页图卡(笔记名称-n.png);无有效内容时抛错由宿主提示 */
+    /** 页眉（头像/昵称/时间）显示开关：改设置后立即重渲染当前预览 */
+    async setShowHeader(value: boolean) {
+        await this.settingsManager.updateSettings({ showHeader: value });
+        await this.updatePreview();
+    }
+
+    /** 页脚（署名）显示开关：同上 */
+    async setShowFooter(value: boolean) {
+        await this.settingsManager.updateSettings({ showFooter: value });
+        await this.updatePreview();
+    }
+
     async downloadCurrentPage() {
         this.ensureExportReady();
         await DownloadManager.downloadSingleImage(this.previewEl, this.exportNoteName(), this.currentImageIndex);

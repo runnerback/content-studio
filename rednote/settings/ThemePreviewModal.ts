@@ -61,6 +61,9 @@ export class ThemePreviewModal extends Modal {
         userMeta.createEl('div', { cls: 'red-user-id', text: `${settings.userId}` });
         const userRight = userInfo.createEl('div', { cls: 'red-user-right' });
         userRight.createEl('div', { cls: 'red-post-time', text: '2025/4/20' });
+        if (settings.showHeader === false) {
+            header.remove();   // 与正式渲染一致：关闭页眉时预览也不显示
+        }
 
         // 内容区域
         const content = previewContainer.createDiv('red-preview-content');

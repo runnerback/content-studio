@@ -202,6 +202,20 @@ export class RedSettingTab extends PluginSettingTab {
                 })
             );
 
+        // 页眉显示设置（头像/昵称/时间整块）：与页脚对称，替代此前靠 CSS 片段 display:none 硬藏的做法
+        new Setting(themeVisibilityContent)
+            .setName('是否显示页眉')
+            .setDesc('控制是否在图卡顶部显示头像、昵称、时间；关闭后正文区上移')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settingsManager.getSettings().showHeader !== false)
+                .onChange(async (value) => {
+                    await this.plugin.settingsManager.updateSettings({
+                        showHeader: value
+                    });
+                    new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                })
+            );
+
         // 添加页脚显示设置
         new Setting(themeVisibilityContent)
             .setName('是否显示页脚')

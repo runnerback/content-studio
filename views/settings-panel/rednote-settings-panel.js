@@ -82,6 +82,26 @@ export const rednoteSettingsPanelMixin = {
       });
     });
 
+    // === 页眉 / 页脚（2026-09-14）===
+    // 分发文案的图卡不需要头像/昵称/时间和署名区。此前靠 CSS 片段 display:none 硬藏；
+    // 现在是插件原生开关：关闭即整块移除 DOM，预览/导出/发布一致。设置页「显示设置」里也有同两项（默认折叠）。
+    this.createSection(area, '页眉 / 页脚', (section) => {
+      const makeToggle = (label, checked, onChange) => {
+        const row = section.createEl('div', { cls: 'apple-toggle-row' });
+        const toggle = row.createEl('label', { cls: 'apple-toggle' });
+        const checkbox = /** @type {ObsidianInputLike} */ (toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' }));
+        checkbox.checked = checked;
+        toggle.createEl('span', { cls: 'apple-toggle-slider' });
+        row.createEl('span', {
+          text: label,
+          attr: { style: 'font-size: 11px; color: var(--apple-secondary); opacity: 0.8; font-weight: 500;' }
+        });
+        checkbox.addEventListener('change', () => { onChange(checkbox.checked); });
+      };
+      makeToggle('显示页眉（头像 / 昵称 / 时间）', settings.showHeader !== false, (v) => controller.setShowHeader(v));
+      makeToggle('显示页脚（署名）', settings.showFooter !== false, (v) => controller.setShowFooter(v));
+    });
+
     // === 背景图 ===
     this.createSection(area, '背景图', (section) => {
       const btn = section.createEl('button', {

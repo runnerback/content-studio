@@ -280,6 +280,23 @@
   width: 100%;
 }
 
+/* 「开关 + 说明」行（小红书面板 页眉/页脚）：不在 .apple-settings-details 作用域内，需自带 flex 与行距。
+   此前无规则时 inline-flex 的开关与文字贴在一起、两行叠在一起（2026-09-14） */
+.apple-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0;
+}
+
+.apple-toggle-row + .apple-toggle-row {
+  margin-top: 10px;
+}
+
+.apple-toggle-row .apple-toggle {
+  flex: 0 0 auto;
+}
+
 .apple-settings-details .apple-settings-inline-toggle .apple-setting-content {
   display: flex;
   flex-direction: column;

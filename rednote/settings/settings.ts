@@ -24,6 +24,7 @@ interface RedSettings {
     userId: string;
     showTime: boolean;
     timeFormat: string;
+    showHeader?: boolean;   // 页眉（头像/昵称/时间）显示开关；与 showFooter 同语义。2026-09-14 补齐，替代 CSS 片段硬藏
     showFooter?: boolean;
     footerLeftText: string;
     footerRightText: string;
