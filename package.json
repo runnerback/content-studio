@@ -1,6 +1,6 @@
 {
-	"name": "content-studio",
-	"version": "3.10.5",
+	"name": "note-content-studio",
+	"version": "3.11.0",
 	"description": "Turn notes into WeChat Official Account articles, Xiaohongshu image cards, and Feishu docs, with live preview.",
 	"main": "main.js",
 	"scripts": {
@@ -25,8 +25,7 @@
 		"release:dryrun": "npm run review:guard",
 		"scan:guard": "npm run lint && node scripts/check-scan-risk-patterns.mjs",
 		"review:guard": "npm run scan:guard && npm run check:build-artifacts && npm test -- --run && npm run release:pack && npm run release:validate",
-		"lint": "eslint .",
-		"deploy:server": "rsync -avz --delete --exclude 'node_modules' --exclude '.env' --exclude '*.log' ./server/ root@115.190.207.149:/var/www/wechat-proxy/ && ssh root@115.190.207.149 'cd /var/www/wechat-proxy && npm install --production && (pm2 restart wechat-proxy || pm2 start ecosystem.config.js)'"
+		"lint": "eslint ."
 	},
 	"keywords": [
 		"obsidian",

@@ -92,7 +92,7 @@ describe('AppleStyleView - sync action modal flows', () => {
 
     AppleStyleView = loadInputModule().AppleStyleView;
     view = new AppleStyleView(null, {
-      manifest: { id: 'content-studio' },
+      manifest: { id: 'note-content-studio' },
       settings: {},
       saveSettings: vi.fn(),
     });

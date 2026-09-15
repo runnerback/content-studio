@@ -136,6 +136,10 @@
   cursor: pointer;
   transition: all 0.2s ease;
 }
+/* 顶栏按钮按模式显隐（公众号 / 图卡）：用类而非内联 style */
+.apple-icon-btn.is-hidden {
+  display: none;
+}
 
 .apple-icon-btn:hover {
   background: var(--apple-surface);

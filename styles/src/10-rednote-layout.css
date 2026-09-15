@@ -130,11 +130,12 @@
 .red-nav-hidden {
   visibility: hidden;
 }
-.red-section-visible {
-  display: block !important;
+/* 导出图卡时逐节强制显隐：特异性需高于上面的 .red-preview-container section:not(.red-section-active) */
+.red-preview-container section.red-content-section.red-section-visible {
+  display: block;
 }
-.red-section-hidden {
-  display: none !important;
+.red-preview-container section.red-content-section.red-section-hidden {
+  display: none;
 }
 .red-empty-message {
   text-align: center;

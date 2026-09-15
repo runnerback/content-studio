@@ -69,7 +69,7 @@ export class ThemePreviewModal extends Modal {
         const content = previewContainer.createDiv('red-preview-content');
 
         // 标题样式
-        content.createEl('h2', { text: '探索夜半插件的无限可能' });
+        content.createEl('h2', { text: '探索 Note Content Studio 的无限可能' });
 
         // 段落样式
         const paragraph1 = content.createEl('p');
@@ -93,7 +93,7 @@ export class ThemePreviewModal extends Modal {
         ['red', 'yellow', 'green'].forEach(color => {
             dots.createSpan({ cls: `red-code-dot red-code-dot-${color}` });
         });
-        codeBlock.createEl('code', { text: 'console.log("欢迎使用夜半插件！");' });
+        codeBlock.createEl('code', { text: 'console.log("欢迎使用 Note Content Studio！");' });
 
         // 分隔线样式
         content.createEl('hr');

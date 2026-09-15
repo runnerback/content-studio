@@ -212,6 +212,10 @@ THIS IS A GENERATED FILE — 由 scripts/build-styles.mjs 拼接 styles/src/*.cs
   cursor: pointer;
   transition: all 0.2s ease;
 }
+/* 顶栏按钮按模式显隐（公众号 / 图卡）：用类而非内联 style */
+.apple-icon-btn.is-hidden {
+  display: none;
+}
 
 .apple-icon-btn:hover {
   background: var(--apple-surface);
@@ -4950,11 +4954,12 @@ div.modal.wechat-material-picker-modal-mobile {
 .red-nav-hidden {
   visibility: hidden;
 }
-.red-section-visible {
-  display: block !important;
+/* 导出图卡时逐节强制显隐：特异性需高于上面的 .red-preview-container section:not(.red-section-active) */
+.red-preview-container section.red-content-section.red-section-visible {
+  display: block;
 }
-.red-section-hidden {
-  display: none !important;
+.red-preview-container section.red-content-section.red-section-hidden {
+  display: none;
 }
 .red-empty-message {
   text-align: center;
@@ -5107,9 +5112,9 @@ div.modal.wechat-material-picker-modal-mobile {
   align-items: center;
   justify-content: center;
 }
-.red-user-avatar img {
+.red-preview-header .red-user-avatar img {
   width: 100%;
-  height: 100% !important;
+  height: 100%;
   object-fit: cover;
   border-radius: 50%;
 }

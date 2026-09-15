@@ -46,14 +46,14 @@ export const DEFAULT_SETTINGS: RedSettings = {
     customThemes: [],
     // 修改默认用户信息
     userAvatar: '',  // 默认为空，提示用户上传
-    userName: '夜半',
+    userName: '笔记作者',
     notesTitle: '备忘录',
-    userId: '@Yeban',
+    userId: '@notes',
     showTime: true,
     timeFormat: 'zh-CN',
     headingLevel: 'h2', // 默认使用二级标题
-    footerLeftText: '夜半过后，光明便启程',
-    footerRightText: '欢迎关注公众号：夜半',
+    footerLeftText: '记录 · 思考 · 分享',
+    footerRightText: '由 Note Content Studio 生成',
     customFonts: [
         {
             value: 'Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, "PingFang SC", Cambria, Cochin, Georgia, Times, "Times New Roman", serif',

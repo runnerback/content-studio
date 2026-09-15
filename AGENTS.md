@@ -27,10 +27,10 @@ This file provides guidance to Codex when working with code in this repository.
 
 ## Testing Expectations
 - This project still relies on manual visual testing for end-to-end rendering quality and WeChat paste/sync behavior.
-- Use [TEST.md](/Users/davidlin/Documents/Obsidian/MyVault/.obsidian/plugins/obsidian-wechat-converter/TEST.md) for general rendering checks.
-- Use [TEST_MATH.md](/Users/davidlin/Documents/Obsidian/MyVault/.obsidian/plugins/obsidian-wechat-converter/TEST_MATH.md) when touching formula rendering or math upload behavior.
-- Use [OBSIDIAN_SCAN_CHECKLIST.md](/Users/davidlin/Documents/Obsidian/MyVault/.obsidian/plugins/obsidian-wechat-converter/OBSIDIAN_SCAN_CHECKLIST.md) before merging feature branches or preparing a release candidate.
-- The repository also has a substantial Vitest suite under [tests](/Users/davidlin/Documents/Obsidian/MyVault/.obsidian/plugins/obsidian-wechat-converter/tests). For logic changes, especially around rendering, sanitization, path resolution, sync flow, or error handling, add or update unit tests unless the change is purely cosmetic.
+- Use [TEST.md](./TEST.md) for general rendering checks.
+- Use [TEST_MATH.md](./TEST_MATH.md) when touching formula rendering or math upload behavior.
+- Use [OBSIDIAN_SCAN_CHECKLIST.md](./OBSIDIAN_SCAN_CHECKLIST.md) before merging feature branches or preparing a release candidate.
+- The repository also has a substantial Vitest suite under [tests](./tests). For logic changes, especially around rendering, sanitization, path resolution, sync flow, or error handling, add or update unit tests unless the change is purely cosmetic.
 
 ## Architecture & Structure
 - **Entry source**: `input.js`

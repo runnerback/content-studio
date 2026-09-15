@@ -36,11 +36,11 @@ description: 为 Obsidian 微信公众号转换器生成受约束的 AI 编排�
 - `phone-frame`
 - `cta-card`
 
-详细字段约束见 [schema/article-layout.schema.json](/Users/davidlin/Documents/Obsidian/MyVault/.obsidian/plugins/obsidian-wechat-converter/ai-layout-skill/schema/article-layout.schema.json)。
+详细字段约束见 [schema/article-layout.schema.json](./schema/article-layout.schema.json)。
 
 ## Layout families and color palettes
 
-当前内置布局风格与配色方案见 [assets/style-packs.json](/Users/davidlin/Documents/Obsidian/MyVault/.obsidian/plugins/obsidian-wechat-converter/ai-layout-skill/assets/style-packs.json)。
+当前内置布局风格与配色方案见 [assets/style-packs.json](./assets/style-packs.json)。
 
 - `layoutFamily`
   控制排版骨架，例如 `source-first`、`tutorial-cards`、`editorial-lite`
@@ -55,7 +55,7 @@ description: 为 Obsidian 微信公众号转换器生成受约束的 AI 编排�
 
 ## Output template
 
-优先参考 [templates/article-layout.template.json](/Users/davidlin/Documents/Obsidian/MyVault/.obsidian/plugins/obsidian-wechat-converter/ai-layout-skill/templates/article-layout.template.json) 的结构。
+优先参考 [templates/article-layout.template.json](./templates/article-layout.template.json) 的结构。
 
 ## When diagnosing bad results
 

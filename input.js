@@ -441,10 +441,10 @@ class AppleStyleView extends ItemView {
       // 图卡模式(小红书/X)复用同一组(样式设置/下载);「发布与分发」通用,始终保留
       const wechatOnly = mode === 'wechat';
       for (const btn of [this.settingsBtn, this.aiLayoutBtn, this.copyBtn]) {
-        if (btn) btn.style.display = wechatOnly ? '' : 'none';
+        if (btn) btn.classList.toggle('is-hidden', !wechatOnly);
       }
       for (const btn of [this.rednoteSettingsBtn, this.rednoteDownloadBtn]) {
-        if (btn) btn.style.display = wechatOnly ? 'none' : '';
+        if (btn) btn.classList.toggle('is-hidden', wechatOnly);
       }
       // 切换模式时收起已打开的悬浮层(触发按钮随模式显隐,层不该残留)
       if (typeof this.closeTransientPanels === 'function') {
@@ -1261,7 +1261,7 @@ class AppleStyleView extends ItemView {
     if (!settingApi || typeof settingApi.open !== 'function') return false;
 
     settingApi.open();
-    const tabId = this.plugin?.manifest?.id || 'content-studio';
+    const tabId = this.plugin?.manifest?.id || 'note-content-studio';
     if (typeof settingApi.openTabById === 'function') {
       settingApi.openTabById(tabId);
     }
@@ -2002,7 +2002,7 @@ class AppleStylePlugin extends Plugin {
 
     this.addCommand({
       id: 'open-apple-converter',
-      name: `打开${APPLE_STYLE_VIEW_TITLE}`,
+      name: '打开预览面板',
       callback: async () => {
         await this.openConverter();
       },

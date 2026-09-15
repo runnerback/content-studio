@@ -1,6 +1,17 @@
 MIT License
 
-Copyright (c) 2026 Content Studio
+Copyright (c) 2026 runnerback (Note Content Studio)
+
+This project is a derivative work. It is based on "obsidian-wechat-converter"
+and includes a TypeScript port of the "note-to-red" rendering engine. The
+original copyright and permission notices of those works are retained below,
+as required by the MIT License:
+
+    obsidian-wechat-converter — Copyright (c) 2026 林小卫 (DavidLam)
+    https://github.com/davidlam-oss/obsidian-wechat-converter
+
+    note-to-red — Copyright (c) 2025 夜半Yeban
+    https://github.com/yeban8090/note-to-red
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

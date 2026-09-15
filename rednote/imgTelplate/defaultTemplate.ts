@@ -1,5 +1,6 @@
 import type { ImgTemplate } from '../imgTemplateManager.ts';
 import type { SettingsManager } from '../settings/settings.ts';
+import { DEFAULT_SETTINGS } from '../settings/settings.ts';
 import { Notice } from 'obsidian';
 
 export class DefaultTemplate implements ImgTemplate {
@@ -199,7 +200,7 @@ export class DefaultTemplate implements ImgTemplate {
         const handleBlur = async () => {
             const newName = input.value.trim();
             await this.settingsManager.updateSettings({
-                userName: newName || '夜半'
+                userName: newName || DEFAULT_SETTINGS.userName
             });
             await this.onSettingsUpdate();
             input.replaceWith(element);
@@ -224,7 +225,7 @@ export class DefaultTemplate implements ImgTemplate {
         const handleBlur = async () => {
             const newId = input.value.trim();
             await this.settingsManager.updateSettings({
-                userId: newId || '@Yeban'
+                userId: newId || DEFAULT_SETTINGS.userId
             });
             await this.onSettingsUpdate();
             input.replaceWith(element);
@@ -249,8 +250,8 @@ export class DefaultTemplate implements ImgTemplate {
         const handleBlur = async () => {
             const newText = input.value.trim();
             const settings = position === 'left' 
-                ? { footerLeftText: newText || '夜半过后，光明便启程' }
-                : { footerRightText: newText || '欢迎关注公众号：夜半' };
+                ? { footerLeftText: newText || DEFAULT_SETTINGS.footerLeftText }
+                : { footerRightText: newText || DEFAULT_SETTINGS.footerRightText };
             
             await this.settingsManager.updateSettings(settings);
             await this.onSettingsUpdate();

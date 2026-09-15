@@ -1,6 +1,6 @@
 # wechat-proxy · 自用微信公众号 API 中转代理
 
-> **版本**：v1.0.0 ｜ **最后更新**：2026-07-06
+> **版本**：v1.0.1 ｜ **最后更新**：2026-09-14（移除插件 `package.json` 里的 `deploy:server` 脚本，部署命令改为下方手动 rsync；插件上架社区市场前不再在公开仓库里保留个人服务器地址）
 > 部署在个人 ECS 上，用固定公网 IP 转发微信请求，解决“本机 IP 经常变 → 微信 IP 白名单漂移 → 同步失败”。
 
 ---
@@ -13,7 +13,7 @@
 
 ```
 Obsidian 插件 ──HTTPS──►  ECS(nginx) ──►  app.js(:3000) ──►  api.weixin.qq.com
-   (本机 IP 随便变)         wechat-proxy.runfast.xyz          (只认 ECS 固定 IP)
+   (本机 IP 随便变)         <你的代理域名>          (只认 ECS 固定 IP)
 ```
 
 ## 2. 协议（插件已内置，无需改插件）
@@ -34,20 +34,20 @@ Obsidian 插件 ──HTTPS──►  ECS(nginx) ──►  app.js(:3000) ──
 - **零存储**：只在内存中转发，不落库；错误日志只打消息、绝不打含 AppSecret 的 URL。
 - **强制 HTTPS**：插件端拒绝 `http://` 代理地址（保护 AppSecret），所以 nginx 必须上证书。
 
-## 4. 部署到 ECS（沿用 feishu-tool 那台：`115.190.207.149`）
+## 4. 部署到 ECS（沿用 feishu-tool 那台：`<你的服务器公网IP>`）
 
 > Node.js 需 ≥ 18（用到全局 `fetch`/`FormData`/`Blob`）。ECS 上已有 Node 22 + PM2 + nginx + certbot。
 
 ### 4.1 上传代码
 
-在本机项目根目录执行（也可用 `npm run deploy:server`，见插件根 `package.json`）：
+在本机项目根目录执行：
 
 ```bash
 cd obsidian-plugin/content-studio
 rsync -avz --delete \
   --exclude='node_modules' \
   --exclude='.env' \
-  server/ root@115.190.207.149:/var/www/wechat-proxy/
+  server/ root@<你的服务器公网IP>:/var/www/wechat-proxy/
 ```
 
 > `.env` 不 rsync（不覆盖 ECS 上的生产配置），首次需手动创建，见 4.2。
@@ -55,7 +55,7 @@ rsync -avz --delete \
 ### 4.2 首次：配 .env + 装依赖 + 起服务
 
 ```bash
-ssh root@115.190.207.149
+ssh root@<你的服务器公网IP>
 cd /var/www/wechat-proxy
 
 # 1) 配置 .env（生成一个随机口令）
@@ -74,7 +74,7 @@ pm2 save
 ### 4.3 nginx + HTTPS（首次）
 
 ```bash
-# 1) DNS：把 wechat-proxy.runfast.xyz 的 A 记录指向 115.190.207.149
+# 1) DNS：把 <你的代理域名> 的 A 记录指向 <你的服务器公网IP>
 
 # 2) 放置 nginx 配置
 cp /var/www/wechat-proxy/deploy/nginx.wechat-proxy.conf.example \
@@ -83,37 +83,35 @@ ln -s /etc/nginx/sites-available/wechat-proxy /etc/nginx/sites-enabled/
 nginx -t && systemctl reload nginx
 
 # 3) 签发证书（certbot 会自动补全 443 块并把 80 跳转 443）
-certbot --nginx -d wechat-proxy.runfast.xyz
+certbot --nginx -d <你的代理域名>
 ```
 
 ### 4.4 后续更新（改了代码）
 
 ```bash
 # 本机
-npm run deploy:server        # rsync + ssh 里 npm install + pm2 restart（见插件根 package.json）
-# 或手动：
 rsync -avz --delete --exclude='node_modules' --exclude='.env' \
-  server/ root@115.190.207.149:/var/www/wechat-proxy/
-ssh root@115.190.207.149 "cd /var/www/wechat-proxy && npm install --production && pm2 restart wechat-proxy"
+  server/ root@<你的服务器公网IP>:/var/www/wechat-proxy/
+ssh root@<你的服务器公网IP> "cd /var/www/wechat-proxy && npm install --production && pm2 restart wechat-proxy"
 ```
 
 ## 5. 验证
 
 ```bash
 # 健康检查
-curl -s https://wechat-proxy.runfast.xyz/health
+curl -s https://<你的代理域名>/health
 # 期望：{"ok":true,"service":"wechat-proxy","tokenRequired":true,...}
 
 # PM2 状态 / 日志
-ssh root@115.190.207.149 "pm2 status wechat-proxy && pm2 logs wechat-proxy --lines 20"
+ssh root@<你的服务器公网IP> "pm2 status wechat-proxy && pm2 logs wechat-proxy --lines 20"
 ```
 
 ## 6. 配置插件 + 微信后台
 
-1. **微信公众平台** → 设置与开发 → 基本配置 → IP 白名单 → 加入 **`115.190.207.149`**。
+1. **微信公众平台** → 设置与开发 → 基本配置 → IP 白名单 → 加入 **`<你的服务器公网IP>`**。
 2. **Obsidian 插件设置** → 高级设置 → **API 代理地址** 填：
    ```
-   https://wechat-proxy.runfast.xyz/proxy?token=<你的 PROXY_TOKEN>
+   https://<你的代理域名>/proxy?token=<你的 PROXY_TOKEN>
    ```
    （没设 PROXY_TOKEN 就不带 `?token=`，但强烈建议设。）
 3. 回插件里正常同步草稿即可，请求会走 ECS 转发。
@@ -124,7 +122,7 @@ ssh root@115.190.207.149 "pm2 status wechat-proxy && pm2 logs wechat-proxy --lin
 |---|---|---|
 | 插件报 401 | 代理地址没带 / 带错 `?token=` | 核对 `.env` 里的 `PROXY_TOKEN`，补到代理地址 |
 | 插件报 400「非法 URL」 | 代理地址填成别的路径/域名 | 必须是 `.../proxy`，且插件请求的是微信 API |
-| 微信报 40164 / IP 不在白名单 | ECS IP 没加白名单 | 微信后台白名单加 `115.190.207.149` |
+| 微信报 40164 / IP 不在白名单 | ECS IP 没加白名单 | 微信后台白名单加 `<你的服务器公网IP>` |
 | 插件报「必须使用 HTTPS」 | 代理地址填了 `http://` | 用 `https://`，先把 4.3 的证书签好 |
 | 502 | app.js 没起 / 端口不对 | `pm2 restart wechat-proxy`，确认 `.env` 的 PORT 与 nginx 一致 |
 
