@@ -61,6 +61,7 @@ export function createDefaultMultiPlatformSyncSettings() {
     enabled: false,
     port: DEFAULT_WECHATSYNC_PORT,
     token: '',
+    licenseKey: '',
     allowRemote: false,
     supportedPlatforms: [],
     connectedClients: [],
@@ -235,6 +236,8 @@ export function normalizeMultiPlatformSyncSettings(value = {}) {
       ? portNumber
       : defaults.port,
     token: typeof source.token === 'string' ? source.token.trim() : '',
+    // Pro / Max 许可密钥；留空按 Free 档计量。随每次发布请求透传给扩展。
+    licenseKey: typeof source.licenseKey === 'string' ? source.licenseKey.trim() : '',
     allowRemote: source.allowRemote === true,
     supportedPlatforms,
     selectedPlatforms,

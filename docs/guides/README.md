@@ -1,6 +1,6 @@
 # 使用说明 Guides
 
-> 适用插件版本：v3.10.0 ｜ 最后更新：2026-09-04 ｜ 编码：UTF-8
+> 适用插件版本：v3.11.3 ｜ 最后更新：2026-09-15 ｜ 编码：UTF-8
 
 「Content Studio」的功能使用说明，按主题拆分。
 
@@ -11,6 +11,7 @@
 | [API 代理设置](./api-proxy.md) | 配置 API 代理地址，解决本机 IP 变化导致的微信 IP 白名单漂移、同步失败 |
 | [AI Provider 设置](./ai-provider.md) | 配置 AI Provider（DeepSeek），启用「AI 编排」和「标题 AI 润色」 |
 | [小红书图文发布](./rednote-publishing.md) | 预览区「小红书」模式：图卡预览/导出，一键发布图文笔记到小红书草稿箱 |
+| [额度与许可](./quota-and-license.md) | 小红书 / X 发布按日计量：Free / Pro / Max 档位、购买与兑换密钥、额度显示与常见问题 |
 
 ## 设置面板速览
 

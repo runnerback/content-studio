@@ -2485,7 +2485,9 @@ input[type="range"].apple-slider:active::-webkit-slider-thumb {
 }
 
 
-.wechat-multiplatform-token-status {
+/* 设置页「额度」行与统一连接状态栏同款外观 */
+.wechat-multiplatform-token-status,
+.wechat-multiplatform-quota-status {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2497,7 +2499,8 @@ input[type="range"].apple-slider:active::-webkit-slider-thumb {
   line-height: 1.4;
 }
 
-.wechat-multiplatform-token-status-dot {
+.wechat-multiplatform-token-status-dot,
+.wechat-multiplatform-quota-status-dot {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
@@ -2507,17 +2510,20 @@ input[type="range"].apple-slider:active::-webkit-slider-thumb {
   color: var(--text-normal, #333);
 }
 
-.wechat-multiplatform-token-status-dot.is-error {
+.wechat-multiplatform-token-status-dot.is-error,
+.wechat-multiplatform-quota-status-dot.is-error {
   background: color-mix(in srgb, var(--text-error, #d33) 15%, transparent);
   color: var(--text-error, #d33);
 }
 
-.wechat-multiplatform-token-status-dot.is-unknown {
+.wechat-multiplatform-token-status-dot.is-unknown,
+.wechat-multiplatform-quota-status-dot.is-unknown {
   background: color-mix(in srgb, var(--text-warning, #d99300) 18%, transparent);
   color: var(--text-warning, #d99300);
 }
 
-.wechat-multiplatform-token-status-dot.is-ok {
+.wechat-multiplatform-token-status-dot.is-ok,
+.wechat-multiplatform-quota-status-dot.is-ok {
   background: color-mix(in srgb, var(--text-success, #2c9c4c) 18%, transparent);
   color: var(--text-success, #2c9c4c);
 }
@@ -2529,7 +2535,8 @@ input[type="range"].apple-slider:active::-webkit-slider-thumb {
   flex-shrink: 0;
 }
 
-.wechat-bridge-status-body {
+.wechat-bridge-status-body,
+.wechat-quota-status-body {
   display: flex;
   align-items: center;
   gap: 6px;

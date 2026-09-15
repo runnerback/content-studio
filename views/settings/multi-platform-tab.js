@@ -16,6 +16,7 @@
 // 设置的子页面（SettingPage）渲染：状态变化后只重绘本页容器。
 
 
+import { formatQuotaSummary, formatQuotaResetTime, formatLicenseStateHint, redeemLicenseKey } from '../../services/wechatsync-quota.js';
 import {
   DEFAULT_WECHATSYNC_PORT,
   retryRecoverableBridgeOperation,
@@ -248,7 +249,7 @@ function getObsidianApi(tab, options = {}) {
  * @param {{ obsidianApi?: Partial<WechatObsidianApiLike> }} [options={}]
  */
 function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
-  const { Setting, Notice } = getObsidianApi(tab, options);
+  const { Setting, Notice, requestUrl } = getObsidianApi(tab, options);
   const { plugin } = tab;
   const pluginSettings = toSettingsRecord(plugin.settings);
   const multiPlatformSettings = normalizeMultiPlatformSyncSettings(pluginSettings.multiPlatformSync);
@@ -341,6 +342,88 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
         await plugin.saveSettings();
         plugin.startWechatSyncBridgeInBackground('settings-token-change');
       }));
+
+  // 小红书 / X 发布额度：Free 每日 3 次；Pro / Max 凭许可密钥。计量在扩展 → 许可服务完成。
+  new Setting(containerEl)
+    .setName('许可密钥（Pro / Max）')
+    .setDesc('小红书 / X 发布按日计量：Free 档每日 3 次；填写付费许可密钥后按 Pro（每日 30 次）或 Max（不限）计量。留空即 Free 档。')
+    .addText(text => text
+      .setPlaceholder('NCS-XXXXX-XXXXX-XXXXX-XXXXX 或 Lemon Squeezy 密钥')
+      .setValue(toText(multiPlatformSettings.licenseKey))
+      .onChange(async (value) => {
+        plugin.settings.multiPlatformSync = normalizeMultiPlatformSyncSettings({
+          ...toRecord(plugin.settings.multiPlatformSync),
+          licenseKey: value,
+        });
+        await plugin.saveSettings();
+      }));
+
+  {
+    let redeemOrderNo = '';
+    new Setting(containerEl)
+      .setName('用爱发电订单号兑换密钥')
+      .setDesc('在爱发电购买后，把订单号粘贴到这里兑换许可密钥并自动填入上方；Lemon Squeezy 用户直接使用邮件里的密钥。')
+      .addText(text => text
+        .setPlaceholder('爱发电订单号')
+        .onChange((value) => { redeemOrderNo = value; }))
+      .addButton(button => button
+        .setButtonText('兑换')
+        .onClick(async () => {
+          if (typeof requestUrl !== 'function') {
+            new Notice('❌ 当前环境不支持网络请求，无法兑换');
+            return;
+          }
+          try {
+            const redeemed = await redeemLicenseKey(requestUrl, redeemOrderNo);
+            plugin.settings.multiPlatformSync = normalizeMultiPlatformSyncSettings({
+              ...toRecord(plugin.settings.multiPlatformSync),
+              licenseKey: redeemed.license_key,
+            });
+            await plugin.saveSettings();
+            new Notice(`✅ 已兑换 ${String(redeemed.tier).toUpperCase()} 许可并填入设置${redeemed.expires_at ? `，有效期至 ${formatQuotaResetTime(redeemed.expires_at)}` : ''}`, 8000);
+            rerender();
+          } catch (redeemError) {
+            new Notice(`❌ 兑换失败：${redeemError instanceof Error ? redeemError.message : String(redeemError)}`, 8000);
+          }
+        }));
+  }
+
+  {
+    // 今日额度：只有扩展在线才能读（设备 ID 在扩展侧）
+    const hasLiveClient = (Array.isArray(multiPlatformSettings.connectedClients) ? multiPlatformSettings.connectedClients : [])
+      .some((client) => isRecord(client) && client.status === 'connected');
+    const quotaBar = containerEl.createDiv({ cls: 'wechat-multiplatform-quota-status' });
+    const quotaDot = quotaBar.createEl('span', { cls: 'wechat-multiplatform-quota-status-dot', text: '额度' });
+    const quotaBody = quotaBar.createDiv({ cls: 'wechat-quota-status-body' });
+    const quotaTextEl = quotaBody.createEl('span');
+    if (!hasLiveClient) {
+      quotaDot.classList?.add?.('is-unknown');
+      quotaTextEl.textContent = '连接浏览器插件后显示今日小红书 / X 发布额度。';
+    } else {
+      quotaTextEl.textContent = '正在读取今日额度…';
+      const bridge = plugin.getWechatSyncBridgeService();
+      bridge.quotaStatus({ licenseKey: multiPlatformSettings.licenseKey })
+        .then((info) => {
+          const quota = toRecord(info);
+          quotaDot.classList?.add?.(quota.tier === 'free' ? 'is-unknown' : 'is-ok');
+          const resetText = formatQuotaResetTime(quota.reset_at);
+          const licenseHint = formatLicenseStateHint(quota);
+          quotaTextEl.textContent = `${formatQuotaSummary(quota)}${resetText ? `（${resetText} 重置）` : ''}${licenseHint ? `。${licenseHint}` : ''}`;
+          if (typeof quota.upgrade_url === 'string' && quota.upgrade_url) {
+            const link = quotaBody.createEl('a', { text: quota.tier === 'free' ? '购买 Pro / Max' : '续费 / 升级', href: quota.upgrade_url });
+            link.onclick = (event) => {
+              event?.preventDefault?.();
+              if (typeof plugin.openExternalUrl === 'function') plugin.openExternalUrl(quota.upgrade_url);
+              else window.open(quota.upgrade_url, '_blank', 'noopener');
+            };
+          }
+        })
+        .catch((quotaError) => {
+          quotaDot.classList?.add?.('is-error');
+          quotaTextEl.textContent = `额度读取失败：${quotaError instanceof Error ? quotaError.message : String(quotaError)}`;
+        });
+    }
+  }
 
   // §4.1 + §16: 统一连接状态栏 — 对普通用户只呈现一个信号
   {

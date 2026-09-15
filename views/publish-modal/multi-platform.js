@@ -52,6 +52,7 @@ import {
   resolveArticleImages,
 } from '../../services/article-image-assets.js';
 import { getActiveWindowValue } from '../../services/dom-utils.js';
+import { formatQuotaSummary } from '../../services/wechatsync-quota.js';
 
 const QUOTA_POLICY = 'truncate';
 const MODAL_SELECTED_PLATFORM_IDS = '__wechatMultiPlatformSelectedPlatformIds';
@@ -294,8 +295,10 @@ function isUnsupportedBridgeError(error) {
  * @param {number} [selectedCount]
  * @returns {string}
  */
-function getQuotaHintText(selectedCount = 0) {
-  return selectedCount > 0 ? `已选 ${selectedCount} 个平台。` : '选择要发布的平台。';
+function getQuotaHintText(selectedCount = 0, quota = null) {
+  const selection = selectedCount > 0 ? `已选 ${selectedCount} 个平台。` : '选择要发布的平台。';
+  if (!quota || typeof quota !== 'object') return selection;
+  return `${formatQuotaSummary(quota)} · ${selection}`;
 }
 
 /**
@@ -650,9 +653,26 @@ async function showMultiPlatformPublishModal(view, options = {}) {
   syncBtn.addClass?.('apple-btn-disabled');
   cancelBtn.onclick = () => modal.close();
 
+  /** @type {Record<string, unknown> | null} 许可服务返回的今日额度（异步读取，读到前只显示已选平台数） */
+  let quotaInfo = null;
   const updateQuotaHintText = () => {
-    quotaText.textContent = getQuotaHintText(selectedPlatforms.size);
+    quotaText.textContent = getQuotaHintText(selectedPlatforms.size, quotaInfo);
+    quotaHint.classList?.toggle?.('is-pro', !!quotaInfo && quotaInfo.tier !== 'free');
   };
+  if (isBridgeReady) {
+    const quotaBridge = view.plugin.getWechatSyncBridgeService();
+    if (quotaBridge && typeof quotaBridge.quotaStatus === 'function') {
+      quotaBridge.quotaStatus({ licenseKey: bridgeSettings.licenseKey })
+        .then((info) => {
+          quotaInfo = toRecord(info);
+          updateQuotaHintText();
+        })
+        .catch((quotaError) => {
+          // 老版本扩展没有 quotaStatus，或许可服务暂不可达：提示行保持只显示已选平台数
+          console.info('[Wechatsync] quotaStatus unavailable', toReadableError(quotaError).message);
+        });
+    }
+  }
 
   const updateSyncButtonState = () => {
     syncBtn.disabled = !isBridgeReady || selectedPlatforms.size === 0;
@@ -806,7 +826,7 @@ async function showMultiPlatformPublishModal(view, options = {}) {
           const prep = await view.prepareRednoteCardArticle();
           notice.setMessage('正在投递小红书图卡...');
           const redBridge = view.plugin.getWechatSyncBridgeService();
-          await redBridge.enqueueSyncArticle({
+          const redResult = toRecord(await redBridge.enqueueSyncArticle({
             platforms: [xhsPlatformId],
             title: prep.article.title,
             markdown: prep.article.markdown,
@@ -814,7 +834,15 @@ async function showMultiPlatformPublishModal(view, options = {}) {
             cover: prep.article.cover,
             assets: prep.article.assets,
             source: 'obsidian',
-          });
+            licenseKey: bridgeSettings.licenseKey,
+          }));
+          if (redResult.accepted === false) {
+            // 额度用尽：X 与通用链路同一主体，必然同样被拒，直接收口
+            notice.hide();
+            modal.close();
+            view.showMultiPlatformQuotaBlockedModal({ quotaResult: redResult, requestedPlatformIds: [xhsPlatformId] });
+            return;
+          }
           new Notice(`✅ 小红书图卡已投递(${prep.cardCount} 张,已存 ${prep.dirPath}/)。请到浏览器插件任务窗口或小红书草稿箱查看。`, 10000);
           // 属性标签:与微信/飞书/多平台复用同一 recordPublishStatus
           //(publish_status / publish_platforms / publish_time … 英文 key,累加去重)
@@ -835,7 +863,7 @@ async function showMultiPlatformPublishModal(view, options = {}) {
           const prep = await view.prepareXCardArticle();
           notice.setMessage('正在投递 X 草稿...');
           const xBridge = view.plugin.getWechatSyncBridgeService();
-          await xBridge.enqueueSyncArticle({
+          const xResult = toRecord(await xBridge.enqueueSyncArticle({
             platforms: [xPlatformId],
             title: prep.article.title,
             markdown: prep.article.markdown,
@@ -843,7 +871,14 @@ async function showMultiPlatformPublishModal(view, options = {}) {
             cover: prep.article.cover,
             assets: prep.article.assets,
             source: 'obsidian',
-          });
+            licenseKey: bridgeSettings.licenseKey,
+          }));
+          if (xResult.accepted === false) {
+            notice.hide();
+            modal.close();
+            view.showMultiPlatformQuotaBlockedModal({ quotaResult: xResult, requestedPlatformIds: [xPlatformId] });
+            return;
+          }
           new Notice(`✅ X 图卡已投递(${prep.cardCount} 张,已存 ${prep.dirPath}/)。请到浏览器插件任务窗口或 X 草稿箱查看。`, 10000);
           if (activeFile && typeof view.recordPublishStatus === 'function') {
             await view.recordPublishStatus(activeFile, {
@@ -950,6 +985,7 @@ async function showMultiPlatformPublishModal(view, options = {}) {
           assets,
           source: 'obsidian',
           quotaPolicy: QUOTA_POLICY,
+          licenseKey: bridgeSettings.licenseKey,
         }));
       } catch (enqueueError) {
         if (!isUnsupportedBridgeError(enqueueError)) throw enqueueError;
@@ -964,6 +1000,7 @@ async function showMultiPlatformPublishModal(view, options = {}) {
           coverThumbnail,
           assets,
           quotaPolicy: QUOTA_POLICY,
+          licenseKey: bridgeSettings.licenseKey,
         }));
       }
       console.info('[Wechatsync] enqueueSyncArticle accepted', {

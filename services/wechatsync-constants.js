@@ -13,3 +13,5 @@ export const HELLO_ERROR_VERSION_UNSUPPORTED = 'version_unsupported';
 export const HELLO_ERROR_DUPLICATE_SESSION = 'duplicate_session';
 export const HELLO_ERROR_TOO_MANY_CLIENTS = 'too_many_clients';
 export const DEFAULT_MAX_CLIENTS = 4;
+// 小红书 / X 发布额度与许可密钥的服务端（计量在扩展侧调用；插件只用它兑换密钥）
+export const LICENSE_API_BASE = 'https://api.runfast.xyz/license';

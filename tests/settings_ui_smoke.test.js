@@ -89,6 +89,7 @@ function makePlugin(settingsOverrides = {}) {
       start: vi.fn().mockResolvedValue({}),
       waitForConnection: vi.fn().mockResolvedValue(undefined),
       health: vi.fn().mockResolvedValue({ ok: true, tokenValid: true }),
+      quotaStatus: vi.fn().mockResolvedValue({ tier: 'free', license_state: 'none', license_expires_at: null, limit: 3, used: 0, remaining: 3, reset_at: '2026-09-15T16:00:00.000Z', upgrade_url: '' }),
       listSupportedPlatforms: vi.fn().mockResolvedValue([]),
       getAuthSnapshot: vi.fn().mockResolvedValue({ platforms: [], checkedAt: 0 }),
       checkAuth: vi.fn().mockResolvedValue([]),
@@ -701,5 +702,35 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     } }));
     const body = page.containerEl.querySelector('.wechat-bridge-status-body');
     expect(body.querySelector('.wechat-bridge-browser-icon')).not.toBeNull();
+  });
+});
+
+// 小红书 / X 发布额度（3.11.3）：其他平台页的许可密钥、订单兑换与额度行
+describe('multi-platform settings page - license and quota', () => {
+  const base = {
+    enabled: true, port: 9527, token: 'tok', supportedPlatforms: [], selectedPlatforms: [],
+    connection: { status: 'untested', checkedAt: 0, platforms: [], capabilities: {}, message: '' },
+    recentTasks: [],
+  };
+
+  it('渲染许可密钥与兑换项；扩展离线时额度行提示先连接', () => {
+    const page = renderMultiPlatformPage(makePlugin({ multiPlatformSync: { ...base } }));
+    const names = globalThis.__obsidianSettingNamesRegistry;
+    expect(names).toContain('许可密钥（Pro / Max）');
+    expect(names).toContain('用爱发电订单号兑换密钥');
+    expect(page.containerEl.querySelector('.wechat-multiplatform-quota-status').textContent).toContain('连接浏览器插件后显示');
+  });
+
+  it('扩展在线时通过桥接读取额度并给出购买链接', async () => {
+    const plugin = makePlugin({ multiPlatformSync: { ...base, licenseKey: 'NCS-AAAAA-BBBBB-CCCCC-DDDDD',
+      connectedClients: [{ status: 'connected', extensionInstanceId: 'i1', browserName: 'Edge', lastSeenAt: Date.now() }] } });
+    const quotaStatus = vi.fn().mockResolvedValue({ tier: 'pro', license_state: 'valid', limit: 30, used: 2, remaining: 28, reset_at: '2026-09-15T16:00:00.000Z', upgrade_url: 'https://example.com/upgrade' });
+    plugin.getWechatSyncBridgeService = vi.fn(() => ({ quotaStatus }));
+    const page = renderMultiPlatformPage(plugin);
+    await Promise.resolve(); await Promise.resolve();
+    expect(quotaStatus).toHaveBeenCalledWith({ licenseKey: 'NCS-AAAAA-BBBBB-CCCCC-DDDDD' });
+    const bar = page.containerEl.querySelector('.wechat-multiplatform-quota-status');
+    expect(bar.textContent).toContain('Pro 档 · 今日剩余 28/30 次');
+    expect(bar.querySelector('a').textContent).toBe('续费 / 升级');
   });
 });

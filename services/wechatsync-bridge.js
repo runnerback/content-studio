@@ -645,7 +645,7 @@ function createReadableBridgeError(error) {
     friendly.cause = error;
     return friendly;
   }
-  if (/Request timeout: (health|listSupportedPlatforms|enqueueSyncArticle|getSyncTask|getSyncTaskLink|openSyncTask|getAuthSnapshot)/i.test(message)) {
+  if (/Request timeout: (health|listSupportedPlatforms|enqueueSyncArticle|getSyncTask|getSyncTaskLink|openSyncTask|getAuthSnapshot|quotaStatus)/i.test(message)) {
     const friendly = new Error('浏览器插件响应超时，请确认浏览器正在运行，地址、端口和连接令牌正确后重试。');
     friendly.code = 'BRIDGE_REQUEST_TIMEOUT';
     friendly.cause = error;
@@ -1594,7 +1594,7 @@ function createWechatSyncBridgeService(options = {}) {
   }
 
   /** @param {BridgeArticleOptionsLike} options */
-  function syncArticle({ platforms, title, markdown, content, cover, coverThumbnail, assets, quotaPolicy, timeoutMs = DEFAULT_SYNC_REQUEST_TIMEOUT_MS }) {
+  function syncArticle({ platforms, title, markdown, content, cover, coverThumbnail, assets, quotaPolicy, licenseKey, timeoutMs = DEFAULT_SYNC_REQUEST_TIMEOUT_MS }) {
     const article = { title, markdown, content, cover, assets };
     if (coverThumbnail) article.coverThumbnail = coverThumbnail;
     /** @type {Record<string, unknown>} */
@@ -1606,6 +1606,7 @@ function createWechatSyncBridgeService(options = {}) {
     if (quotaPolicy === 'block' || quotaPolicy === 'truncate') {
       params.quotaPolicy = quotaPolicy;
     }
+    if (typeof licenseKey === 'string' && licenseKey) params.licenseKey = licenseKey;
     return request('syncArticle', params, { timeoutMs });
   }
 
@@ -1620,6 +1621,7 @@ function createWechatSyncBridgeService(options = {}) {
     assets,
     source = 'obsidian',
     quotaPolicy,
+    licenseKey,
     timeoutMs = 10000,
   }) {
     const article = { title, markdown, content, cover, assets };
@@ -1629,6 +1631,7 @@ function createWechatSyncBridgeService(options = {}) {
     if (quotaPolicy === 'block' || quotaPolicy === 'truncate') {
       params.quotaPolicy = quotaPolicy;
     }
+    if (typeof licenseKey === 'string' && licenseKey) params.licenseKey = licenseKey;
     return requestWithMethodFallback('enqueueSyncArticle', 'enqueue_sync_article', params, { timeoutMs });
   }
 
@@ -1673,8 +1676,16 @@ function createWechatSyncBridgeService(options = {}) {
     }, { timeoutMs });
   }
 
+  /**
+   * 今日发布额度（扩展转发许可服务 GET /v1/quota/status）。
+   * @param {{ licenseKey?: string, timeoutMs?: number }} [options={}]
+   */
+  function quotaStatus({ licenseKey = '', timeoutMs = 8000 } = {}) {
+    return request('quotaStatus', licenseKey ? { licenseKey } : {}, { timeoutMs });
+  }
+
   /** @param {BridgeArticleOptionsLike} options */
-  function sendArticle({ platforms, title, markdown, content, cover, coverThumbnail, assets, quotaPolicy }) {
+  function sendArticle({ platforms, title, markdown, content, cover, coverThumbnail, assets, quotaPolicy, licenseKey }) {
     const article = { title, markdown, content, cover, assets };
     if (coverThumbnail) article.coverThumbnail = coverThumbnail;
     /** @type {Record<string, unknown>} */
@@ -1682,6 +1693,7 @@ function createWechatSyncBridgeService(options = {}) {
     if (quotaPolicy === 'block' || quotaPolicy === 'truncate') {
       params.quotaPolicy = quotaPolicy;
     }
+    if (typeof licenseKey === 'string' && licenseKey) params.licenseKey = licenseKey;
     return send('syncArticle', params);
   }
 
@@ -1751,6 +1763,7 @@ function createWechatSyncBridgeService(options = {}) {
     getSyncTaskLink,
     openSyncTask,
     getAuthSnapshot,
+    quotaStatus,
     sendArticle,
     _request: request,
     _send: send,

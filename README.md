@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> Version 3.11.2 · Updated 2026-09-15 · [简体中文](./README.zh-CN.md)
+> Version 3.11.3 · Updated 2026-09-15 · [简体中文](./README.zh-CN.md)
 
 Turn your Obsidian notes into ready-to-publish content: **WeChat Official Account** articles, **Xiaohongshu (rednote)** image cards, and **Feishu** cloud docs, all previewed live inside Obsidian.
 
@@ -23,7 +23,8 @@ Turn your Obsidian notes into ready-to-publish content: **WeChat Official Accoun
 - **WeChat**: add your Official Account AppID/Secret in settings. WeChat's API enforces an IP whitelist, so requests go through a proxy **that you host yourself**. See [API proxy setup](./docs/guides/api-proxy.md); a reference proxy server is included in [`server/`](./server/README.md).
 - **Feishu**: add your Feishu app credentials in settings.
 - **AI features** (optional): configure an AI provider and API key in settings. See [AI provider setup](./docs/guides/ai-provider.md).
-- **Xiaohongshu / X draft publishing** (optional): requires the companion browser extension **Crosspost**, which is distributed separately and is not yet publicly available. Everything else works without it: card preview, PNG/ZIP export and copy.
+- **Xiaohongshu / X draft publishing** (optional, metered): requires the companion browser extension **Crosspost**, which is distributed separately and is not yet publicly available. Everything else works without it: card preview, PNG/ZIP export and copy.
+  Publishing is metered per day: **Free** 3 publishes/day, **Pro** 30/day, **Max** unlimited. Pro and Max are paid licenses (Afdian for China, Lemon Squeezy elsewhere); paste the license key under Settings → 其他平台. See [Quota and license](./docs/guides/quota-and-license.md).
 
 ## Network use and privacy
 
@@ -33,8 +34,9 @@ The plugin makes network requests only when you trigger an action, and only to s
 - **Feishu Open API** (`open.feishu.cn`) when you sync a note to Feishu. Mermaid diagrams in Feishu sync are rendered remotely through `kroki.io`.
 - **Your AI provider endpoint** (DeepSeek, OpenAI-compatible or Anthropic-compatible, whichever you configure) when you run AI layout or title polish.
 - **Local WebSocket server** on `127.0.0.1:9527` (port configurable) for pairing the optional Crosspost extension. It only starts when multi-platform publishing is enabled in settings and accepts local connections only.
+- **License service** (`api.runfast.xyz/license`) for the metered Xiaohongshu / X publishing: the extension sends an anonymous device ID, the license key (if any) and the platform name to count publishes; the plugin calls it only when you redeem an Afdian order number. No note content is sent.
 
-Credentials (AppID/Secret, tokens, API keys) are stored in the plugin's `data.json` inside your vault and are sent only to the services above. There is no telemetry or analytics.
+Credentials (AppID/Secret, tokens, API keys, license key) are stored in the plugin's `data.json` inside your vault and are sent only to the services above. There is no telemetry or analytics. **Payment is required for full access** to Xiaohongshu / X publishing beyond the free daily quota.
 
 ## Manual install
 

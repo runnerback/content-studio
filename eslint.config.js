@@ -123,6 +123,7 @@ export default [
       "services/wechatsync-constants.js",
       "services/wechatsync-results.js",
       "services/wechatsync-settings.js",
+      "services/wechatsync-quota.js",
       "views/connection-status-bar.js",
       "views/publish-modal/feishu.js",
       "views/publish-modal/image-grid.js",

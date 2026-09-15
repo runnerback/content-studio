@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> 版本 3.11.2 · 更新 2026-09-15 · [English](./README.md)
+> 版本 3.11.3 · 更新 2026-09-15 · [English](./README.md)
 
 把 Obsidian 笔记变成可直接发布的内容：**微信公众号**文章、**小红书**图文卡片、**飞书**云文档，全部在 Obsidian 内实时预览。
 
@@ -23,7 +23,8 @@
 - **公众号**：在设置中填入 AppID/Secret。微信 API 有 IP 白名单限制，请求需经**你自己部署的代理**转发，见 [API 代理设置](./docs/guides/api-proxy.md)；仓库 [`server/`](./server/README.md) 内附一份可直接部署的代理服务。
 - **飞书**：在设置中填入飞书应用凭证。
 - **AI 功能**（可选）：在设置中配置 AI Provider 与 API Key，见 [AI Provider 设置](./docs/guides/ai-provider.md)。
-- **小红书 / X 草稿发布**（可选）：需要配套浏览器扩展 **Crosspost**，该扩展单独分发、目前尚未公开发布。没有扩展时其余功能不受影响：图卡预览、PNG/ZIP 导出、复制均可用。
+- **小红书 / X 草稿发布**（可选，按日计量）：需要配套浏览器扩展 **Crosspost**，该扩展单独分发、目前尚未公开发布。没有扩展时其余功能不受影响：图卡预览、PNG/ZIP 导出、复制均可用。
+  发布按日计量：**Free** 每日 3 次，**Pro** 每日 30 次，**Max** 不限。Pro / Max 为付费许可（国内走爱发电，海外走 Lemon Squeezy），密钥填在 设置 → 其他平台。详见 [额度与许可](./docs/guides/quota-and-license.md)。
 
 ## 网络访问与隐私
 
@@ -33,8 +34,9 @@
 - **飞书开放平台**（`open.feishu.cn`）：同步笔记到飞书时访问；飞书同步中的 Mermaid 图通过 `kroki.io` 远程渲染。
 - **你配置的 AI 服务端点**（DeepSeek / OpenAI 兼容 / Anthropic 兼容，取决于你的设置）：执行 AI 编排或标题润色时访问。
 - **本机 WebSocket 服务**（`127.0.0.1:9527`，端口可改）：用于配对可选的 Crosspost 扩展，仅在设置里开启多平台发布后启动，只接受本机连接。
+- **许可服务**（`api.runfast.xyz/license`）：小红书 / X 发布计量用。扩展只发送匿名设备 ID、许可密钥（如有）和平台名做计数；插件仅在用爱发电订单号兑换密钥时访问。不发送任何笔记内容。
 
-凭证（AppID/Secret、Token、API Key）保存在 vault 内插件目录的 `data.json`，只发送给上述服务。没有任何遥测或统计上报。
+凭证（AppID/Secret、Token、API Key、许可密钥）保存在 vault 内插件目录的 `data.json`，只发送给上述服务。没有任何遥测或统计上报。**超出免费每日额度的小红书 / X 发布需要付费许可。**
 
 ## 手动安装
 

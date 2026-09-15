@@ -720,3 +720,80 @@ describe('AppleStyleView - showMultiPlatformSyncModal platform rows', () => {
     expect(buttonTexts).toContain('关闭');
   });
 });
+
+// ---------------------------------------------------------------------------
+// 小红书 / X 发布额度（3.11.3）：弹窗顶部显示今日剩余；图卡链路被许可服务拒绝时收口到额度弹窗
+describe('publish modal - daily quota', () => {
+  let modalCapture;
+  const quotaFree = { tier: 'free', license_state: 'none', license_expires_at: null, limit: 3, used: 1, remaining: 2, reset_at: '2026-09-15T16:00:00.000Z', upgrade_url: 'https://example.com/upgrade' };
+  const denied = { accepted: false, quotaBlocked: true, reason: 'quota_exceeded', skippedPlatforms: ['xiaohongshu'], publishedPlatforms: [], message: '今日小红书 / X 发布额度已用完', quota: { ...quotaFree, used: 3, remaining: 0 } };
+
+  function makeCardView({ bridge, licenseKey = '' }) {
+    const view = makeView({ selectedPlatforms: ['xiaohongshu', 'x'], bridge });
+    view.plugin.settings.multiPlatformSync.supportedPlatforms = [
+      { id: 'xiaohongshu', name: '小红书' },
+      { id: 'x', name: 'X' },
+    ];
+    view.plugin.settings.multiPlatformSync.licenseKey = licenseKey;
+    const prep = { article: { title: 't', markdown: 'm', content: '<p>m</p>', cover: '', assets: [] }, cardCount: 1, dirPath: 'sync-to-rednote' };
+    view.prepareRednoteCardArticle = vi.fn(async () => prep);
+    view.prepareXCardArticle = vi.fn(async () => prep);
+    return view;
+  }
+
+  beforeEach(() => {
+    modalCapture = installModalCapture();
+    globalThis.__obsidianNoticeRegistry = [];
+  });
+
+  it('弹窗打开后异步读取额度，提示行显示今日剩余；Pro 高亮', async () => {
+    const bridge = { quotaStatus: vi.fn().mockResolvedValue({ ...quotaFree, tier: 'pro', limit: 30, remaining: 29 }) };
+    const view = makeCardView({ bridge, licenseKey: 'NCS-AAAAA-BBBBB-CCCCC-DDDDD' });
+    await view.showMultiPlatformSyncModal();
+    await Promise.resolve(); await Promise.resolve();
+    const modal = modalCapture.getLastModal();
+    expect(bridge.quotaStatus).toHaveBeenCalledWith({ licenseKey: 'NCS-AAAAA-BBBBB-CCCCC-DDDDD' });
+    const hint = modal.contentEl.querySelector('.wechat-multiplatform-quota-hint');
+    expect(hint.querySelector('.wechat-multiplatform-quota-copy').textContent).toContain('Pro 档 · 今日剩余 29/30 次');
+    expect(hint.classList.contains('is-pro')).toBe(true);
+  });
+
+  it('图卡链路：许可密钥随请求透传；小红书被拒后不再投递 X，弹出额度弹窗', async () => {
+    const bridge = {
+      quotaStatus: vi.fn().mockResolvedValue(quotaFree),
+      enqueueSyncArticle: vi.fn().mockResolvedValue(denied),
+    };
+    const view = makeCardView({ bridge, licenseKey: 'NCS-AAAAA-BBBBB-CCCCC-DDDDD' });
+    await view.showMultiPlatformSyncModal();
+    const modal = modalCapture.getLastModal();
+    await modal.contentEl.querySelector('.wechat-modal-buttons .mod-cta').onclick();
+
+    expect(bridge.enqueueSyncArticle).toHaveBeenCalledTimes(1);
+    expect(bridge.enqueueSyncArticle.mock.calls[0][0]).toMatchObject({ platforms: ['xiaohongshu'], licenseKey: 'NCS-AAAAA-BBBBB-CCCCC-DDDDD' });
+    expect(view.prepareXCardArticle).not.toHaveBeenCalled();
+    expect(view.showMultiPlatformQuotaBlockedModal).toHaveBeenCalledWith(expect.objectContaining({
+      requestedPlatformIds: ['xiaohongshu'],
+      quotaResult: expect.objectContaining({ reason: 'quota_exceeded' }),
+    }));
+    expect(modal.isOpen).toBe(false);
+  });
+
+  it('额度弹窗：显示档位用量、重置时间，提供「升级 Pro / Max」与「填写许可密钥」', () => {
+    const view = makeView({ selectedPlatforms: ['xiaohongshu'] });
+    view.showMultiPlatformQuotaBlockedModal = AppleStyleView.prototype.showMultiPlatformQuotaBlockedModal.bind(view);
+    view.openExternalUrl = vi.fn(() => true);
+    view.openPluginSettings = vi.fn(() => true);
+    view.showMultiPlatformQuotaBlockedModal({ requestedPlatformIds: ['xiaohongshu'], quotaResult: denied });
+    const modal = modalCapture.getLastModal();
+    expect(modal.titleEl.textContent).toBe('今日发布额度已用完');
+    expect(modal.contentEl.textContent).toContain('Free 档 · 今日剩余 0/3 次');
+    expect(modal.contentEl.textContent).toContain('9/16 00:00 重置');
+    const buttons = Array.from(modal.contentEl.querySelectorAll('button'));
+    const upgrade = buttons.find((b) => b.textContent === '升级 Pro / Max');
+    expect(upgrade).toBeDefined();
+    upgrade.onclick();
+    expect(view.openExternalUrl).toHaveBeenCalledWith('https://example.com/upgrade');
+    buttons.find((b) => b.textContent === '填写许可密钥').onclick();
+    expect(view.openPluginSettings).toHaveBeenCalled();
+  });
+});

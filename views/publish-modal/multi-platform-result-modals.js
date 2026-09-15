@@ -24,6 +24,7 @@ import {
   getWechatSyncResultError,
 } from '../../services/wechatsync-results.js';
 import { toRecord } from '../../services/input-utils.js';
+import { formatQuotaSummary, formatQuotaResetTime, formatLicenseStateHint } from '../../services/wechatsync-quota.js';
 
 const { Notice } = obsidianApi;
 
@@ -215,6 +216,10 @@ export const multiPlatformResultModalsMixin = {
     const summaryText = rawMessage && !legacyQuotaMessage
       ? rawMessage
       : '本次有平台未入队，请稍后重试。';
+    // 许可服务判定的额度用尽：quotaResult.quota 带档位 / 用量 / 重置时间 / 购买页
+    const quotaExceeded = quotaResult?.reason === 'quota_exceeded';
+    const quota = toRecord(quotaResult?.quota);
+    const upgradeUrl = typeof quota.upgrade_url === 'string' ? quota.upgrade_url : '';
 
     if (typeof getObsidianModalClass() !== 'function') {
       new Notice(summaryText, 10000);
@@ -222,7 +227,7 @@ export const multiPlatformResultModalsMixin = {
     }
 
     const modal = createObsidianModal(this.app);
-    modal.titleEl.setText('发布受限');
+    modal.titleEl.setText(quotaExceeded ? '今日发布额度已用完' : '发布受限');
     modal.titleEl.addClass?.('wechat-multiplatform-title');
     modal.contentEl.addClass('wechat-sync-modal');
     modal.contentEl.addClass('wechat-multiplatform-modal');
@@ -233,9 +238,17 @@ export const multiPlatformResultModalsMixin = {
     const summary = modal.contentEl.createDiv({ cls: 'wechat-multiplatform-result-summary is-warning is-quota-blocked' });
     summary.createEl('div', {
       cls: 'wechat-multiplatform-result-summary-title',
-      text: '部分平台未入队',
+      text: quotaExceeded ? '额度已用完' : '部分平台未入队',
     });
     summary.createEl('p', { text: summaryText });
+    if (quotaExceeded && quota.tier) {
+      const resetText = formatQuotaResetTime(quota.reset_at);
+      const licenseHint = formatLicenseStateHint(quota);
+      summary.createEl('div', {
+        cls: 'wechat-multiplatform-result-detail wechat-multiplatform-quota-usage',
+        text: `${formatQuotaSummary(quota)}${resetText ? `，${resetText} 重置` : ''}${licenseHint ? `。${licenseHint}` : ''}`,
+      });
+    }
     summary.createEl('div', {
       text: skippedPlatformIds.length
         ? `本次未入队：${formatPlatformNames(skippedPlatformIds)}`
@@ -246,6 +259,17 @@ export const multiPlatformResultModalsMixin = {
     const btnRow = modal.contentEl.createDiv({ cls: 'wechat-modal-buttons' });
     const closeBtn = btnRow.createEl('button', { text: '关闭' });
     closeBtn.onclick = () => modal.close();
+    if (quotaExceeded) {
+      const keyBtn = btnRow.createEl('button', { text: '填写许可密钥' });
+      keyBtn.onclick = () => {
+        modal.close();
+        this.openPluginSettings();
+      };
+      if (upgradeUrl) {
+        const upgradeBtn = btnRow.createEl('button', { text: '升级 Pro / Max', cls: 'mod-cta' });
+        upgradeBtn.onclick = () => this.openExternalUrl(upgradeUrl);
+      }
+    }
 
     modal.open();
   },
