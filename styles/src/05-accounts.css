@@ -619,3 +619,19 @@
 /* ========================================
    同步选项区
    ======================================== */
+
+/* 许可密钥下方的额度提示：方案行 + 档位行纵向排布，购买链接跟在后面 */
+.wechat-multiplatform-quota-status {
+  align-items: flex-start;
+}
+.wechat-quota-status-body {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.wechat-quota-tier-line {
+  color: var(--text-muted);
+}
+.wechat-quota-upgrade-link {
+  margin-top: 2px;
+}

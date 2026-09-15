@@ -92,18 +92,30 @@ function renderTab(plugin) {
   const tab = new AppleStyleSettingTab(plugin.app, plugin);
   tab.containerEl = createObsidianLikeElement('div');
   tab.update();
+  // 3.11.4 起普通设置项都在「样式 / 分发 / AI」三组的声明式子页面里：
+  // 顶层只渲染页面入口，这里顺手打开三个声明式子页面，让 control / button 注册表包含它们
+  for (const name of ['公众号排版', '微信公众号', 'AI Provider 与编排']) tab.renderPage(name);
   return tab;
 }
 
+// 递归展开 group / list / 声明式 page 的 items
 function flattenDefinitions(items) {
   return items.flatMap((item) => {
-    if (item.type === 'group' || item.type === 'list') return flattenDefinitions(item.items || []);
+    if (item.type === 'group' || item.type === 'list') return [item, ...flattenDefinitions(item.items || [])];
+    if (item.type === 'page' && Array.isArray(item.items)) return [item, ...flattenDefinitions(item.items)];
     return [item];
   });
 }
 
 function findDefinition(tab, name) {
-  return flattenDefinitions(tab.getSettingDefinitions()).find((item) => item.name === name);
+  return flattenDefinitions(tab.getSettingDefinitions()).find((item) => item.name === name && item.type !== 'page');
+}
+
+// 声明式子页面的内容容器（renderTab 已打开三个子页面）
+function pageEl(tab, name) {
+  const page = tab.renderedPages.find((item) => item.title === name);
+  if (!page) throw new Error(`子页面未渲染：${name}`);
+  return page.containerEl;
 }
 
 function findControl(settingName) {
@@ -115,7 +127,7 @@ function findButton(text) {
 }
 
 function findList(tab, heading) {
-  return tab.getSettingDefinitions().find((item) => item.type === 'list' && item.heading === heading);
+  return flattenDefinitions(tab.getSettingDefinitions()).find((item) => item.type === 'list' && item.heading === heading);
 }
 
 describe('AppleStyleSettingTab - 声明式 control 读写', () => {
@@ -130,7 +142,7 @@ describe('AppleStyleSettingTab - 声明式 control 读写', () => {
   it('every control key resolves through getControlValue (dot paths included)', () => {
     const plugin = makePlugin({ ai: { ...makeSettings().ai, enabled: true, defaultLayoutFamily: 'auto' } });
     const tab = renderTab(plugin);
-    const controls = flattenDefinitions(tab.getSettingDefinitions()).filter((item) => item.control);
+    const controls = flattenDefinitions(tab.getSettingDefinitions()).filter((item) => item.control && item.type !== 'page');
     expect(controls.length).toBeGreaterThan(8);
     for (const def of controls) {
       const value = tab.getControlValue(def.control.key);
@@ -252,7 +264,7 @@ describe('AppleStyleSettingTab - 账号 / AI Provider 列表', () => {
     const tab = renderTab(makePlugin());
     expect(findControl('默认账号')).toBeUndefined();
     expect(findDefinition(tab, '默认账号').visible()).toBe(false);
-    expect(tab.containerEl.textContent).toContain('暂无账号');
+    expect(pageEl(tab, '微信公众号').textContent).toContain('暂无账号');
   });
 
   it('addItem opens the add-account modal, and refuses beyond MAX_ACCOUNTS', () => {
@@ -277,7 +289,7 @@ describe('AppleStyleSettingTab - 账号 / AI Provider 列表', () => {
       defaultAccountId: 'a1',
     });
     const tab = renderTab(plugin);
-    const deleteButtons = Array.from(tab.containerEl.querySelectorAll('button'))
+    const deleteButtons = Array.from(pageEl(tab, '微信公众号').querySelectorAll('button'))
       .filter((button) => button.textContent === '删除');
     expect(deleteButtons).toHaveLength(2);
 
@@ -373,12 +385,15 @@ describe('AppleStyleSettingTab - 子页面', () => {
     expect(refreshSettingTabCompat({})).toBe(false);
   });
 
-  it('小红书 page lazy-loads the upstream RedSettingTab into its container', async () => {
+  it('小红书图卡 page lazy-loads RedSettingTab into its container', async () => {
     const plugin = makePlugin();
     const tab = renderTab(plugin);
-    const page = tab.renderPage('小红书');
+    const page = tab.renderPage('小红书图卡');
+    expect(page.title).toBe('小红书图卡');
     expect(page.loadPromise).toBeInstanceOf(Promise);
     await page.loadPromise;
-    expect(page.containerEl.textContent).toContain('Note to RED 设置');
+    // 不再重复渲染上游的「Note to RED 设置」标题，直接是分区
+    expect(page.containerEl.textContent).not.toContain('Note to RED');
+    expect(page.containerEl.textContent).toContain('基本设置');
   });
 });

@@ -3,8 +3,9 @@
 // AppleStyleSettingTab（插件设置面板）。
 // 3.10.0 起改用 Obsidian 1.13+ 声明式 Settings API：getSettingDefinitions()
 // 返回 group / list / page / control / action 定义，由宿主负责渲染、值的读写
-// 回调与设置搜索索引；飞书 / 其他平台 / 小红书 三块命令式 UI 作为子页面
-// （见 ./setting-pages.js）按需渲染。普通设置项经 getControlValue /
+// 回调与设置搜索索引。3.11.4 起顶层按「样式 / 分发 / AI」三组排布，组内是子页面：
+// 公众号排版、微信公众号、AI 为声明式 items 子页面；飞书 / 其他平台 / 小红书图卡
+// 三块命令式 UI 走 page 工厂（见 ./setting-pages.js）按需渲染。普通设置项经 getControlValue /
 // setControlValue（支持 `ai.enabled` 这类点路径）读写 plugin.settings，
 // 副作用（面板刷新提示、AI 工具栏联动、依赖项重绘）集中在 setControlValue。
 
@@ -186,95 +187,154 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
   /** @returns {any[]} */
   getSettingDefinitions() {
-    const settings = this.plugin.settings;
     return [
       {
-        name: '微信公众号',
-        desc: '配置公众号账号、封面摘要和微信预览相关选项。',
+        name: 'Note Content Studio',
+        desc: '把笔记发布到微信公众号、小红书 / X 与飞书。设置分三组：样式（排版与图卡）、分发（各平台账号与连接）、AI（编排与润色）。',
         searchable: false,
       },
       {
         type: 'group',
-        heading: '预览模式',
-        items: [{
-          name: '使用手机仿真框',
-          desc: '开启后，预览区域将显示为 iPhone X 手机框样式；关闭则恢复为经典全宽预览模式（需重启插件面板生效）',
-          control: { type: 'toggle', key: 'usePhoneFrame' },
-        }],
-      },
-      {
-        type: 'group',
-        heading: '图片水印',
+        heading: '样式设置',
         items: [
           {
-            name: '启用图片水印',
-            desc: '在每张图片上方显示头像（需重启插件面板生效）',
-            control: { type: 'toggle', key: 'enableWatermark' },
+            type: 'page',
+            name: '公众号排版',
+            desc: '预览模式（手机仿真框）与图片水印头像',
+            items: [
+              this.getPreviewModeGroupDefinition(),
+              this.getWatermarkGroupDefinition(),
+            ],
           },
           {
-            name: '上传本地头像',
-            desc: settings.avatarBase64
-              ? '✅ 已上传本地头像（优先使用）；点击可重新选择图片'
-              : '选择本地图片（小于 100KB），转换为 Base64 存储，无需网络请求',
-            action: () => this.pickLocalAvatar(),
-          },
-          {
-            name: '清除本地头像',
-            desc: '清除后改用下方「头像 URL（备用）」',
-            visible: () => Boolean(this.plugin.settings.avatarBase64),
-            action: () => this.clearLocalAvatar(),
-          },
-          {
-            name: '头像 URL（备用）',
-            desc: '如未上传本地头像，将使用此 URL',
-            control: { type: 'text', key: 'avatarUrl', placeholder: 'https://example.com/avatar.jpg' },
+            type: 'page',
+            name: '小红书图卡',
+            desc: '图卡的用户信息、标题级别、页眉页脚、主题与字体管理（X 图卡同款）',
+            page: () => new RednoteSettingPage(this),
           },
         ],
       },
-      ...this.getWechatAccountDefinitions(),
-      ...this.getAiProviderDefinitions(),
-      this.getAiLayoutGroupDefinition(),
-      this.getTitlePolishGroupDefinition(),
       {
         type: 'group',
-        heading: '高级设置',
+        heading: '分发设置',
         items: [
           {
-            name: 'API 代理地址',
-            desc: '如果您的网络 IP 经常变化（如多地办公或使用移动热点），可配置代理服务以解决微信 IP 白名单漂移导致的同步失败问题。必须使用 HTTPS。',
-            control: {
-              type: 'text',
-              key: 'proxyUrl',
-              placeholder: 'https://your-proxy.workers.dev',
-              validate: (/** @type {string} */ value) => this.validateProxyUrl(value),
+            type: 'page',
+            name: '微信公众号',
+            desc: '公众号账号列表、默认账号、API 代理',
+            displayValue: () => {
+              const count = (this.plugin.settings.wechatAccounts || []).length;
+              return count > 0 ? `${count} 个账号` : '未配置';
             },
+            items: [
+              ...this.getWechatAccountDefinitions(),
+              this.getProxyGroupDefinition(),
+            ],
           },
           {
-            name: '测试代理',
-            desc: '测试代理是否连通、能否转发到微信',
-            action: () => this.testProxyConnection(),
+            type: 'page',
+            name: '飞书',
+            desc: '飞书自建应用、目标文件夹与 OpenAPI 调用统计',
+            page: () => new FeishuSettingPage(this),
+          },
+          {
+            type: 'page',
+            name: MULTI_PLATFORM_TAB_LABEL,
+            desc: '连接浏览器插件「多栖 Crosspost」发布到小红书 / X；许可密钥与每日额度',
+            page: () => new MultiPlatformSettingPage(this),
           },
         ],
       },
       {
-        type: 'page',
-        name: '飞书',
-        desc: '飞书自建应用、目标文件夹与 OpenAPI 调用统计',
-        page: () => new FeishuSettingPage(this),
-      },
-      {
-        type: 'page',
-        name: MULTI_PLATFORM_TAB_LABEL,
-        desc: '连接浏览器插件「多栖 Crosspost」，把文章保存到各平台草稿箱',
-        page: () => new MultiPlatformSettingPage(this),
-      },
-      {
-        type: 'page',
-        name: '小红书',
-        desc: '小红书图卡的用户信息、标题级别、主题与字体管理',
-        page: () => new RednoteSettingPage(this),
+        type: 'group',
+        heading: 'AI 设置',
+        items: [
+          {
+            type: 'page',
+            name: 'AI Provider 与编排',
+            desc: 'AI Provider 凭证、AI 编排、标题 AI 润色',
+            displayValue: () => (this.plugin.settings.ai?.enabled ? 'AI 编排已开启' : 'AI 编排未开启'),
+            items: [
+              ...this.getAiProviderDefinitions(),
+              this.getAiLayoutGroupDefinition(),
+              this.getTitlePolishGroupDefinition(),
+            ],
+          },
+        ],
       },
     ];
+  }
+
+  /** 「公众号排版」页：预览模式 */
+  getPreviewModeGroupDefinition() {
+    return {
+      type: 'group',
+      heading: '预览模式',
+      items: [{
+        name: '使用手机仿真框',
+        desc: '开启后，预览区域将显示为 iPhone X 手机框样式；关闭则恢复为经典全宽预览模式（需重启插件面板生效）',
+        control: { type: 'toggle', key: 'usePhoneFrame' },
+      }],
+    };
+  }
+
+  /** 「公众号排版」页：图片水印 */
+  getWatermarkGroupDefinition() {
+    const settings = this.plugin.settings;
+    return {
+      type: 'group',
+      heading: '图片水印',
+      items: [
+        {
+          name: '启用图片水印',
+          desc: '在每张图片上方显示头像（需重启插件面板生效）',
+          control: { type: 'toggle', key: 'enableWatermark' },
+        },
+        {
+          name: '上传本地头像',
+          desc: settings.avatarBase64
+            ? '✅ 已上传本地头像（优先使用）；点击可重新选择图片'
+            : '选择本地图片（小于 100KB），转换为 Base64 存储，无需网络请求',
+          action: () => this.pickLocalAvatar(),
+        },
+        {
+          name: '清除本地头像',
+          desc: '清除后改用下方「头像 URL（备用）」',
+          visible: () => Boolean(this.plugin.settings.avatarBase64),
+          action: () => this.clearLocalAvatar(),
+        },
+        {
+          name: '头像 URL（备用）',
+          desc: '如未上传本地头像，将使用此 URL',
+          control: { type: 'text', key: 'avatarUrl', placeholder: 'https://example.com/avatar.jpg' },
+        },
+      ],
+    };
+  }
+
+  /** 「微信公众号」页：API 代理（原「高级设置」） */
+  getProxyGroupDefinition() {
+    return {
+      type: 'group',
+      heading: 'API 代理',
+      items: [
+        {
+          name: 'API 代理地址',
+          desc: '如果您的网络 IP 经常变化（如多地办公或使用移动热点），可配置代理服务以解决微信 IP 白名单漂移导致的同步失败问题。必须使用 HTTPS。',
+          control: {
+            type: 'text',
+            key: 'proxyUrl',
+            placeholder: 'https://your-proxy.workers.dev',
+            validate: (/** @type {string} */ value) => this.validateProxyUrl(value),
+          },
+        },
+        {
+          name: '测试代理',
+          desc: '测试代理是否连通、能否转发到微信',
+          action: () => this.testProxyConnection(),
+        },
+      ],
+    };
   }
 
   /**

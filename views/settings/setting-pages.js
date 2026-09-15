@@ -1,6 +1,6 @@
 // views/settings/setting-pages.js
 //
-// 设置面板的三个子页面（Obsidian 1.13+ SettingPage）：飞书 / 其他平台 / 小红书。
+// 设置面板的三个命令式子页面（Obsidian 1.13+ SettingPage）：飞书 / 其他平台 / 小红书图卡。
 // 顶层设置由 AppleStyleSettingTab.getSettingDefinitions() 声明式渲染；这三块
 // 内容仍是命令式 UI，因此以 `page: () => new XxxSettingPage(tab)` 挂在
 // type:'page' 定义上，宿主在用户点击进入时才实例化并调用 display()。
@@ -74,13 +74,13 @@ export class MultiPlatformSettingPage extends ContentStudioSettingPage {
 }
 
 /**
- * 「小红书」子页面：懒加载上游 RedSettingTab（用户信息 / 标题级别 / 主题与字体管理），
+ * 「小红书图卡」子页面：懒加载 RedSettingTab（用户信息 / 标题级别 / 主题与字体管理），
  * 把它的 containerEl 指到本页容器后调用其 display()。
  */
 export class RednoteSettingPage extends ContentStudioSettingPage {
   /** @param {any} tab */
   constructor(tab) {
-    super(tab, '小红书');
+    super(tab, '小红书图卡');
     /** @type {Promise<void> | null} 供测试等待懒加载完成 */
     this.loadPromise = null;
   }

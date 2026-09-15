@@ -51,7 +51,7 @@ export class RedSettingTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.addClass('red-settings');
 
-        containerEl.createEl('h2', { text: 'Note to RED 设置' });
+        // 页面标题由宿主设置页的返回栏提供（「小红书图卡」），这里不再重复渲染标题
 
         this.createSection(containerEl, '基本设置', el => this.renderBasicSettings(el));
         this.createSection(containerEl, '主题设置', el => this.renderThemeSettings(el));

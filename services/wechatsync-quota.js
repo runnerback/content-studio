@@ -32,6 +32,48 @@ export function formatLicenseStateHint(quota) {
   }
 }
 
+/** 许可到期日 → "2026-10-15"（上海日期）；null/无法解析 → 空串 */
+export function formatLicenseExpiry(isoText) {
+  const d = new Date(String(isoText || ''));
+  if (Number.isNaN(d.getTime())) return '';
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
+/** 当前方案一句话：档位 + 今日用量 + 重置时间 + 到期/密钥状态 */
+export function formatCurrentPlanLine(quota) {
+  const parts = [`当前方案 ${formatQuotaSummary(quota).replace(' 档 · ', ' · ')}`];
+  const reset = formatQuotaResetTime(quota.reset_at);
+  if (reset && quota.limit !== null && quota.limit !== undefined) parts[0] += `（${reset} 重置）`;
+  const hint = formatLicenseStateHint(quota);
+  if (hint) parts.push(hint);
+  else if (quota.license_state === 'valid') parts.push(quota.license_expires_at ? `到期 ${formatLicenseExpiry(quota.license_expires_at)}` : '永久有效');
+  else parts.push('未绑定许可密钥');
+  return parts.join(' · ');
+}
+
+/**
+ * 读取档位表（许可服务 GET /v1/plans），限额以服务端为准。
+ * @param {(options: Record<string, unknown>) => Promise<{ status: number, json: any }>} requestUrl
+ * @returns {Promise<{ tiers: Record<string, { daily_limit: number | null }>, upgrade_url: string }>}
+ */
+export async function fetchQuotaPlans(requestUrl) {
+  const res = await requestUrl({ url: `${LICENSE_API_BASE}/v1/plans`, method: 'GET', throw: false });
+  const json = res && typeof res.json === 'object' && res.json ? res.json : {};
+  if (res.status !== 200 || !json.ok || !json.tiers) throw new Error(`档位表读取失败（HTTP ${res.status}）`);
+  return { tiers: json.tiers, upgrade_url: typeof json.upgrade_url === 'string' ? json.upgrade_url : '' };
+}
+
+/** 档位表 → "Free 每日 3 次 ｜ Pro 每日 30 次 ｜ Max 不限次" */
+export function formatTierTable(tiers) {
+  return ['free', 'pro', 'max']
+    .filter((tier) => tiers && tiers[tier])
+    .map((tier) => {
+      const limit = tiers[tier].daily_limit;
+      return `${TIER_LABEL[tier]} ${limit === null || limit === undefined ? '不限次' : `每日 ${limit} 次`}`;
+    })
+    .join(' ｜ ');
+}
+
 /**
  * 爱发电订单号 → 许可密钥（许可服务 POST /v1/license/redeem）。
  * @param {(options: Record<string, unknown>) => Promise<{ status: number, json: any }>} requestUrl Obsidian 的 requestUrl

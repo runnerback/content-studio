@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> 版本 3.11.3 · 更新 2026-09-15 · [English](./README.md)
+> 版本 3.11.6 · 更新 2026-09-15 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
 
 把 Obsidian 笔记变成可直接发布的内容：**微信公众号**文章、**小红书**图文卡片、**飞书**云文档，全部在 Obsidian 内实时预览。
 
@@ -24,7 +24,7 @@
 - **飞书**：在设置中填入飞书应用凭证。
 - **AI 功能**（可选）：在设置中配置 AI Provider 与 API Key，见 [AI Provider 设置](./docs/guides/ai-provider.md)。
 - **小红书 / X 草稿发布**（可选，按日计量）：需要配套浏览器扩展 **Crosspost**，该扩展单独分发、目前尚未公开发布。没有扩展时其余功能不受影响：图卡预览、PNG/ZIP 导出、复制均可用。
-  发布按日计量：**Free** 每日 3 次，**Pro** 每日 30 次，**Max** 不限。Pro / Max 为付费许可（国内走爱发电，海外走 Lemon Squeezy），密钥填在 设置 → 其他平台。详见 [额度与许可](./docs/guides/quota-and-license.md)。
+  发布按日计量：**Free** 每日 3 次，**Pro** 每日 30 次，**Max** 不限。Pro / Max 为付费许可，在 [爱发电](https://afdian.com/a/note_content_studio) 购买（海外的 Lemon Squeezy 渠道稍后开通），密钥填在 设置 → 分发设置 → 其他平台。详见 [额度与许可](./docs/guides/quota-and-license.md)。
 
 ## 网络访问与隐私
 
@@ -45,6 +45,10 @@
 ## 文档
 
 [`docs/guides/`](./docs/guides/) 内有代理设置、AI Provider 设置、小红书图文发布说明。
+
+## 支持作者
+
+Note Content Studio 免费、MIT 开源，由 [runnerback](https://github.com/runnerback) 开发维护。如果它帮你省了时间，欢迎在 **爱发电** 支持：https://afdian.com/a/note_content_studio 。同一页面出售小红书 / X 发布计量的 Pro / Max 许可，其余功能全部免费。
 
 ## 致谢
 

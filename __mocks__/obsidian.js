@@ -478,7 +478,20 @@ class PluginSettingTabMock {
     const entry = this.pageDefinitions.find((item) => item.def.name === name);
     if (!entry) throw new Error(`obsidian mock: 未找到名为「${name}」的 page 定义（请先 update()）`);
     if (typeof entry.def.page !== 'function') {
-      throw new Error(`obsidian mock: page「${name}」没有 page 工厂（声明式 items 子页面未在 mock 中实现）`);
+      if (!Array.isArray(entry.def.items)) {
+        throw new Error(`obsidian mock: page「${name}」既无 page 工厂也无 items`);
+      }
+      // 声明式子页面：把 items 按顶层同一套规则渲染进一个 SettingPage 容器
+      const page = new SettingPageMock();
+      page.title = name;
+      page.definitions = entry.def.items;
+      page.display = () => {
+        page.containerEl.empty();
+        entry.def.items.forEach((item, index) => renderDefinitionItem(this, page.containerEl, item, index, null));
+      };
+      page.display();
+      this.renderedPages.push(page);
+      return page;
     }
     const page = entry.def.page();
     if (!page.title) page.title = name;

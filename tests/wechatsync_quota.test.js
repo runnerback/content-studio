@@ -2,7 +2,7 @@
 import { describe, it, expect, vi } from 'vitest';
 
 const { normalizeMultiPlatformSyncSettings, createDefaultMultiPlatformSyncSettings } = require('../services/wechatsync-settings');
-const { formatQuotaSummary, formatQuotaResetTime, formatLicenseStateHint, redeemLicenseKey } = await import('../services/wechatsync-quota.js');
+const { formatQuotaSummary, formatQuotaResetTime, formatLicenseStateHint, formatLicenseExpiry, formatCurrentPlanLine, formatTierTable, fetchQuotaPlans, redeemLicenseKey } = await import('../services/wechatsync-quota.js');
 const { LICENSE_API_BASE } = await import('../services/wechatsync-constants.js');
 
 describe('licenseKey 设置字段', () => {
@@ -25,6 +25,27 @@ describe('额度文案', () => {
   it('密钥状态附注', () => {
     expect(formatLicenseStateHint({ license_state: 'expired' })).toContain('已过期');
     expect(formatLicenseStateHint({ license_state: 'valid' })).toBe('');
+  });
+});
+
+describe('当前方案一句话与档位表', () => {
+  it('formatCurrentPlanLine：Pro 带到期；Free 提示未绑定；Max 永久；过期提示', () => {
+    expect(formatCurrentPlanLine({ tier: 'pro', license_state: 'valid', license_expires_at: '2026-10-15T09:11:22.243Z', limit: 30, used: 2, remaining: 28, reset_at: '2026-09-15T16:00:00.000Z' }))
+      .toBe('当前方案 Pro · 今日剩余 28/30 次（9/16 00:00 重置） · 到期 2026-10-15');
+    expect(formatCurrentPlanLine({ tier: 'free', license_state: 'none', license_expires_at: null, limit: 3, used: 0, remaining: 3, reset_at: '2026-09-15T16:00:00.000Z' }))
+      .toBe('当前方案 Free · 今日剩余 3/3 次（9/16 00:00 重置） · 未绑定许可密钥');
+    expect(formatCurrentPlanLine({ tier: 'max', license_state: 'valid', license_expires_at: null, limit: null, used: 9, remaining: null, reset_at: '2026-09-15T16:00:00.000Z' }))
+      .toBe('当前方案 Max · 今日不限次 · 永久有效');
+    expect(formatCurrentPlanLine({ tier: 'free', license_state: 'expired', license_expires_at: '2026-01-01T00:00:00Z', limit: 3, used: 3, remaining: 0, reset_at: '2026-09-15T16:00:00.000Z' }))
+      .toContain('许可密钥已过期');
+    expect(formatLicenseExpiry('2026-10-15T09:11:22.243Z')).toBe('2026-10-15');
+    expect(formatLicenseExpiry(null)).toBe('');
+  });
+  it('fetchQuotaPlans + formatTierTable', async () => {
+    const requestUrl = vi.fn(async () => ({ status: 200, json: { ok: true, tiers: { free: { daily_limit: 3 }, pro: { daily_limit: 30 }, max: { daily_limit: null } }, upgrade_url: 'u' } }));
+    const plans = await fetchQuotaPlans(requestUrl);
+    expect(formatTierTable(plans.tiers)).toBe('Free 每日 3 次 ｜ Pro 每日 30 次 ｜ Max 不限次');
+    await expect(fetchQuotaPlans(vi.fn(async () => ({ status: 502, json: {} })))).rejects.toThrow('HTTP 502');
   });
 });
 

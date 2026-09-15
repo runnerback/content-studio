@@ -110,6 +110,8 @@ function makeTab(plugin) {
 function renderTab(plugin) {
   const tab = makeTab(plugin);
   tab.update();
+  // 3.11.4 起普通设置项在声明式子页面里；打开三个子页面让注册表包含其中的项
+  for (const name of ['公众号排版', '微信公众号', 'AI Provider 与编排']) tab.renderPage(name);
   return tab;
 }
 
@@ -117,6 +119,13 @@ function renderTab(plugin) {
 function renderMultiPlatformPage(plugin) {
   const tab = renderTab(plugin);
   return tab.renderPage(MULTI_PLATFORM_TAB_LABEL);
+}
+
+// 声明式子页面的内容容器（renderTab 已打开三个子页面）
+function pageEl(tab, name) {
+  const page = tab.renderedPages.find((item) => item.title === name);
+  if (!page) throw new Error(`子页面未渲染：${name}`);
+  return page.containerEl;
 }
 
 function findButton(text) {
@@ -141,16 +150,27 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     const tab = makeTab(plugin);
     const definitions = tab.getSettingDefinitions();
 
-    // 不再是单个 render 壳：顶层由 group / list / page 组成
-    expect(definitions.length).toBeGreaterThan(5);
+    // 不再是单个 render 壳：顶层 = 说明行 + 三个分组
+    expect(definitions.length).toBe(4);
     expect(definitions.some((item) => typeof item.render === 'function')).toBe(false);
+    // 3.11.4：顶层 = 说明行 + 「样式设置 / 分发设置 / AI 设置」三组，组内全是子页面入口
     const groups = definitions.filter((item) => item.type === 'group');
-    const lists = definitions.filter((item) => item.type === 'list');
-    const pages = definitions.filter((item) => item.type === 'page');
-    expect(groups.map((group) => group.heading)).toEqual(expect.arrayContaining(['预览模式', '图片水印', '高级设置']));
-    expect(lists.map((list) => list.heading)).toEqual(['账号列表', 'AI Provider 列表']);
-    expect(pages.map((page) => page.name)).toEqual(['飞书', MULTI_PLATFORM_TAB_LABEL, '小红书']);
-    pages.forEach((page) => expect(typeof page.page).toBe('function'));
+    expect(definitions.filter((item) => item.type === 'list')).toEqual([]);
+    expect(definitions.filter((item) => item.type === 'page')).toEqual([]);
+    expect(groups.map((group) => group.heading)).toEqual(['样式设置', '分发设置', 'AI 设置']);
+    const pagesByGroup = groups.map((group) => group.items.map((item) => `${item.type}:${item.name}`));
+    expect(pagesByGroup).toEqual([
+      ['page:公众号排版', 'page:小红书图卡'],
+      ['page:微信公众号', 'page:飞书', `page:${MULTI_PLATFORM_TAB_LABEL}`],
+      ['page:AI Provider 与编排'],
+    ]);
+    // 命令式子页面走 page 工厂；其余是声明式 items（含 group / list）
+    const allPages = groups.flatMap((group) => group.items);
+    const factoryPages = allPages.filter((page) => typeof page.page === 'function').map((page) => page.name);
+    expect(factoryPages).toEqual(['小红书图卡', '飞书', MULTI_PLATFORM_TAB_LABEL]);
+    allPages.filter((page) => typeof page.page !== 'function').forEach((page) => expect(Array.isArray(page.items)).toBe(true));
+    const wechatPage = allPages.find((page) => page.name === '微信公众号');
+    expect(wechatPage.items.map((item) => item.heading)).toEqual(['微信公众号账号', '账号列表', 'API 代理']);
 
     tab.update();
     expect(globalThis.__obsidianSettingNamesRegistry.length).toBeGreaterThan(5);
@@ -176,17 +196,18 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     const intro = tab.getSettingDefinitions()[0];
     expect(intro.control).toBeUndefined();
     expect(intro.action).toBeUndefined();
-    expect(intro.desc).toContain('配置公众号账号、封面摘要和微信预览相关选项');
+    expect(intro.desc).toContain('设置分三组');
     expect(intro.desc).not.toContain('不会改变');
-    expect(tab.containerEl.textContent).toContain('配置公众号账号、封面摘要和微信预览相关选项');
+    expect(tab.containerEl.textContent).toContain('设置分三组');
   });
 
-  it('keeps 高级设置 fields that earlier refactors silently dropped', () => {
-    // Regression guard for 高级设置 字段。清理资源相关字段（自动清理/清理目录/回收站）
-    // 已按需求刻意移除，此处只守护仍需保留的字段。
+  it('keeps API 代理 fields (原「高级设置」) that earlier refactors silently dropped', () => {
+    // Regression guard for 代理字段。清理资源相关字段（自动清理/清理目录/回收站）
+    // 已按需求刻意移除，此处只守护仍需保留的字段。3.11.4 起它们在「分发设置 → 微信公众号」页。
     renderTab(makePlugin());
     const names = globalThis.__obsidianSettingNamesRegistry;
-    expect(names).toContain('高级设置');
+    expect(names).not.toContain('高级设置');
+    expect(names).toContain('API 代理');
     expect(names).toContain('API 代理地址');
     expect(names).toContain('测试代理');
     // 清理资源功能已移除，确认对应设置项确实不再出现
@@ -194,7 +215,7 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     expect(names).not.toContain('清理目录');
   });
 
-  it('renders the preview / watermark headings at the top level', () => {
+  it('renders the preview / watermark headings inside 样式设置 → 公众号排版', () => {
     renderTab(makePlugin());
     const names = globalThis.__obsidianSettingNamesRegistry;
     expect(names).toContain('预览模式');
@@ -226,7 +247,7 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
       },
     });
     const tab = renderTab(plugin);
-    const deleteButton = Array.from(tab.containerEl.querySelectorAll('button'))
+    const deleteButton = Array.from(pageEl(tab, 'AI Provider 与编排').querySelectorAll('button'))
       .find((button) => button.textContent === '删除');
     expect(deleteButton).toBeDefined();
 
@@ -262,7 +283,7 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
       },
     });
     const tab = renderTab(plugin);
-    const deleteButton = Array.from(tab.containerEl.querySelectorAll('button'))
+    const deleteButton = Array.from(pageEl(tab, 'AI Provider 与编排').querySelectorAll('button'))
       .find((button) => button.textContent === '删除');
 
     const pending = deleteButton.onclick();
@@ -716,21 +737,45 @@ describe('multi-platform settings page - license and quota', () => {
   it('渲染许可密钥与兑换项；扩展离线时额度行提示先连接', () => {
     const page = renderMultiPlatformPage(makePlugin({ multiPlatformSync: { ...base } }));
     const names = globalThis.__obsidianSettingNamesRegistry;
-    expect(names).toContain('许可密钥（Pro / Max）');
-    expect(names).toContain('用爱发电订单号兑换密钥');
+    // 顺序：先兑换、后密钥（兑换成功自动填入）
+    const redeemIdx = names.indexOf('第一步：用爱发电订单号兑换密钥');
+    const keyIdx = names.indexOf('第二步：许可密钥（Pro / Max）');
+    expect(redeemIdx).toBeGreaterThan(-1);
+    expect(keyIdx).toBeGreaterThan(redeemIdx);
     expect(page.containerEl.querySelector('.wechat-multiplatform-quota-status').textContent).toContain('连接浏览器插件后显示');
   });
 
   it('扩展在线时通过桥接读取额度并给出购买链接', async () => {
     const plugin = makePlugin({ multiPlatformSync: { ...base, licenseKey: 'NCS-AAAAA-BBBBB-CCCCC-DDDDD',
       connectedClients: [{ status: 'connected', extensionInstanceId: 'i1', browserName: 'Edge', lastSeenAt: Date.now() }] } });
-    const quotaStatus = vi.fn().mockResolvedValue({ tier: 'pro', license_state: 'valid', limit: 30, used: 2, remaining: 28, reset_at: '2026-09-15T16:00:00.000Z', upgrade_url: 'https://example.com/upgrade' });
+    const quotaStatus = vi.fn().mockResolvedValue({ tier: 'pro', license_state: 'valid', license_expires_at: '2026-12-01T00:00:00.000Z', limit: 30, used: 2, remaining: 28, reset_at: '2026-09-15T16:00:00.000Z', upgrade_url: 'https://example.com/upgrade' });
     plugin.getWechatSyncBridgeService = vi.fn(() => ({ quotaStatus }));
     const page = renderMultiPlatformPage(plugin);
     await Promise.resolve(); await Promise.resolve();
     expect(quotaStatus).toHaveBeenCalledWith({ licenseKey: 'NCS-AAAAA-BBBBB-CCCCC-DDDDD' });
     const bar = page.containerEl.querySelector('.wechat-multiplatform-quota-status');
-    expect(bar.textContent).toContain('Pro 档 · 今日剩余 28/30 次');
+    expect(bar.querySelector('.wechat-quota-plan-line').textContent).toContain('当前方案 Pro · 今日剩余 28/30 次');
+    expect(bar.querySelector('.wechat-quota-plan-line').textContent).toContain('到期 2026-12-01');
     expect(bar.querySelector('a').textContent).toBe('续费 / 升级');
+  });
+
+  it('许可密钥下方展示档位说明（读许可服务 /v1/plans）', async () => {
+    const obsidian = require('obsidian');
+    const original = obsidian.requestUrl;
+    obsidian.requestUrl = vi.fn(async ({ url }) => {
+      expect(url).toMatch(/\/v1\/plans$/);
+      return { status: 200, json: { ok: true, tiers: { free: { daily_limit: 3 }, pro: { daily_limit: 30 }, max: { daily_limit: null } }, upgrade_url: 'https://afdian.com/a/x' } };
+    });
+    try {
+      const page = renderMultiPlatformPage(makePlugin({ multiPlatformSync: { ...base } }));
+      await Promise.resolve(); await Promise.resolve();
+      const bar = page.containerEl.querySelector('.wechat-multiplatform-quota-status');
+      expect(bar.querySelector('.wechat-quota-tier-line').textContent).toBe('档位：Free 每日 3 次 ｜ Pro 每日 30 次 ｜ Max 不限次');
+      // 扩展离线：方案行提示先连接，但仍给购买入口
+      expect(bar.querySelector('.wechat-quota-plan-line').textContent).toContain('连接浏览器插件后显示');
+      expect(bar.querySelector('a').textContent).toBe('购买 Pro / Max');
+    } finally {
+      obsidian.requestUrl = original;
+    }
   });
 });

@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> Version 3.11.3 · Updated 2026-09-15 · [简体中文](./README.zh-CN.md)
+> Version 3.11.6 · Updated 2026-09-15 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
 
 Turn your Obsidian notes into ready-to-publish content: **WeChat Official Account** articles, **Xiaohongshu (rednote)** image cards, and **Feishu** cloud docs, all previewed live inside Obsidian.
 
@@ -24,7 +24,7 @@ Turn your Obsidian notes into ready-to-publish content: **WeChat Official Accoun
 - **Feishu**: add your Feishu app credentials in settings.
 - **AI features** (optional): configure an AI provider and API key in settings. See [AI provider setup](./docs/guides/ai-provider.md).
 - **Xiaohongshu / X draft publishing** (optional, metered): requires the companion browser extension **Crosspost**, which is distributed separately and is not yet publicly available. Everything else works without it: card preview, PNG/ZIP export and copy.
-  Publishing is metered per day: **Free** 3 publishes/day, **Pro** 30/day, **Max** unlimited. Pro and Max are paid licenses (Afdian for China, Lemon Squeezy elsewhere); paste the license key under Settings → 其他平台. See [Quota and license](./docs/guides/quota-and-license.md).
+  Publishing is metered per day: **Free** 3 publishes/day, **Pro** 30/day, **Max** unlimited. Pro and Max are paid licenses sold on [Afdian](https://afdian.com/a/note_content_studio) (Lemon Squeezy for overseas users coming later); paste the license key under Settings → 分发设置 → 其他平台. See [Quota and license](./docs/guides/quota-and-license.md).
 
 ## Network use and privacy
 
@@ -45,6 +45,10 @@ Download `main.js` / `manifest.json` / `styles.css` from the latest release into
 ## Docs
 
 See [`docs/guides/`](./docs/guides/) for proxy setup, AI provider setup, and Xiaohongshu publishing.
+
+## Support the project
+
+Note Content Studio is free and MIT licensed, developed and maintained by [runnerback](https://github.com/runnerback). If it saves you time, you can support it on **Afdian / 爱发电**: https://afdian.com/a/note_content_studio . The same page sells the Pro / Max licenses for metered Xiaohongshu / X publishing; every other feature stays free.
 
 ## Acknowledgements
 
