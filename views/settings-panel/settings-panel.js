@@ -14,6 +14,21 @@ import { getImageSwipeCommandCopy } from '../../services/image-swipe.js';
 
 export const settingsPanelMixin = {
   /**
+   * 顶栏按钮按模式显隐：公众号(样式设置/AI 编排/复制)一组；图卡模式(小红书/X)一组(样式设置/下载)；
+   * 「发布与分发」通用，始终保留。只切 is-hidden 类，不写内联 style。
+   * @param {'wechat' | 'rednote' | 'x'} mode
+   */
+  applyToolbarMode(mode) {
+    const wechatOnly = mode === 'wechat';
+    for (const btn of [this.settingsBtn, this.aiLayoutBtn, this.copyBtn]) {
+      if (btn) btn.classList.toggle('is-hidden', !wechatOnly);
+    }
+    for (const btn of [this.rednoteSettingsBtn, this.rednoteDownloadBtn]) {
+      if (btn) btn.classList.toggle('is-hidden', wechatOnly);
+    }
+  },
+
+  /**
    * 创建设置面板（重构为：顶部工具栏 + 悬浮设置层）
    * @param {ObsidianElementLike} container
    */
@@ -91,8 +106,8 @@ export const settingsPanelMixin = {
     });
     this.rednoteSettingsBtn = rednoteSettingsButton;
     this.rednoteDownloadBtn = createIconBtn('download', '下载图卡', (evt) => this.openRednoteDownloadMenu(evt));
-    this.rednoteSettingsBtn.setCssStyles({ display: 'none' });
-    this.rednoteDownloadBtn.setCssStyles({ display: 'none' });
+    // 初始为公众号模式；显隐规则与 setPreviewMode 共用 applyToolbarMode（内联 display 会让类切换失效，禁止混用）
+    this.applyToolbarMode('wechat');
 
     // [同步] 按钮（始终显示）:所有平台统一走「发布与分发」窗口。
     // 弹窗跟随顶栏平台下拉:公众号→微信草稿箱 tab;小红书/X→其他平台 tab,

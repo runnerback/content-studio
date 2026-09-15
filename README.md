@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> Version 3.11.0 · Updated 2026-09-14 · [简体中文](./README.zh-CN.md)
+> Version 3.11.1 · Updated 2026-09-15 · [简体中文](./README.zh-CN.md)
 
 Turn your Obsidian notes into ready-to-publish content: **WeChat Official Account** articles, **Xiaohongshu (rednote)** image cards, and **Feishu** cloud docs, all previewed live inside Obsidian.
 

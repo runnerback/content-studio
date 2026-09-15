@@ -19,8 +19,10 @@ const before = new Map(GENERATED_ARTIFACTS.map((filePath) => [filePath, readArti
 
 execFileSync("npm", ["run", "build"], { stdio: "inherit" });
 
+// 构建前不存在的产物（如 CI 全新 checkout 里被 gitignore 的 main.js）是首次生成，不是漂移；只比对构建前已存在的。
 const changed = GENERATED_ARTIFACTS.filter((filePath) => {
   const previous = before.get(filePath);
+  if (previous === null) return false;
   const current = readArtifact(filePath);
   return !buffersEqual(previous, current);
 });
