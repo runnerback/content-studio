@@ -238,7 +238,7 @@ export class BackgroundSettingModal extends Modal {
         this.position = { x: 0, y: 0 };
 
         if (this.previewImage) {
-            this.previewImage.setAttribute('style', '');
+            this.previewImage.removeAttribute('style');
         }
 
         // 更新目标预览并清除设置

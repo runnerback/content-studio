@@ -112,7 +112,7 @@ export class CreateThemeModal extends Modal {
                     toggle.setValue(this.showSampleTemplate)
                         .onChange(value => {
                             this.showSampleTemplate = value;
-                            this.themeSelect.style.display = this.showSampleTemplate ? 'block' : 'none';
+                            this.themeSelect.classList.toggle('is-hidden', !this.showSampleTemplate);
                         });
                 });
 
@@ -130,7 +130,7 @@ export class CreateThemeModal extends Modal {
                             }
                         })
                         .selectEl;
-                    this.themeSelect.style.display = this.showSampleTemplate ? 'block' : 'none'; // 默认隐藏
+                    this.themeSelect.classList.toggle('is-hidden', !this.showSampleTemplate); // 默认隐藏
                 });
         }
         // 创建主题名称输入区域（在头部）
@@ -649,11 +649,12 @@ export class CreateThemeModal extends Modal {
 
             // 创建内容区域
             const content = titleSection.createDiv('style-section-content');
-            content.style.display = 'none'; // 初始状态为折叠
+            // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
             header.addEventListener('click', () => {
-                const isExpanded = content.style.display === 'none';
-                content.style.display = isExpanded ? 'block' : 'none';
+                const section = content.parentElement as HTMLElement;
+                const isExpanded = !section.hasClass('is-expanded');
+                section.toggleClass('is-expanded', isExpanded);
                 setIcon(toggle, isExpanded ? 'chevron-down' : 'chevron-right');
             });
 
@@ -757,11 +758,12 @@ export class CreateThemeModal extends Modal {
 
         // 创建内容区域
         const paragraphContent = paragraphSection.createDiv('style-section-content');
-        paragraphContent.style.display = 'none'; // 初始状态为折叠
+        // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
         paragraphHeader.addEventListener('click', () => {
-            const isExpanded = paragraphContent.style.display === 'none';
-            paragraphContent.style.display = isExpanded ? 'block' : 'none';
+            const section = paragraphContent.parentElement as HTMLElement;
+            const isExpanded = !section.hasClass('is-expanded');
+            section.toggleClass('is-expanded', isExpanded);
             setIcon(paragraphToggle, isExpanded ? 'chevron-down' : 'chevron-right');
         });
 
@@ -811,11 +813,12 @@ export class CreateThemeModal extends Modal {
 
         // 创建内容区域
         const emphasisContent = emphasisSection.createDiv('style-section-content');
-        emphasisContent.style.display = 'none'; // 初始状态为折叠
+        // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
         emphasisHeader.addEventListener('click', () => {
-            const isExpanded = emphasisContent.style.display === 'none';
-            emphasisContent.style.display = isExpanded ? 'block' : 'none';
+            const section = emphasisContent.parentElement as HTMLElement;
+            const isExpanded = !section.hasClass('is-expanded');
+            section.toggleClass('is-expanded', isExpanded);
             setIcon(emphasisToggle, isExpanded ? 'chevron-down' : 'chevron-right');
         });
 
@@ -952,11 +955,12 @@ export class CreateThemeModal extends Modal {
 
         // 创建内容区域
         const codeBlockContent = codeBlockSection.createDiv('style-section-content');
-        codeBlockContent.style.display = 'none'; // 初始状态为折叠
+        // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
         codeBlockHeader.addEventListener('click', () => {
-            const isExpanded = codeBlockContent.style.display === 'none';
-            codeBlockContent.style.display = isExpanded ? 'block' : 'none';
+            const section = codeBlockContent.parentElement as HTMLElement;
+            const isExpanded = !section.hasClass('is-expanded');
+            section.toggleClass('is-expanded', isExpanded);
             setIcon(codeBlockToggle, isExpanded ? 'chevron-down' : 'chevron-right');
         });
 
@@ -995,11 +999,12 @@ export class CreateThemeModal extends Modal {
 
         // 创建内容区域
         const inlineCodeContent = inlineCodeSection.createDiv('style-section-content');
-        inlineCodeContent.style.display = 'none'; // 初始状态为折叠
+        // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
         inlineCodeHeader.addEventListener('click', () => {
-            const isExpanded = inlineCodeContent.style.display === 'none';
-            inlineCodeContent.style.display = isExpanded ? 'block' : 'none';
+            const section = inlineCodeContent.parentElement as HTMLElement;
+            const isExpanded = !section.hasClass('is-expanded');
+            section.toggleClass('is-expanded', isExpanded);
             setIcon(inlineCodeToggle, isExpanded ? 'chevron-down' : 'chevron-right');
         });
 

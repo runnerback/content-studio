@@ -5400,9 +5400,14 @@ div.modal.wechat-material-picker-modal-mobile {
 .red-settings .settings-section-header:hover {
   background-color: var(--background-secondary-alt);
 }
-.red-settings .settings-section-header h4 {
+/* 分区标题用 Setting.setHeading() 渲染：去掉 setting-item 自带的边框/内边距，保持原 h4 观感 */
+.red-settings .settings-section-header .setting-item.setting-item-heading {
   margin: 0;
+  padding: 0;
+  border: none;
   flex: 1;
+}
+.red-settings .settings-section-header .setting-item-heading .setting-item-name {
   font-size: 1.2em;
   color: var(--text-normal);
 }
@@ -5497,8 +5502,8 @@ div.modal.wechat-material-picker-modal-mobile {
   background-color: var(--background-primary);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
-.all-themes-container h4,
-.visible-themes-container h4 {
+.all-themes-container .setting-item-heading,
+.visible-themes-container .setting-item-heading {
   margin: 0 0 15px;
   padding-bottom: 10px;
   border-bottom: 1px solid var(--background-modifier-border);
@@ -5576,9 +5581,13 @@ div.modal.wechat-material-picker-modal-mobile {
 .red-settings .red-settings-subsection-header:hover {
   background-color: var(--background-modifier-hover);
 }
-.red-settings .red-settings-subsection-header h3 {
+.red-settings .red-settings-subsection-header .setting-item.setting-item-heading {
   margin: 0;
+  padding: 0;
+  border: none;
   flex: 1;
+}
+.red-settings .red-settings-subsection-header .setting-item-heading .setting-item-name {
   font-size: 1.1em;
   color: var(--text-normal);
 }
@@ -5905,4 +5914,9 @@ div.modal.wechat-material-picker-modal-mobile {
 }
 .theme-preview-modal .red-preview-content {
   margin: 0 13px;
+}
+
+/* 主题编辑弹窗：参考模板下拉按开关显隐（类切换，不写内联 display） */
+.red-theme-modal select.is-hidden {
+  display: none;
 }

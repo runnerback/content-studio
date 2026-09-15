@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> 版本 3.11.6 · 更新 2026-09-15 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
+> 版本 3.11.7 · 更新 2026-09-15 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
 
 把 Obsidian 笔记变成可直接发布的内容：**微信公众号**文章、**小红书**图文卡片、**飞书**云文档，全部在 Obsidian 内实时预览。
 
@@ -52,7 +52,7 @@ Note Content Studio 免费、MIT 开源，由 [runnerback](https://github.com/ru
 
 ## 致谢
 
-基于 DavidLam 的 [obsidian-wechat-converter](https://github.com/davidlam-oss/obsidian-wechat-converter) 开发，并移植了 Yeban 的 [note-to-red](https://github.com/yeban8090/note-to-red) 渲染引擎（TypeScript 版），两者均为 MIT 许可，原始版权声明保留在 [LICENSE](./LICENSE) 中。
+基于 DavidLam 的 [obsidian-wechat-converter](https://github.com/davidlam-oss/obsidian-wechat-converter) 开发，并移植了 Yeban 的 [note-to-red](https://github.com/yeban8090/note-to-red) 渲染引擎（TypeScript 版），两者均为 MIT 许可，原始版权声明保留在 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) 中。
 
 ## 许可证
 

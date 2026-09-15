@@ -1,6 +1,25 @@
-MIT License
+# Third-party notices
 
-Copyright (c) 2026 runnerback
+Note Content Studio is a derivative work. The original copyright and permission
+notices below are retained as required by the MIT License; the full license text
+is identical to [LICENSE](./LICENSE).
+
+## obsidian-wechat-converter
+
+Copyright (c) 2026 林小卫 (DavidLam)
+https://github.com/davidlam-oss/obsidian-wechat-converter
+
+Note Content Studio is based on this plugin (WeChat article conversion and sync).
+
+## note-to-red
+
+Copyright (c) 2025 夜半Yeban
+https://github.com/yeban8090/note-to-red
+
+The `rednote/` directory is a TypeScript port of this plugin's image-card
+rendering engine.
+
+Both works are licensed under the MIT License:
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

@@ -37,6 +37,10 @@ const context = await esbuild.context({
     logLevel: "info",
     sourcemap: prod ? false : "inline",
     treeShaking: true,
+    // 生产构建压缩（与 obsidian-sample-plugin 一致）：main.js 从 5.0MB 降到约 3.8MB，
+    // 低于 Obsidian Sync Standard 的 5MB 单文件上限；lib/mathjax-plugin.js 随 dependency-loader 静态进包，无法拆出
+    minify: prod,
+    keepNames: true,
     outfile: "main.js",
 });
 

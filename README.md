@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> Version 3.11.6 · Updated 2026-09-15 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
+> Version 3.11.7 · Updated 2026-09-15 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
 
 Turn your Obsidian notes into ready-to-publish content: **WeChat Official Account** articles, **Xiaohongshu (rednote)** image cards, and **Feishu** cloud docs, all previewed live inside Obsidian.
 
@@ -52,7 +52,7 @@ Note Content Studio is free and MIT licensed, developed and maintained by [runne
 
 ## Acknowledgements
 
-Built on [obsidian-wechat-converter](https://github.com/davidlam-oss/obsidian-wechat-converter) by DavidLam and a TypeScript port of the [note-to-red](https://github.com/yeban8090/note-to-red) rendering engine by Yeban, both MIT licensed. Their copyright notices are retained in [LICENSE](./LICENSE).
+Built on [obsidian-wechat-converter](https://github.com/davidlam-oss/obsidian-wechat-converter) by DavidLam and a TypeScript port of the [note-to-red](https://github.com/yeban8090/note-to-red) rendering engine by Yeban, both MIT licensed. Their copyright notices are retained in [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
 
 ## License
 

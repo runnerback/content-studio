@@ -21,7 +21,7 @@ export class RedSettingTab extends PluginSettingTab {
         const toggle = header.createSpan('settings-section-toggle');
         setIcon(toggle, 'chevron-right');
         
-        header.createEl('h4', { text: title });
+        new Setting(header).setName(title).setHeading();
         
         const content = section.createDiv('settings-section-content');
         renderContent(content);
@@ -64,7 +64,7 @@ export class RedSettingTab extends PluginSettingTab {
         const typographyToggle = typographyHeader.createSpan('red-settings-subsection-toggle');
         setIcon(typographyToggle, 'chevron-right');
         
-        typographyHeader.createEl('h3', { text: '排版管理' });
+        new Setting(typographyHeader).setName('排版管理').setHeading();
         
         const typographyContent = typographySection.createDiv('red-settings-subsection-content');
         
@@ -97,7 +97,7 @@ export class RedSettingTab extends PluginSettingTab {
         const fontToggle = fontHeader.createSpan('red-settings-subsection-toggle');
         setIcon(fontToggle, 'chevron-right');
         
-        fontHeader.createEl('h3', { text: '字体管理' });
+        new Setting(fontHeader).setName('字体管理').setHeading();
         
         const fontContent = fontSection.createDiv('red-settings-subsection-content');
         
@@ -177,7 +177,7 @@ export class RedSettingTab extends PluginSettingTab {
         const themeVisibilityToggle = themeVisibilityHeader.createSpan('red-settings-subsection-toggle');
         setIcon(themeVisibilityToggle, 'chevron-right');
         
-        themeVisibilityHeader.createEl('h3', { text: '显示设置' });
+        new Setting(themeVisibilityHeader).setName('显示设置').setHeading();
         
         const themeVisibilityContent = themeVisibilitySection.createDiv('red-settings-subsection-content');
         
@@ -237,7 +237,7 @@ export class RedSettingTab extends PluginSettingTab {
         
         // 左侧：所有主题列表
         const allThemesContainer = themeSelectionContainer.createDiv('all-themes-container');
-        allThemesContainer.createEl('h4', { text: '隐藏主题' });
+        new Setting(allThemesContainer).setName('隐藏主题').setHeading();
         const allThemesList = allThemesContainer.createDiv('themes-list');
         
         // 中间：控制按钮
@@ -247,7 +247,7 @@ export class RedSettingTab extends PluginSettingTab {
 
         // 右侧：显示的主题列表
         const visibleThemesContainer = themeSelectionContainer.createDiv('visible-themes-container');
-        visibleThemesContainer.createEl('h4', { text: '显示主题' });
+        new Setting(visibleThemesContainer).setName('显示主题').setHeading();
         const visibleThemesList = visibleThemesContainer.createDiv('themes-list');
         
         
@@ -336,7 +336,7 @@ export class RedSettingTab extends PluginSettingTab {
         // 主题管理区域
         const themeList = containerEl.createDiv('theme-management');
         // 渲染自定义主题
-        themeList.createEl('h4', { text: '自定义主题', cls: 'theme-custom-header' });
+        new Setting(themeList).setName('自定义主题').setHeading().setClass('theme-custom-header');
         this.plugin.settingsManager.getAllThemes()
             .filter(theme => !theme.isPreset)
             .forEach(theme => {
