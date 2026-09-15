@@ -37,6 +37,15 @@ interface RedSettings {
     };
 }
 
+// 上游 note-to-red 作者的个人默认文案（昵称 / ID / 页脚）。那是另一位真实用户的身份，
+// 老 data.json 里若仍是这些值，loadSettings 时一次性替换为本插件的通用占位文案，避免以他人名义发布。
+export const LEGACY_UPSTREAM_TEXTS = {
+    userName: '夜半',
+    userId: '@Yeban',
+    footerLeftText: '夜半过后，光明便启程',
+    footerRightText: '欢迎关注公众号：夜半',
+} as const;
+
 export const DEFAULT_SETTINGS: RedSettings = {
     themeId: 'default',
     fontFamily: 'Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, "PingFang SC"',
@@ -46,14 +55,14 @@ export const DEFAULT_SETTINGS: RedSettings = {
     customThemes: [],
     // 修改默认用户信息
     userAvatar: '',  // 默认为空，提示用户上传
-    userName: '笔记作者',
+    userName: '你的昵称',
     notesTitle: '备忘录',
-    userId: '@notes',
+    userId: '@yourid',
     showTime: true,
     timeFormat: 'zh-CN',
     headingLevel: 'h2', // 默认使用二级标题
-    footerLeftText: '记录 · 思考 · 分享',
-    footerRightText: '由 Note Content Studio 生成',
+    footerLeftText: '记录生活 · 分享思考',
+    footerRightText: '欢迎关注 · 点赞收藏',
     customFonts: [
         {
             value: 'Optima-Regular, Optima, PingFangSC-light, PingFangTC-light, "PingFang SC", Cambria, Cochin, Georgia, Times, "Times New Roman", serif',
@@ -128,6 +137,15 @@ export class SettingsManager extends EventEmitter {
         }
 
         this.settings = Object.assign({}, DEFAULT_SETTINGS, savedData);
+
+        const legacyKeys = (Object.keys(LEGACY_UPSTREAM_TEXTS) as Array<keyof typeof LEGACY_UPSTREAM_TEXTS>)
+            .filter(key => this.settings[key] === LEGACY_UPSTREAM_TEXTS[key]);
+        if (legacyKeys.length > 0) {
+            for (const key of legacyKeys) {
+                this.settings[key] = DEFAULT_SETTINGS[key];
+            }
+            await this.saveSettings();
+        }
     }
 
     // 主题相关方法
