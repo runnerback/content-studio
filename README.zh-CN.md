@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> 版本 3.11.8 · 更新 2026-09-17 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
+> 版本 3.11.9 · 更新 2026-09-17 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
 
 把 Obsidian 笔记变成可直接发布的内容：**微信公众号**文章、**小红书**图文卡片、**飞书**云文档，全部在 Obsidian 内实时预览。
 

@@ -87,12 +87,14 @@ export class DownloadManager {
 
     /**
      * 导出全部页为 zip:zip 名 = 笔记名称.zip;
-     * 内部结构与发布规则一致:export-to-rednote/synced-rednote-card_00.png …
+     * 内部顶层目录与 zip 同名(笔记名),解压多个 zip 时靠目录名即可区分:<笔记名>/synced-rednote-card_00.png …
      */
     static async downloadAllImages(element: HTMLElement, noteName: string): Promise<void> {
         try {
             /** zip 内路径 → 文件字节；PNG 已是压缩格式，打包时不再 deflate */
             const zipEntries: Record<string, Uint8Array> = {};
+            // 解压后的顶层目录与 zip 文件同名
+            const zipFolderName = sanitizeExportFilename(noteName);
             const previewContainer = element.querySelector('.red-preview-container');
             if (!previewContainer) throw new Error('找不到预览容器');
 
@@ -127,7 +129,7 @@ export class DownloadManager {
                 try {
                     const blob = await htmlToImage.toBlob(imageElement, this.getExportConfig(imageElement));
                     if (blob instanceof Blob) {
-                        zipEntries[`export-to-rednote/${rednoteCardFilename(i)}`] = new Uint8Array(await blob.arrayBuffer());
+                        zipEntries[`${zipFolderName}/${rednoteCardFilename(i)}`] = new Uint8Array(await blob.arrayBuffer());
                     } else {
                         throw new Error('生成的不是有效的 Blob 对象');
                     }
@@ -144,7 +146,7 @@ export class DownloadManager {
                                 }
                             }, 'image/png', 1);
                         });
-                        zipEntries[`export-to-rednote/${rednoteCardFilename(i)}`] = new Uint8Array(await blob.arrayBuffer());
+                        zipEntries[`${zipFolderName}/${rednoteCardFilename(i)}`] = new Uint8Array(await blob.arrayBuffer());
                     } catch (canvasErr) {
                         console.error(`第${i + 1}页备用导出也失败`, canvasErr);
                     }
@@ -168,7 +170,7 @@ export class DownloadManager {
             const url = URL.createObjectURL(content);
             const link = Object.assign(document.createElement('a'), {
                 href: url,
-                download: `${sanitizeExportFilename(noteName)}.zip`
+                download: `${zipFolderName}.zip`
             });
 
             link.click();
