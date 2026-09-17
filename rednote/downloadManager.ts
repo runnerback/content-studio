@@ -1,5 +1,6 @@
 import * as htmlToImage from 'html-to-image';
-import JSZip from 'jszip';
+// fflate 替代 jszip：jszip 内置的 setImmediate/lie 兼容层含 createElement('script')，被 Obsidian 审核判为运行时注入脚本
+import { zip as fflateZip } from 'fflate';
 // 与发布链路(sync-to-rednote/)同一套图卡命名:synced-rednote-card_00.png …
 // @ts-ignore 纯函数 JS 模块,无类型声明
 import { rednoteCardFilename } from '../services/rednote-publish.js';
@@ -90,7 +91,8 @@ export class DownloadManager {
      */
     static async downloadAllImages(element: HTMLElement, noteName: string): Promise<void> {
         try {
-            const zip = new JSZip();
+            /** zip 内路径 → 文件字节；PNG 已是压缩格式，打包时不再 deflate */
+            const zipEntries: Record<string, Uint8Array> = {};
             const previewContainer = element.querySelector('.red-preview-container');
             if (!previewContainer) throw new Error('找不到预览容器');
 
@@ -125,7 +127,7 @@ export class DownloadManager {
                 try {
                     const blob = await htmlToImage.toBlob(imageElement, this.getExportConfig(imageElement));
                     if (blob instanceof Blob) {
-                        zip.file(`export-to-rednote/${rednoteCardFilename(i)}`, blob);
+                        zipEntries[`export-to-rednote/${rednoteCardFilename(i)}`] = new Uint8Array(await blob.arrayBuffer());
                     } else {
                         throw new Error('生成的不是有效的 Blob 对象');
                     }
@@ -142,7 +144,7 @@ export class DownloadManager {
                                 }
                             }, 'image/png', 1);
                         });
-                        zip.file(`export-to-rednote/${rednoteCardFilename(i)}`, blob);
+                        zipEntries[`export-to-rednote/${rednoteCardFilename(i)}`] = new Uint8Array(await blob.arrayBuffer());
                     } catch (canvasErr) {
                         console.error(`第${i + 1}页备用导出也失败`, canvasErr);
                     }
@@ -156,17 +158,12 @@ export class DownloadManager {
             });
 
             // 创建下载
-            const content = await zip.generateAsync({
-                type: "blob",
-                compression: "DEFLATE",
-                compressionOptions: {
-                    level: 9
-                }
+            if (Object.keys(zipEntries).length === 0) throw new Error('没有导出成功的图卡，未生成 zip');
+            const zipBytes = await new Promise<Uint8Array>((resolve, reject) => {
+                fflateZip(zipEntries, { level: 0 }, (err, data) => (err ? reject(err) : resolve(data)));
             });
-
-            if (!(content instanceof Blob)) {
-                throw new Error('生成的压缩文件不是有效的 Blob 对象');
-            }
+            // TS 5.9 把 Uint8Array 泛型为 ArrayBufferLike，Blob 只收 ArrayBuffer 视图：显式按字节范围切出 ArrayBuffer
+            const content = new Blob([zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength) as ArrayBuffer], { type: 'application/zip' });
 
             const url = URL.createObjectURL(content);
             const link = Object.assign(document.createElement('a'), {
