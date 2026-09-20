@@ -5009,6 +5009,29 @@ div.modal.wechat-material-picker-modal-mobile {
   }
 }
 
+/* 溢出角标：挂在预览包裹层（卡片之外），不进导出图 */
+.red-preview-wrapper {
+  position: relative;
+}
+.red-overflow-badge {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 90%;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-error, #d33) 14%, var(--background-primary));
+  color: var(--text-error, #d33);
+  font-size: 12px;
+  line-height: 1.4;
+  z-index: 50;
+  pointer-events: none;
+}
+.red-overflow-badge.is-hidden {
+  display: none;
+}
+
 /* src/styles/view/tool-bar.css
    (原 red-toolbar / red-bottom-bar / red-select / 字号步进 / 帮助 tooltip
    等自带控件样式已随控件收编进宿主顶栏与悬浮层而删除) */
@@ -5365,6 +5388,13 @@ div.modal.wechat-material-picker-modal-mobile {
   height: auto;
   display: block;
   margin: 1em auto;
+  /* 图文混排：宽度撑满内容区、高度按原图比例；竖图以内容区高度（--red-content-h，由 cardFit 量出）的一半封顶，
+     max-width + max-height 同时生效时浏览器等比缩放，不裁切 */
+  max-height: calc(var(--red-content-h, 480px) * 0.5);
+}
+/* 拆出来的独立图片卡：图片可占到内容区 85% */
+.red-section-image-only .red-image {
+  max-height: calc(var(--red-content-h, 480px) * 0.85);
 }
 
 /* src/styles/settings/settings.css */

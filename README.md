@@ -1,13 +1,13 @@
 # Note Content Studio
 
-> Version 3.11.9 · Updated 2026-09-17 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
+> Version 3.11.10 · Updated 2026-09-20 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
 
 Turn your Obsidian notes into ready-to-publish content: **WeChat Official Account** articles, **Xiaohongshu (rednote)** image cards, and **Feishu** cloud docs, all previewed live inside Obsidian.
 
 ## Features
 
 - **WeChat articles**: live preview your Markdown as a WeChat-ready article (code blocks, quotes, local images, GIFs, math and diagrams all handled). Copy into the WeChat editor with one click, or save straight to your account's drafts.
-- **Xiaohongshu image cards**: switch the preview to 小红书 mode and each heading becomes one image card. Style them with themes (including an iOS-Notes look), then export as PNGs.
+- **Xiaohongshu image cards**: switch the preview to 小红书 mode and each heading becomes one image card. Images under a heading are laid out inline with the text (full width, height by aspect ratio); when a card cannot fit both, the image is split into its own card automatically. Style cards with themes (including an iOS-Notes look), then export as PNGs.
 - **Feishu docs**: sync the same note to Feishu cloud documents.
 - **AI layout and title polish** (optional): AI-assisted typesetting and title suggestions with your own API key.
 - **Draft publishing to Xiaohongshu / X** (optional): push rendered cards to the platform draft box through a companion browser extension.

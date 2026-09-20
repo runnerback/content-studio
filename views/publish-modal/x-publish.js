@@ -12,6 +12,6 @@ export const xPublishMixin = {
    * @returns {Promise<{ article: Record<string, unknown>, dirPath: string, cardCount: number }>}
    */
   async prepareXCardArticle() {
-    return prepareCardArticle(this, { prefix: 'x', label: 'X', sourceKind: 'x-card' });
+    return prepareCardArticle(this, { prefix: 'x', label: 'X', sourceKind: 'x-card', maxCards: 4 });
   },
 };

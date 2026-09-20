@@ -33,7 +33,7 @@ async function blobToBase64AndBuffer(blob) {
 /**
  * 图卡发布准备通用流程。任何一步不满足直接抛错(调用方决定跳过/报错),不兜底。
  * @param {any} view AppleStyleView 实例
- * @param {{ prefix: string, label: string, sourceKind: string }} config
+ * @param {{ prefix: string, label: string, sourceKind: string, maxCards?: number }} config maxCards：平台单帖图片上限（X 为 4），超出直接抛错
  * @returns {Promise<{ article: Record<string, unknown>, dirPath: string, cardCount: number }>}
  */
 export async function prepareCardArticle(view, config) {
@@ -66,6 +66,10 @@ export async function prepareCardArticle(view, config) {
     const blobs = await DownloadManager.exportAllImageBlobs(previewEl);
     if (!blobs.length) {
       throw new Error('图卡预览未渲染出任何图卡,请先在顶栏切到图卡预览、确认图卡显示后再发布');
+    }
+    // 图文混排装不下时图片会被拆成独立卡，卡数可能变多；X 单帖最多 4 张图，超了直接暴露而不是让平台报错
+    if (config.maxCards && blobs.length > config.maxCards) {
+      throw new Error(`${config.label} 单帖最多 ${config.maxCards} 张图，当前图卡预览有 ${blobs.length} 张（带 ⚠️ 的页是图片被拆成了独立卡），请删减文字让图文同卡，或减少卡数`);
     }
 
     notice.setMessage(`正在处理 ${blobs.length} 张图卡...`);

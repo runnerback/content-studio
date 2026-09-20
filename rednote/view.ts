@@ -16,6 +16,7 @@ import { ImgTemplateManager } from './imgTemplateManager.ts';
 import { BackgroundSettingModal } from './modals/BackgroundSettingModal.ts';
 import { BackgroundManager } from './backgroundManager.ts';
 import { renderMemoHeader } from './memoHeader.ts';
+import { fitCards, overflowLines, listOverflowingPages } from './cardFit.ts';
 
 export class RedPreviewController {
     // #region 属性定义
@@ -36,6 +37,8 @@ export class RedPreviewController {
     private hasValidContent: boolean = false;
     private backgroundManager: BackgroundManager;
 
+    /** 预览区右上角的溢出角标（在卡片之外，不进导出） */
+    private overflowBadge: HTMLElement | null = null;
     private navigationButtons: {
         prev: HTMLButtonElement;
         next: HTMLButtonElement;
@@ -104,6 +107,7 @@ export class RedPreviewController {
     private initializePreviewArea(container: HTMLElement) {
         const wrapper = container.createEl('div', { cls: 'red-preview-wrapper' });
         this.previewEl = wrapper.createEl('div', { cls: 'red-preview-container' });
+        this.overflowBadge = wrapper.createEl('div', { cls: 'red-overflow-badge is-hidden' });
 
         // 创建导航容器
         const navContainer = wrapper.createEl('div', { cls: 'red-nav-container' });
@@ -139,7 +143,13 @@ export class RedPreviewController {
 
         this.navigationButtons.prev.classList.toggle('red-nav-hidden', this.currentImageIndex === 0);
         this.navigationButtons.next.classList.toggle('red-nav-hidden', this.currentImageIndex === sections.length - 1);
-        this.navigationButtons.indicator.textContent = `${this.currentImageIndex + 1}/${sections.length}`;
+        const active = sections[this.currentImageIndex] || null;
+        const lines = overflowLines(active);
+        this.navigationButtons.indicator.textContent = `${this.currentImageIndex + 1}/${sections.length}${lines ? ' ⚠️' : ''}`;
+        if (this.overflowBadge) {
+            this.overflowBadge.classList.toggle('is-hidden', lines === 0);
+            this.overflowBadge.textContent = lines ? `本页内容超出卡片约 ${lines} 行，导出会被裁切；请删减文字或用 --- 分页` : '';
+        }
     }
 
     private navigateImages(direction: 'prev' | 'next') {
@@ -257,12 +267,14 @@ export class RedPreviewController {
 
     async downloadCurrentPage() {
         this.ensureExportReady();
+        this.noticeOverflowingPages([this.currentImageIndex + 1]);
         await DownloadManager.downloadSingleImage(this.previewEl, this.exportNoteName(), this.currentImageIndex);
     }
 
     /** 批量导出全部页图卡(笔记名称.zip);无有效内容时抛错由宿主提示 */
     async downloadAllPages() {
         this.ensureExportReady();
+        this.noticeOverflowingPages();
         await DownloadManager.downloadAllImages(this.previewEl, this.exportNoteName());
     }
 
@@ -298,6 +310,12 @@ export class RedPreviewController {
         ).open();
     }
 
+    /** 导出前提示仍溢出的页（不阻断）；only 给定时只看这些页 */
+    private noticeOverflowingPages(only?: number[]): void {
+        const pages = listOverflowingPages(this.previewEl).filter((n) => !only || only.includes(n));
+        if (pages.length) new Notice(`⚠️ 第 ${pages.join('、')} 页内容超出卡片，导出图片会被裁切`, 8000);
+    }
+
     /** 悬浮层底部「使用指南」文案(随标题分割级别设置变化) */
     getUsageGuideText(): string {
         const headingLevel = this.settingsManager.getSettings().headingLevel || 'h1';
@@ -307,7 +325,8 @@ export class RedPreviewController {
 3. 首图制作：单独调整首节字号至20-24px，用顶栏下载菜单的【导出当前页】导出
 4. 长文优化：内容较多的章节可调小字号至14-16px后单独导出
 5. 批量操作：保持统一字号时，用【导出全部页】批量生成
-6. 主题切换：在本面板切换不同视觉风格(含 iOS 备忘录风)`;
+6. 主题切换：在本面板切换不同视觉风格(含 iOS 备忘录风)
+7. 图文混排：标题下的图片会嵌进该卡，宽度撑满、高度按比例；装不下时自动把图片单独成卡，仍超出的页会有 ⚠️ 提示`;
     }
     // #endregion
 
@@ -355,6 +374,12 @@ export class RedPreviewController {
             }
         }
 
+        if (hasValidContent) {
+            // 图文混排装载检查：图片高度上限、带图卡装不下则把图片拆成独立卡、仍溢出的卡打标记
+            await fitCards(this.previewEl);
+            const sectionCount = this.previewEl.querySelectorAll('.red-content-section').length;
+            if (this.currentImageIndex >= sectionCount) this.currentImageIndex = Math.max(0, sectionCount - 1);
+        }
         this.hasValidContent = hasValidContent;
         this.updateNavigationState();
     }

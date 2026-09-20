@@ -55,4 +55,11 @@
   height: auto;
   display: block;
   margin: 1em auto;
+  /* 图文混排：宽度撑满内容区、高度按原图比例；竖图以内容区高度（--red-content-h，由 cardFit 量出）的一半封顶，
+     max-width + max-height 同时生效时浏览器等比缩放，不裁切 */
+  max-height: calc(var(--red-content-h, 480px) * 0.5);
+}
+/* 拆出来的独立图片卡：图片可占到内容区 85% */
+.red-section-image-only .red-image {
+  max-height: calc(var(--red-content-h, 480px) * 0.85);
 }

@@ -4,6 +4,8 @@ import { zip as fflateZip } from 'fflate';
 // 与发布链路(sync-to-rednote/)同一套图卡命名:synced-rednote-card_00.png …
 // @ts-ignore 纯函数 JS 模块,无类型声明
 import { rednoteCardFilename } from '../services/rednote-publish.js';
+import { Notice } from 'obsidian';
+import { listOverflowingPages } from './cardFit.ts';
 
 /**
  * 导出文件名清洗:笔记名可能含 emoji/全角标点(如「实测🚀FSD到底多能打？」),
@@ -41,6 +43,8 @@ export class DownloadManager {
     static async exportAllImageBlobs(element: HTMLElement): Promise<Blob[]> {
         const previewContainer = element.querySelector('.red-preview-container');
         if (!previewContainer) throw new Error('找不到预览容器');
+        const overflowing = listOverflowingPages(previewContainer);
+        if (overflowing.length) new Notice(`⚠️ 第 ${overflowing.join('、')} 页内容超出卡片，发布的图片会被裁切`, 8000);
 
         const VISIBLE_CLASS = 'red-section-visible';
         const HIDDEN_CLASS = 'red-section-hidden';
