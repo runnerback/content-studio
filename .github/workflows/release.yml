@@ -105,10 +105,14 @@ jobs:
             manifest.json
             styles.css
 
-      - name: Create GitHub release
+      # 先建草稿并挂上三件套，校验齐全后再发布：Obsidian 社区目录在 release「published」事件时立刻拉取资产，
+      # 直接发布会撞上资产还在上传的窗口（3.11.10 审核判「缺 main.js / manifest.json」，而几秒后资产其实都在）。
+      - name: Create GitHub release (draft with assets)
         if: startsWith(github.ref, 'refs/tags/')
+        id: gh_release
         uses: softprops/action-gh-release@v3
         with:
+          draft: true
           name: ${{ github.ref_name }}${{ steps.release_notes.outputs.found == 'true' && format(' - {0}', steps.release_notes.outputs.title) || '' }}
           body_path: ${{ steps.release_notes.outputs.body_file }}
           files: |
@@ -117,3 +121,19 @@ jobs:
             styles.css
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify assets then publish release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.gh_release.outputs.id }}
+        run: |
+          API="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}"
+          AUTH=(-H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json")
+          NAMES="$(curl -sSf "${AUTH[@]}" "${API}/assets" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log(JSON.parse(d).map(a=>a.name+":"+a.state).sort().join(" ")))')"
+          echo "release assets: ${NAMES}"
+          for f in main.js manifest.json styles.css; do
+            case " ${NAMES} " in *" ${f}:uploaded "*) ;; *) echo "asset ${f} 未挂到草稿 Release 上，拒绝发布"; exit 1 ;; esac
+          done
+          curl -sSf "${AUTH[@]}" -X PATCH "${API}" -d '{"draft": false}' > /dev/null
+          echo "published release ${RELEASE_ID} with ${NAMES}"
