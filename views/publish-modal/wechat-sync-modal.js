@@ -5,6 +5,16 @@
 // AppleStyleView god-class (Phase 5) as a prototype mixin (Object.assign onto
 // the view prototype) so `this` usage is unchanged.
 
+// 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
+/** @typedef {import('../../input.js').ObsidianElementLike} ObsidianElementLike */
+/** @typedef {import('../../input.js').ObsidianInputLike} ObsidianInputLike */
+/** @typedef {import('../../input.js').ArticleSessionStateLike} ArticleSessionStateLike */
+/** @typedef {import('../../input.js').DraftAssociationLike} DraftAssociationLike */
+/** @typedef {import('../../input.js').ModalLike} ModalLike */
+/** @typedef {import('../../input.js').SyncModalOptionsLike} SyncModalOptionsLike */
+/** @typedef {import('../../input.js').WechatAccountLike} WechatAccountLike */
+/** @typedef {import('../../input.js').WechatMaterialSelectionLike} WechatMaterialSelectionLike */
+
 import { obsidianApi, getObsidianModalClass, createObsidianModal, isMobileClient, getActiveDocumentCompat, getObsidianRequestUrl } from '../../services/obsidian-adapters.js';
 import { isRecord } from '../../services/input-utils.js';
 import { resolveSyncAccount } from '../../services/sync-context.js';
@@ -16,6 +26,8 @@ import { getDraftAssociation, clearDraftAssociation } from '../../services/wecha
 
 const { Notice } = obsidianApi;
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const wechatSyncModalMixin = {
   /**
    * @param {string} message

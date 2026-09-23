@@ -61,3 +61,25 @@ function installSetCssStylesPrototype(Ctor) {
 
 installSetCssStylesPrototype(globalThis.HTMLElement);
 installSetCssStylesPrototype(globalThis.SVGElement);
+
+// Obsidian 在运行时提供全局 createEl / createDiv / createSpan / createSvg（rednote 源码按官方 lint 规则使用它们）。
+// jsdom 没有，这里按官方签名补：(tag, o?: string | DomElementInfo, callback?) → 元素带 mock 的 createEl 等扩展。
+{
+  const { __applyExtensions } = require('obsidian');
+  const normalize = (o) => (typeof o === 'string' ? { cls: o } : (o || {}));
+  const make = (tag, o, callback, ns) => {
+    const doc = globalThis.document;
+    const el = __applyExtensions(ns ? doc.createElementNS(ns, tag) : doc.createElement(tag));
+    const opts = normalize(o);
+    if (opts.cls) el.setAttribute('class', Array.isArray(opts.cls) ? opts.cls.join(' ') : opts.cls);
+    if (opts.text !== undefined) el.textContent = String(opts.text);
+    if (opts.attr) Object.entries(opts.attr).forEach(([k, v]) => { if (v != null) el.setAttribute(k, String(v)); });
+    if (opts.parent) opts.parent.appendChild(el);
+    if (typeof callback === 'function') callback(el);
+    return el;
+  };
+  globalThis.createEl = (tag, o, callback) => make(tag, o, callback);
+  globalThis.createDiv = (o, callback) => make('div', o, callback);
+  globalThis.createSpan = (o, callback) => make('span', o, callback);
+  globalThis.createSvg = (tag, o, callback) => make(tag, o, callback, 'http://www.w3.org/2000/svg');
+}

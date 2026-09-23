@@ -669,7 +669,7 @@ async function showMultiPlatformPublishModal(view, options = {}) {
         })
         .catch((quotaError) => {
           // 老版本扩展没有 quotaStatus，或许可服务暂不可达：提示行保持只显示已选平台数
-          console.info('[Wechatsync] quotaStatus unavailable', toReadableError(quotaError).message);
+          console.debug('[Wechatsync] quotaStatus unavailable', toReadableError(quotaError).message);
         });
     }
   }
@@ -957,7 +957,7 @@ async function showMultiPlatformPublishModal(view, options = {}) {
         ? await view.generateCoverThumbnailFromAsset(coverAsset)
         : '';
 
-      console.info('[Wechatsync] enqueueSyncArticle started', {
+      console.debug('[Wechatsync] enqueueSyncArticle started', {
         platformCount: requestedPlatformIds.length,
         platforms: requestedPlatformIds,
         title,
@@ -1003,7 +1003,7 @@ async function showMultiPlatformPublishModal(view, options = {}) {
           licenseKey: bridgeSettings.licenseKey,
         }));
       }
-      console.info('[Wechatsync] enqueueSyncArticle accepted', {
+      console.debug('[Wechatsync] enqueueSyncArticle accepted', {
         elapsedMs: Date.now() - sendStartedAt,
         resultKind: Array.isArray(result) ? 'array' : typeof result,
         syncId: result?.syncId,

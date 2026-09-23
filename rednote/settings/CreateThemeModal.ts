@@ -1,5 +1,16 @@
 import { App, Modal, Setting, Notice, setIcon } from 'obsidian';
 import type { Theme } from '../themeManager.ts';
+
+type ThemeStyles = Theme['styles'];
+/** 设置弹窗按分区传入的样式片段：整套、某一子对象、或按分区拼出的局部对象（段落+强调 / 引用 / 链接 / 分隔线） */
+type ThemeSection =
+    | ThemeStyles
+    | ThemeStyles[keyof ThemeStyles]
+    | Pick<ThemeStyles, 'paragraph' | 'emphasis'>
+    | Pick<ThemeStyles, 'quote'>
+    | Pick<ThemeStyles, 'link'>
+    | Pick<ThemeStyles, 'hr'>
+    | Pick<ThemeStyles, 'image'>;
 import { ThemePreviewModal } from './ThemePreviewModal.ts';
 import type { RednoteHost as RedPlugin } from '../host.ts';
 export class CreateThemeModal extends Modal {
@@ -26,7 +37,7 @@ export class CreateThemeModal extends Modal {
         };
     }
 
-    private initializeStyles(): any {
+    private initializeStyles(): ThemeStyles {
         return {
             imagePreview: "background-color: #fffaf5; padding: 32px 28px;",
             header: {
@@ -154,7 +165,7 @@ export class CreateThemeModal extends Modal {
                     })
                     .inputEl;
 
-                setTimeout(() => this.nameInput.focus(), 0);
+                window.setTimeout(() => this.nameInput.focus(), 0);
                 return text;
             });
         new Setting(nameContainer)
@@ -233,7 +244,7 @@ export class CreateThemeModal extends Modal {
         return this.plugin.settingsManager.getAllThemes().find(theme => theme.id === id);
     }
 
-    private addStyleSettings(container: HTMLElement, sectionName: string, styles: any) {
+    private addStyleSettings(container: HTMLElement, sectionName: string, styles: ThemeSection) {
         const section = container.createDiv('style-section');
 
         // 创建折叠面板标题区域
@@ -330,49 +341,49 @@ export class CreateThemeModal extends Modal {
     }
 
     // 新增方法，用于处理设置内容
-    private addStyleSettingsContent(content: HTMLElement, sectionName: string, styles: any) {
+    private addStyleSettingsContent(content: HTMLElement, sectionName: string, styles: ThemeSection) {
         switch (sectionName) {
             case '全局样式':
-                this.addGlobalStylesSettings(content, styles);
+                this.addGlobalStylesSettings(content, styles as ThemeStyles);
                 break;
             case '背景样式':
-                this.addBackGroupStylesSettings(content, styles);
+                this.addBackGroupStylesSettings(content, styles as string);
                 break;
             case '页眉样式':
-                this.addHeaderSettings(content, styles);
+                this.addHeaderSettings(content, styles as ThemeStyles['header']);
                 break;
             case '页脚样式':
-                this.addFooterSettings(content, styles);
+                this.addFooterSettings(content, styles as ThemeStyles['footer']);
                 break;
             case '标题样式':
-                this.addTitleSettings(content, styles);
+                this.addTitleSettings(content, styles as ThemeStyles['title']);
                 break;
             case '段落样式':
-                this.addParagraphAndEmphasisSettings(content, styles);
+                this.addParagraphAndEmphasisSettings(content, styles as Pick<ThemeStyles, 'paragraph' | 'emphasis'>);
                 break;
             case '列表样式':
-                this.addListSettings(content, styles);
+                this.addListSettings(content, styles as ThemeStyles['list']);
                 break;
             case '引用样式':
-                this.addQuoteSettings(content, styles);
+                this.addQuoteSettings(content, styles as Pick<ThemeStyles, 'quote'>);
                 break;
             case '代码样式':
-                this.addCodeSettings(content, styles);
+                this.addCodeSettings(content, styles as ThemeStyles['code']);
                 break;
             case '链接样式':
-                this.addLinkSettings(content, styles);
+                this.addLinkSettings(content, styles as Pick<ThemeStyles, 'link'>);
                 break;
             case '表格样式':
-                this.addTableSettings(content, styles);
+                this.addTableSettings(content, styles as ThemeStyles['table']);
                 break;
             case '分隔线样式':
-                this.addHrSettings(content, styles);
+                this.addHrSettings(content, styles as Pick<ThemeStyles, 'hr'>);
                 break;
             case '脚注样式':
-                this.addFootnoteSettings(content, styles);
+                this.addFootnoteSettings(content, styles as ThemeStyles['footnote']);
                 break;
             case '图片样式':
-                this.addImageSettings(content, styles);
+                this.addImageSettings(content, styles as ThemeStyles);
                 break;
         }
     }
@@ -409,7 +420,7 @@ export class CreateThemeModal extends Modal {
             .replace(/^-|-$/g, '') + '-' + Date.now().toString(36).slice(-4);
     }
 
-    private addGlobalStylesSettings(container: HTMLElement, styles: any) {
+    private addGlobalStylesSettings(container: HTMLElement, styles: ThemeStyles) {
         const section = container.createDiv('global-style-section');
 
         new Setting(section)
@@ -549,7 +560,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addHeaderSettings(container: HTMLElement, styles: any) {
+    private addHeaderSettings(container: HTMLElement, styles: ThemeStyles['header']) {
         const headerSection = container.createDiv('header-section');
         new Setting(headerSection)
             .setName('页眉主色调')
@@ -636,7 +647,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addTitleSettings(container: HTMLElement, styles: any) {
+    private addTitleSettings(container: HTMLElement, styles: ThemeStyles['title']) {
         ['h2', 'h3', 'base'].forEach(level => {
             const titleSection = container.createDiv('style-section');
 
@@ -683,7 +694,7 @@ export class CreateThemeModal extends Modal {
         });
     }
 
-    private addFooterSettings(container: HTMLElement, styles: any) {
+    private addFooterSettings(container: HTMLElement, styles: ThemeStyles['footer']) {
         const footerSection = container.createDiv('footer-section');
 
         new Setting(footerSection)
@@ -746,7 +757,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addParagraphAndEmphasisSettings(container: HTMLElement, styles: any) {
+    private addParagraphAndEmphasisSettings(container: HTMLElement, styles: Pick<ThemeStyles, 'paragraph' | 'emphasis'>) {
         const paragraphSection = container.createDiv('style-section'); // 修改为 style-section
 
         // 创建折叠面板标题区域
@@ -858,7 +869,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addListSettings(container: HTMLElement, styles: any) {
+    private addListSettings(container: HTMLElement, styles: ThemeStyles['list']) {
         const listSection = container.createDiv('list-section');
 
         new Setting(listSection)
@@ -899,7 +910,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addQuoteSettings(container: HTMLElement, styles: any) {
+    private addQuoteSettings(container: HTMLElement, styles: Pick<ThemeStyles, 'quote'>) {
         const quoteSection = container.createDiv('quote-section');
 
         new Setting(quoteSection)
@@ -942,7 +953,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addCodeSettings(container: HTMLElement, styles: any) {
+    private addCodeSettings(container: HTMLElement, styles: ThemeStyles['code']) {
         // 代码块设置
         const codeBlockSection = container.createDiv('style-section'); // 修改为 style-section
 
@@ -1031,7 +1042,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addLinkSettings(container: HTMLElement, styles: any) {
+    private addLinkSettings(container: HTMLElement, styles: Pick<ThemeStyles, 'link'>) {
         const linkSection = container.createDiv('link-section');
 
         new Setting(linkSection)
@@ -1085,7 +1096,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addTableSettings(container: HTMLElement, styles: any) {
+    private addTableSettings(container: HTMLElement, styles: ThemeStyles['table']) {
         const tableSection = container.createDiv('table-section');
 
         new Setting(tableSection)
@@ -1134,7 +1145,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addHrSettings(container: HTMLElement, styles: any) {
+    private addHrSettings(container: HTMLElement, styles: Pick<ThemeStyles, 'hr'>) {
         const hrSection = container.createDiv('hr-section');
 
         new Setting(hrSection)
@@ -1173,7 +1184,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addFootnoteSettings(container: HTMLElement, styles: any) {
+    private addFootnoteSettings(container: HTMLElement, styles: ThemeStyles['footnote']) {
         const footnoteSection = container.createDiv('footnote-section');
 
         new Setting(footnoteSection)
@@ -1203,7 +1214,7 @@ export class CreateThemeModal extends Modal {
             });
     }
 
-    private addImageSettings(container: HTMLElement, styles: any) {
+    private addImageSettings(container: HTMLElement, styles: ThemeStyles) {
         const imageSection = container.createDiv('image-section');
 
         new Setting(imageSection)

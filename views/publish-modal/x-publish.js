@@ -6,6 +6,8 @@
 
 import { prepareCardArticle } from './card-publish-mixin.js';
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const xPublishMixin = {
   /**
    * 准备 X 图卡 article(渲染 + 落盘 sync-to-x/ + 截取,不投递)。

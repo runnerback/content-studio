@@ -112,7 +112,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
    */
   constructor(app, plugin) {
     super(app, plugin);
-    /** @type {any} */
+    /** @type {import('../../input.js').AppleStylePluginLike} */
     this.plugin = plugin;
     /** @type {any} 当前打开的子页面（飞书 / 其他平台 / 小红书），供精确重绘 */
     this.activeSettingPage = null;

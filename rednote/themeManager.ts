@@ -30,11 +30,6 @@ export interface Theme {
             separator: string;
         };
         title: {
-            h1: {
-                base: string;
-                content: string;
-                after: string;
-            };
             h2: {
                 base: string;
                 content: string;
@@ -181,7 +176,7 @@ export class ThemeManager {
             element.querySelectorAll(tag).forEach(el => {
                 // 检查是否已经处理过
                 if (!el.querySelector('.content')) {
-                    const content = document.createElement('span');
+                    const content = createSpan();
                     content.className = 'content';
 
                     // 将原有内容移动到新的 span 中
@@ -191,7 +186,7 @@ export class ThemeManager {
 
                     el.appendChild(content);
 
-                    const after = document.createElement('span');
+                    const after = createSpan();
                     after.className = 'after';
                     el.appendChild(after);
                 }

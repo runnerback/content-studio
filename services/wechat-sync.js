@@ -1,3 +1,6 @@
+// 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
+/** @typedef {import('../input.js').WechatAccountLike} WechatAccountLike */
+
 import { createHtmlContainer, getActiveDocument } from './dom-utils.js';
 
 /**

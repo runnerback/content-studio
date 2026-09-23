@@ -105,19 +105,19 @@ export class RedPreviewController {
     }
 
     private initializePreviewArea(container: HTMLElement) {
-        const wrapper = container.createEl('div', { cls: 'red-preview-wrapper' });
-        this.previewEl = wrapper.createEl('div', { cls: 'red-preview-container' });
-        this.overflowBadge = wrapper.createEl('div', { cls: 'red-overflow-badge is-hidden' });
+        const wrapper = container.createDiv({ cls: 'red-preview-wrapper' });
+        this.previewEl = wrapper.createDiv({ cls: 'red-preview-container' });
+        this.overflowBadge = wrapper.createDiv({ cls: 'red-overflow-badge is-hidden' });
 
         // 创建导航容器
-        const navContainer = wrapper.createEl('div', { cls: 'red-nav-container' });
+        const navContainer = wrapper.createDiv({ cls: 'red-nav-container' });
 
         const prevButton = navContainer.createEl('button', {
             cls: 'red-nav-button',
             text: '←'
         });
 
-        const indicator = navContainer.createEl('span', {
+        const indicator = navContainer.createSpan({
             cls: 'red-page-indicator',
             text: '1/1'
         });
@@ -185,7 +185,7 @@ export class RedPreviewController {
                         new Notice('复制失败');
                         console.error('复制图片失败:', error);
                     } finally {
-                        setTimeout(() => {
+                        window.setTimeout(() => {
                             copyButton.disabled = false;
                         }, 1000);
                     }
@@ -392,7 +392,7 @@ export class RedPreviewController {
 
         if (!file || file.extension !== 'md') {
             this.previewEl.empty();
-            this.previewEl.createEl('div', {
+            this.previewEl.createDiv({
                 text: '只能预览 markdown 文本文档',
                 cls: 'red-empty-state'
             });

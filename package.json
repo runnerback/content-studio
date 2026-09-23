@@ -1,6 +1,6 @@
 {
 	"name": "note-content-studio",
-	"version": "3.11.11",
+	"version": "3.11.12",
 	"description": "Turn notes into WeChat Official Account articles, Xiaohongshu image cards, and Feishu docs, with live preview.",
 	"main": "main.js",
 	"scripts": {
@@ -11,7 +11,7 @@
 		"generate:styles": "node scripts/build-styles.mjs",
 		"check:styles": "node scripts/build-styles.mjs --check",
 		"generate:runtime": "npm run generate:embedded && npm run generate:ai-layout-runtime && npm run generate:styles",
-		"check:runtime": "npm run check:embedded && npm run check:ai-layout-runtime && npm run check:styles",
+		"check:runtime": "npm run check:embedded && npm run check:ai-layout-runtime && npm run check:styles && npm run check:view-types",
 		"check:build-artifacts": "node scripts/check-build-artifacts.mjs",
 		"dev": "npm run generate:runtime && node esbuild.config.mjs",
 		"build": "npm run generate:runtime && node esbuild.config.mjs production",
@@ -25,7 +25,10 @@
 		"release:dryrun": "npm run review:guard",
 		"scan:guard": "npm run lint && node scripts/check-scan-risk-patterns.mjs",
 		"review:guard": "npm run scan:guard && npm run check:build-artifacts && npm test -- --run && npm run release:pack && npm run release:validate",
-		"lint": "eslint ."
+		"lint": "eslint .",
+		"generate:view-types": "node scripts/generate-view-mixins-types.mjs",
+		"check:view-types": "node scripts/generate-view-mixins-types.mjs --check",
+		"scan:directory": "eslint -c eslint.scan.config.mjs --no-config-lookup ."
 	},
 	"keywords": [
 		"obsidian",
@@ -45,7 +48,7 @@
 		"esbuild": "0.17.3",
 		"eslint": "^9.0.0",
 		"eslint-plugin-obsidian": "^2.32.0",
-		"eslint-plugin-obsidianmd": "^0.3.0",
+		"eslint-plugin-obsidianmd": "^0.4.2",
 		"globals": "^15.0.0",
 		"highlight.js": "^11.11.1",
 		"jsdom": "^28.0.0",

@@ -9,6 +9,8 @@ import { toReadableError } from '../../services/input-utils.js';
 import { collectArticleImageReferences } from '../../services/article-image-assets.js';
 import { renderSelectableImageGrid } from './image-grid.js';
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const coverPickerMixin = {
   /**
    * @param {any} api

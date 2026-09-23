@@ -14,12 +14,15 @@
   },
   "include": [
     "input.js",
+    "converter.js",
+    "themes/**/*.js",
     "services/**/*.js",
     "views/**/*.js",
     "tests/**/*.js",
     "scripts/**/*.mjs",
     "esbuild.config.mjs",
-    "rednote/**/*.ts"
+    "rednote/**/*.ts",
+    "types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules",

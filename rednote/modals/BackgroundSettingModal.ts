@@ -45,11 +45,11 @@ export class BackgroundSettingModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
     
-        const container = contentEl.createEl('div', { cls: 'red-background-container' });
+        const container = contentEl.createDiv({ cls: 'red-background-container' });
         container.createEl('h3', { text: '背景图片', cls: 'red-background-title' });
     
         // 内置背景选择区
-        const builtInBgArea = container.createEl('div', { cls: 'red-background-builtins' });
+        const builtInBgArea = container.createDiv({ cls: 'red-background-builtins' });
         const builtInImages = [builtinBg1, builtinBg2, builtinBg3, builtinBg4, builtinBg5, builtinBg6];
         builtInImages.forEach(src => {
             const thumb = builtInBgArea.createEl('img', { attr: { src }, cls: 'red-bg-thumb' });
@@ -70,10 +70,10 @@ export class BackgroundSettingModal extends Modal {
             });
         });
     
-        const previewArea = container.createEl('div', { cls: 'red-background-preview' });
-        this.previewImage = previewArea.createEl('div', { cls: 'red-background-preview-image' });
+        const previewArea = container.createDiv({ cls: 'red-background-preview' });
+        this.previewImage = previewArea.createDiv({ cls: 'red-background-preview-image' });
     
-        const controlsArea = container.createEl('div', { cls: 'red-background-controls' });
+        const controlsArea = container.createDiv({ cls: 'red-background-controls' });
         this.createControls(controlsArea);
     
         if (this.imageUrl) {
@@ -114,7 +114,7 @@ export class BackgroundSettingModal extends Modal {
     }
 
     private handleImageUpload() {
-        const input = document.createElement('input');
+        const input = createEl('input');
         input.type = 'file';
         input.accept = 'image/*';
         input.onchange = async () => {

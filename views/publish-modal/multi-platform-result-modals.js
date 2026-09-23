@@ -28,6 +28,8 @@ import { formatQuotaSummary, formatQuotaResetTime, formatLicenseStateHint } from
 
 const { Notice } = obsidianApi;
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const multiPlatformResultModalsMixin = {
   /**
    * @param {{ syncId?: string, title?: string, platforms?: unknown[], task?: any, usedFallbackSend?: boolean, quotaResult?: any }} [options]

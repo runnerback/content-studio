@@ -21,7 +21,7 @@ export class ClipboardManager {
             }
 
             // 确保浏览器完成重绘并等待资源加载
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => window.setTimeout(resolve, 300));
 
             try {
                 const blob = await htmlToImage.toBlob(imageElement, this.getExportConfig(imageElement));

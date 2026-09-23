@@ -5,6 +5,10 @@
 // AppleStyleView god-class（Phase 7）抽出为 prototype mixin（Object.assign 到
 // view 原型），方法内 `this` 用法保持不变。
 
+// 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
+/** @typedef {import('../../input.js').ImageUploadFailureLike} ImageUploadFailureLike */
+/** @typedef {import('../../input.js').WechatsyncAssetLike} WechatsyncAssetLike */
+
 import { obsidianApi, getObsidianRequestUrl, getActiveDocumentCompat, createFallbackSvgElement } from '../../services/obsidian-adapters.js';
 import { createHtmlContainer } from '../../services/dom-utils.js';
 import { toImageElements, dataUrlToBlob, pMap } from '../../services/input-utils.js';
@@ -15,6 +19,8 @@ import { mapAppUrlImagesToAssetUrls } from '../../services/article-image-assets.
 
 const { Notice } = obsidianApi;
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const mediaAssetsMixin = {
   /**
    * 将各种形式的 src (Base64, URL, 路径) 转为 Blob

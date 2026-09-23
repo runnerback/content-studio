@@ -245,6 +245,113 @@ class AppleStyleView extends ItemView {
     this.sessionTitle = ''; // 本次同步的标题
     /** @type {string} */
     this.sessionDigest = ''; // 本次同步的摘要
+    // ---- 下列成员由 onOpen / 各 mixin 在运行期赋值；这里声明类型（TS 只从构造函数推断实例成员）----
+    /** @type {HTMLElement | null} */
+    this.aiLayoutOverlay = null;
+    /** @type {HTMLElement | null} */
+    this.aiCopyDebugBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiColorPaletteSelect = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutFamilySelect = null;
+    /** @type {HTMLElement | null} */
+    this.aiGenerateBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiCachedLayoutList = null;
+    /** @type {HTMLElement | null} */
+    this.aiCopyPromptBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiAdvancedBody = null;
+    /** @type {HTMLElement | null} */
+    this.aiSchemaIssuePanel = null;
+    /** @type {HTMLElement | null} */
+    this.aiCustomColorInput = null;
+    /** @type {HTMLElement | null} */
+    this.aiRegenerateBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiBlockList = null;
+    /** @type {HTMLElement | null} */
+    this.aiStylePackSelect = null;
+    /** @type {HTMLElement | null} */
+    this.aiResultSection = null;
+    /** @type {HTMLElement | null} */
+    this.aiDebugPanel = null;
+    /** @type {HTMLElement | null} */
+    this.aiDebugPanelBody = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutLoadingMask = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutSummary = null;
+    /** @type {HTMLElement | null} */
+    this.aiColorPaletteControls = null;
+    /** @type {HTMLElement | null} */
+    this.aiRestoreBlocksBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiAdvancedToggleBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiViewJsonBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiViewErrorBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiDebugPanelTitle = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutStatusBadge = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutStatusBody = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutMetaNote = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutMetaChips = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutStatus = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutStatusText = null;
+    /** @type {HTMLElement | null} */
+    this.aiResetBtn = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutLoadingMaskText = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutArea = null;
+    /** @type {HTMLElement | null} */
+    this.aiColorPaletteGrid = null;
+    /** @type {HTMLElement | null} */
+    this.aiLayoutLoadingSpinner = null;
+    /** @type {HTMLElement | null} */
+    this.rednoteContainer = null;
+    /** @type {HTMLElement | null} */
+    this.sendBtn = null;
+    /** @type {HTMLSelectElement | null} */
+    this.platformSelectEl = null;
+    /** @type {string} */
+    this.aiLayoutDebugMode = '';
+    /** @type {boolean} */
+    this.aiPreviewApplied = false;
+    /** @type {boolean} */
+    this.aiAdvancedOpen = false;
+    /** @type {boolean} */
+    this.aiLayoutLoading = false;
+    /** @type {number | null} */
+    this.aiLayoutStaleSuppressTimer = null;
+    /** @type {string} */
+    this.aiLayoutSourceSwitchPath = '';
+    /** @type {string} */
+    this.aiLayoutStaleSuppressPath = '';
+    /** @type {number} */
+    this.aiLayoutStaleSuppressUntil = 0;
+    /** @type {unknown} */
+    this.aiLayoutActiveGenerationSelection = null;
+    /** @type {unknown} */
+    this.aiLayoutPendingAnchor = null;
+    /** @type {string} */
+    this.aiPrimaryActionMode = '';
+    /** @type {number | null} */
+    this.saveTimeout = null;
+    /** @type {import('./rednote/view.ts').RedPreviewController | null} */
+    this.rednoteController = null;
+    /** @type {((mode: 'wechat' | 'rednote' | 'x') => Promise<void>) | null} onOpen 里定义（闭包持有 previewWrapper） */
+    this.setPreviewMode = null;
     /** @type {Map<string, WechatMaterialCacheEntryLike>} */
     this.wechatMaterialCache = new Map(); // Map<account/page, { data, cachedAt }>
     this.wechatMaterialCoverAssetCache = new Map(); // Map<media/url, downloaded bridge asset bytes>
@@ -367,7 +474,6 @@ class AppleStyleView extends ItemView {
   }
 
   async onOpen() {
-    console.log('🍎 发布助手面板打开');
     const container = /** @type {ObsidianElementLike} */ (this.containerEl.children[1]);
     container.empty();
     container.addClass('apple-converter-container');
@@ -774,7 +880,6 @@ class AppleStyleView extends ItemView {
       }));
       this.nativeRenderPipeline = pipelines.nativePipeline;
 
-      console.log('✅ 依赖加载完成');
     } catch (error) {
       console.error('❌ 依赖加载失败:', error);
       new Notice('依赖加载失败: ' + toReadableError(error).message);
@@ -1930,7 +2035,6 @@ class AppleStyleView extends ItemView {
       this.mermaidImageCache.clear();
     }
 
-    console.log('🍎 发布助手面板已关闭');
   }
 
   /**
@@ -1965,11 +2069,16 @@ Object.assign(AppleStyleView.prototype, settingsPanelMixin);
 Object.assign(AppleStyleView.prototype, rednoteSettingsPanelMixin);
 
 /**
+ * 视图实例的完整类型 = 类本体 + 各 mixin 的方法面（types/view-mixins.d.ts，手工维护，避免 typeof mixin 自引用）。
+ * mixin 文件用 `@satisfies {ThisType<AppleStyleViewInstance>}` 让方法体内的 this 拿到这个类型。
+ * @typedef {AppleStyleView & import('./types/view-mixins').ViewMixinsLike} AppleStyleViewInstance
+ */
+
+/**
  * 📝 Content Studio主插件
  */
 class AppleStylePlugin extends Plugin {
   async onload() {
-    console.log('📝 正在加载 Content Studio...');
     /** @type {ObsidianApiLike} */
     this.obsidianApi = obsidianApi;
 
@@ -2048,7 +2157,6 @@ class AppleStylePlugin extends Plugin {
 
     this.startWechatSyncBridgeInBackground('plugin-load');
 
-    console.log('✅ Content Studio加载完成');
   }
 
   /**
@@ -2213,7 +2321,7 @@ class AppleStylePlugin extends Plugin {
     const bridge = this.getWechatSyncBridgeService();
     bridge.start()
       .then((status) => {
-        console.info('[Wechatsync] bridge warm start', {
+        console.debug('[Wechatsync] bridge warm start', {
           reason,
           port: settings.port,
           status,
@@ -2273,7 +2381,6 @@ class AppleStylePlugin extends Plugin {
       settings['wechatAppId'] = '';
       settings['wechatAppSecret'] = '';
       didMigrate = true;
-      console.log('✅ 已将旧账号配置迁移到新格式');
     }
 
     if (Array.isArray(settings['wechatAccounts'])) {
@@ -2307,7 +2414,6 @@ class AppleStylePlugin extends Plugin {
     if (!currentTemplate && legacyRootDir && legacyTarget === 'folder') {
       settings['cleanupDirTemplate'] = `${legacyRootDir}/{{note}}_img`;
       didMigrate = true;
-      console.log('✅ 已将旧清理配置迁移为目录模板 cleanupDirTemplate');
     }
 
     // 清理弃用字段，避免后续歧义
@@ -2478,7 +2584,6 @@ class AppleStylePlugin extends Plugin {
         console.warn('停止浏览器插件连接失败:', error);
       });
     }
-    console.log('📝 Content Studio已卸载');
   }
 }
 

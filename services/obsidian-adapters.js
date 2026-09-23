@@ -11,7 +11,7 @@ import { getActiveDocument, getActiveWindowValue } from './dom-utils.js';
 // e.g. `obsidian.requestUrl` after load are still observed.
 /**
  * @param {string} specifier
- * @returns {any}
+ * @returns {unknown}
  */
 function loadCommonJsDependency(specifier) {
   if (typeof require === 'function') {
@@ -24,16 +24,16 @@ function loadCommonJsDependency(specifier) {
   throw new Error(`CommonJS loader unavailable for ${specifier}`);
 }
 
-/** @type {any} */
-export const obsidianApi = loadCommonJsDependency('obsidian');
+/** @type {typeof import('obsidian')} 测试环境下由 __mocks__/obsidian.js 顶替，形状按官方类型对齐 */
+export const obsidianApi = /** @type {typeof import('obsidian')} */ (loadCommonJsDependency('obsidian'));
 
 export function getObsidianModalClass() {
   return obsidianApi.Modal;
 }
 
 /**
- * @param {any} app
- * @returns {any}
+ * @param {import('obsidian').App} app
+ * @returns {import('obsidian').Modal}
  */
 export function createObsidianModal(app) {
   const ModalClass = getObsidianModalClass();
@@ -63,7 +63,7 @@ export function getAppleThemeApi() {
 }
 
 /**
- * @param {any} app
+ * @param {{ isMobile?: boolean } | null | undefined} app
  * @returns {boolean}
  */
 export function isMobileClient(app) {

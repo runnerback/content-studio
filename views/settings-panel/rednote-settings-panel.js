@@ -5,11 +5,17 @@
 // 直接调用 RedPreviewController 的公开方法(rednote/view.ts)。
 // 悬浮层在首次切到小红书模式(controller 就绪)后由 setPreviewMode 构建。
 
+// 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
+/** @typedef {import('../../input.js').ObsidianElementLike} ObsidianElementLike */
+/** @typedef {import('../../input.js').ObsidianInputLike} ObsidianInputLike */
+
 import { obsidianApi } from '../../services/obsidian-adapters.js';
 import { getEventTargetValue } from '../../services/dom-utils.js';
 
 const { Notice } = obsidianApi;
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const rednoteSettingsPanelMixin = {
   /**
    * 构建小红书样式设置悬浮层(仅构建一次)

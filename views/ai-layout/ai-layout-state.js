@@ -6,6 +6,10 @@
 // (mixin 与测试沿用 view.aiXxx 访问),但声明与归属集中到本模块,
 // God-Class 构造函数得以瘦身。此为 God-Class 拆分的试点(P0)。
 
+// 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
+/** @typedef {import('../../input.js').ObsidianElementLike} ObsidianElementLike */
+/** @typedef {import('../../input.js').ObsidianInputLike} ObsidianInputLike */
+
 /**
  * 初始化 AI 编排相关的全部实例字段(DOM 引用 / 生成状态 / 计时器 / 调试面板等)。
  * @param {Record<string, unknown>} view AppleStyleView 实例

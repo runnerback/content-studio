@@ -18,6 +18,8 @@ import { setDraftAssociation } from '../../services/wechat-draft-cache.js';
 
 const { Notice } = obsidianApi;
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const wechatSyncActionsMixin = {
   /**
    * @param {unknown} syncId

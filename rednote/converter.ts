@@ -1,4 +1,4 @@
-import { App } from 'obsidian';
+import { App, setIcon } from 'obsidian';
 import type { RednoteHost as RedPlugin } from './host.ts';
 
 export class RedConverter {
@@ -24,7 +24,7 @@ export class RedConverter {
         
         if (headers.length === 0) {
             element.empty();
-            const tip = element.createEl('div', {
+            const tip = element.createDiv({
                 cls: 'red-empty-message',
                 text: `⚠️ 温馨提示
                         请使用${headingLevel === 'h1' ? '一级标题(#)' : '二级标题(##)'}来分割内容
@@ -46,17 +46,17 @@ export class RedConverter {
         }));
 
         // 创建预览容器
-        const previewContainer = document.createElement('div');
+        const previewContainer = createDiv();
         previewContainer.className = 'red-preview-container';
 
         // 创建图片预览区域
-        const imagePreview = document.createElement('div');
+        const imagePreview = createDiv();
         imagePreview.className = 'red-image-preview';
         
         // 创建复制按钮
-        const copyButton = document.createElement('button');
+        const copyButton = createEl('button');
         copyButton.className = 'red-copy-button';
-        copyButton.innerHTML = '<?xml version="1.0" encoding="UTF-8"?><svg width="20" height="20" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M13 12.4316V7.8125C13 6.2592 14.2592 5 15.8125 5H40.1875C41.7408 5 43 6.2592 43 7.8125V32.1875C43 33.7408 41.7408 35 40.1875 35H35.5163" stroke="#9b9b9b" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/><path d="M32.1875 13H7.8125C6.2592 13 5 14.2592 5 15.8125V40.1875C5 41.7408 6.2592 43 7.8125 43H32.1875C33.7408 43 35 41.7408 35 40.1875V15.8125C35 14.2592 33.7408 13 32.1875 13Z" fill="none" stroke="#9b9b9b" stroke-width="4" stroke-linejoin="round"/></svg>';
+        setIcon(copyButton, 'copy');
         copyButton.title = '复制图片';
         copyButton.setAttribute('aria-label', '复制图片到剪贴板');
         
@@ -64,17 +64,17 @@ export class RedConverter {
         previewContainer.appendChild(copyButton);
 
         // 创建三个主要区域
-        const headerArea = document.createElement('div');
+        const headerArea = createDiv();
         headerArea.className = 'red-preview-header';
 
-        const contentArea = document.createElement('div');
+        const contentArea = createDiv();
         contentArea.className = 'red-preview-content';
 
-        const footerArea = document.createElement('div');
+        const footerArea = createDiv();
         footerArea.className = 'red-preview-footer';
 
         // 创建内容容器
-        const contentContainer = document.createElement('div');
+        const contentContainer = createDiv();
         contentContainer.className = 'red-content-container';
         
         // 处理每个二级标题及其内容
@@ -140,7 +140,7 @@ export class RedConverter {
         // 如果只有一个页面，按原来的方式处理
         if (pages.length === 1 && !content.some(el => el.tagName === 'HR')) {
             // 创建内容区域
-            const section = document.createElement('section');
+            const section = createEl('section');
             section.className = 'red-content-section';
             section.setAttribute('data-index', index.toString());
             
@@ -156,13 +156,13 @@ export class RedConverter {
             return section;
         } else {
             // 创建一个包含多个页面的片段
-            const fragment = document.createDocumentFragment();
+            const fragment = createFragment();
             
             // 为每个页面创建一个部分
             pages.forEach((pageContent, pageIndex) => {
                 if (pageContent.length === 0) return; // 跳过空页面
                 
-                const section = document.createElement('section');
+                const section = createEl('section');
                 section.className = 'red-content-section';
                 section.setAttribute('data-index', `${index}-${pageIndex}`);
                 
@@ -228,11 +228,11 @@ export class RedConverter {
                 pre.classList.add('red-pre');
                 
                 // 添加 macOS 风格的窗口按钮
-                const dots = document.createElement('div');
+                const dots = createDiv();
                 dots.className = 'red-code-dots';
 
                 ['red', 'yellow', 'green'].forEach(color => {
-                    const dot = document.createElement('span');
+                    const dot = createSpan();
                     dot.className = `red-code-dot red-code-dot-${color}`;
                     dots.appendChild(dot);
                 });
@@ -260,7 +260,7 @@ export class RedConverter {
                 const file = this.app.metadataCache.getFirstLinkpathDest(linktext, '');
                 if (file) {
                     const absolutePath = this.app.vault.adapter.getResourcePath(file.path);
-                    const newImg = document.createElement('img');
+                    const newImg = createEl('img');
                     newImg.src = absolutePath;
                     if (alt) newImg.alt = alt;
                     newImg.className = 'red-image';

@@ -34,13 +34,13 @@ export async function waitForImages(root: HTMLElement, timeoutMs = DEFAULT_IMAGE
     await new Promise<void>((resolve) => {
         let pending = images.length;
         const done = () => { if (--pending === 0) resolve(); };
-        const timer = setTimeout(resolve, timeoutMs);
+        const timer = window.setTimeout(resolve, timeoutMs);
         for (const img of images) {
             img.addEventListener('load', done, { once: true });
             img.addEventListener('error', done, { once: true });
         }
         // 全部加载完时清掉定时器（resolve 幂等，重复调用无副作用）
-        void Promise.resolve().then(() => { if (pending === 0) clearTimeout(timer); });
+        void Promise.resolve().then(() => { if (pending === 0) window.clearTimeout(timer); });
     });
 }
 
@@ -77,7 +77,7 @@ function hasTextBesidesImage(section: HTMLElement, imageBlock: HTMLElement, head
  */
 export function splitImageOutOfSection(section: HTMLElement, imageBlock: HTMLElement): HTMLElement {
     const heading = section.firstElementChild && /^H[1-6]$/.test(section.firstElementChild.tagName) ? section.firstElementChild : null;
-    const imageSection = document.createElement('section');
+    const imageSection = createEl('section');
     imageSection.className = `red-content-section ${IMAGE_ONLY_CLASS}`;
     imageSection.setAttribute('data-index', `${section.getAttribute('data-index') || ''}-img`);
     if (heading) imageSection.appendChild(heading.cloneNode(true));

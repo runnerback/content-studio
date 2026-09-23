@@ -20,26 +20,26 @@ export function renderMemoHeader(header: HTMLElement, settings: MemoHeaderSettin
     const now = new Date();
 
     // 1. 模拟 iPhone 状态栏
-    const statusBar = header.createEl('div', { cls: 'red-memo-status' });
-    statusBar.createEl('span', { cls: 'red-memo-status-time', text: formatClock(now) });
-    const statusIcons = statusBar.createEl('div', { cls: 'red-memo-status-icons' });
-    statusIcons.createEl('span', { cls: 'red-memo-sicon red-memo-sicon-signal' });
-    statusIcons.createEl('span', { cls: 'red-memo-sicon red-memo-sicon-wifi' });
-    statusIcons.createEl('span', { cls: 'red-memo-sicon red-memo-sicon-battery' });
+    const statusBar = header.createDiv({ cls: 'red-memo-status' });
+    statusBar.createSpan({ cls: 'red-memo-status-time', text: formatClock(now) });
+    const statusIcons = statusBar.createDiv({ cls: 'red-memo-status-icons' });
+    statusIcons.createSpan({ cls: 'red-memo-sicon red-memo-sicon-signal' });
+    statusIcons.createSpan({ cls: 'red-memo-sicon red-memo-sicon-wifi' });
+    statusIcons.createSpan({ cls: 'red-memo-sicon red-memo-sicon-battery' });
 
     // 2. 备忘录导航条
-    const bar = header.createEl('div', { cls: 'red-memo-bar' });
-    bar.createEl('span', {
+    const bar = header.createDiv({ cls: 'red-memo-bar' });
+    bar.createSpan({
         cls: 'red-memo-back',
         text: settings.notesTitle || '备忘录',
     });
-    const actions = bar.createEl('div', { cls: 'red-memo-actions' });
-    actions.createEl('span', { cls: 'red-memo-icon red-memo-icon-more' });
-    actions.createEl('span', { cls: 'red-memo-icon red-memo-icon-share' });
+    const actions = bar.createDiv({ cls: 'red-memo-actions' });
+    actions.createSpan({ cls: 'red-memo-icon red-memo-icon-more' });
+    actions.createSpan({ cls: 'red-memo-icon red-memo-icon-share' });
 
     // 3. 居中日期行
     if (settings.showTime !== false) {
-        header.createEl('div', { cls: 'red-memo-date', text: formatMemoDate(now) });
+        header.createDiv({ cls: 'red-memo-date', text: formatMemoDate(now) });
     }
 }
 

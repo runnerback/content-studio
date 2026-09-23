@@ -137,3 +137,20 @@ jobs:
           done
           curl -sSf "${AUTH[@]}" -X PATCH "${API}" -d '{"draft": false}' > /dev/null
           echo "published release ${RELEASE_ID} with ${NAMES}"
+
+      # Obsidian 社区目录按 tag 查 Release；GitHub 按 tag 的记录在发布后常要 1~2 小时才带上资产
+      # （2026-09-23：3.11.10 / 3.11.11 发布后按 id 查资产齐全、按 tag 查为空，目录据此误判「缺 main.js」）。
+      # 这里轮询 10 分钟并把结果写进任务注解：未同步不算失败（Release 本身没问题），但要提醒去目录点 Request review。
+      - name: Check release-by-tag index (what the Obsidian directory reads)
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          API="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}"
+          for i in $(seq 1 20); do
+            COUNT="$(curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" "${API}" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>console.log((JSON.parse(d).assets||[]).length))')"
+            echo "attempt ${i}: releases/tags/${GITHUB_REF_NAME} embeds ${COUNT} assets"
+            if [ "${COUNT}" = "3" ]; then echo "::notice::按 tag 查询已带上 3 个资产，社区目录可正常审核"; exit 0; fi
+            sleep 30
+          done
+          echo "::warning::GitHub 按 tag 查询的 Release 记录仍未带上资产（资产本身已上传）。社区目录此刻审核会误报缺 main.js / manifest.json；通常 1~2 小时后同步，届时到 community.obsidian.md 插件页「···」→「Request review」重审即可。"

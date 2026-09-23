@@ -81,6 +81,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Place styling rules in `themes/apple-theme.js`.
 - Place preprocessing, path resolution, and cleaner logic in their respective modules under `services/`.
 
+## Types & directory scan (2026-09-23)
+
+- `npm run scan:directory` reproduces the Obsidian community directory scanner locally (`eslint.scan.config.mjs`: `eslint-plugin-obsidianmd` recommended + `typescript-eslint` type-checked rules over the same tsconfig). Run it before tagging a release; the directory reports `no-console` (only `log`/`info` are flagged; `debug`/`warn`/`error` are fine) and `@typescript-eslint/no-unsafe-call` as warnings, and the obsidianmd rules (`no-static-styles-assignment`, `settings-tab/no-manual-html-headings`, `prefer-create-el`, `prefer-window-timers`, `no-nodejs-modules`, …) as errors.
+- View mixins (`views/**`) get a typed `this` via `/** @satisfies {ThisType<AppleStyleViewInstance>} */` on the mixin object. `AppleStyleViewInstance` = the `AppleStyleView` class + `types/view-mixins.d.ts` (the mixins' method surface). That file is **generated**: after adding/renaming a mixin method run `npm run generate:view-types` (`pretest` runs `check:view-types` and fails if it drifts). Do not reference `typeof someMixin` in the typedef — it creates a circular alias.
+- Members assigned outside the constructor are invisible to TypeScript: declare every view member in the `AppleStyleView` constructor (`/** @type {…} */ this.x = null;`), otherwise `this.x` is `any` and every downstream call is flagged.
+- `rednote/` uses Obsidian's global DOM helpers (`createEl` / `createDiv` / `createSpan` / `createSvg`) and `window.setTimeout`; tests get the globals from `tests/helpers/obsidian-resolver.cjs`.
+- Shared JSDoc typedefs live in `input.js`; other files import them with `/** @typedef {import('../../input.js').XLike} XLike */` instead of redeclaring or leaving them unresolved (unresolved = `any`).
+
 ## Release
 
 发布新版本时，使用 `/project-release` skill 查看完整流程。

@@ -6,6 +6,8 @@
 
 import { prepareCardArticle } from './card-publish-mixin.js';
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const rednotePublishMixin = {
   /**
    * 准备小红书图卡 article(渲染 + 落盘 sync-to-rednote/ + 截取,不投递)。

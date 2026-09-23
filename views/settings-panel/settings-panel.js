@@ -7,11 +7,17 @@
 //
 // 独立目录 views/settings-panel/ 便于后续大量迭代设置 UI，不影响 input.js 主体。
 
+// 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
+/** @typedef {import('../../input.js').ObsidianElementLike} ObsidianElementLike */
+/** @typedef {import('../../input.js').ObsidianInputLike} ObsidianInputLike */
+
 import { getObsidianSetIcon, getAppleThemeApi, isMobileClient } from '../../services/obsidian-adapters.js';
 import { getEventTargetValue } from '../../services/dom-utils.js';
 import { APPLE_STYLE_VIEW_TITLE } from '../../services/settings-defaults.js';
 import { getImageSwipeCommandCopy } from '../../services/image-swipe.js';
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const settingsPanelMixin = {
   /**
    * 顶栏按钮按模式显隐：公众号(样式设置/AI 编排/复制)一组；图卡模式(小红书/X)一组(样式设置/下载)；

@@ -4,6 +4,19 @@
 // god-class（Phase 6）抽出为 prototype mixin（Object.assign 到 view 原型），
 // 方法内 `this` 用法保持不变。
 
+// 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
+/** @typedef {import('../../input.js').ObsidianElementLike} ObsidianElementLike */
+/** @typedef {import('../../input.js').ObsidianInputLike} ObsidianInputLike */
+/** @typedef {import('../../input.js').AiLayoutBlockLike} AiLayoutBlockLike */
+/** @typedef {import('../../input.js').AiLayoutBlockOriginLike} AiLayoutBlockOriginLike */
+/** @typedef {import('../../input.js').AiLayoutContextLike} AiLayoutContextLike */
+/** @typedef {import('../../input.js').AiLayoutJsonLike} AiLayoutJsonLike */
+/** @typedef {import('../../input.js').AiLayoutSelectionLike} AiLayoutSelectionLike */
+/** @typedef {import('../../input.js').AiLayoutStateLike} AiLayoutStateLike */
+/** @typedef {import('../../input.js').AiSchemaValidationLike} AiSchemaValidationLike */
+/** @typedef {import('../../input.js').AiSettingsLike} AiSettingsLike */
+/** @typedef {import('../../input.js').VisibleAiLayoutSnapshotLike} VisibleAiLayoutSnapshotLike */
+
 import { obsidianApi, getObsidianRequestUrl, getObsidianRequest } from '../../services/obsidian-adapters.js';
 import { normalizeVaultPath } from '../../services/path-utils.js';
 import { getEventTargetValue, setElementHtml } from '../../services/dom-utils.js';
@@ -41,6 +54,8 @@ const { Notice } = obsidianApi;
 // 源切换后短暂抑制 stale 提示的时长（ms）；随 markAiLayoutSourceSwitch 一并从 input.js 迁入。
 const AI_LAYOUT_SOURCE_SWITCH_STALE_SUPPRESS_MS = 700;
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const aiLayoutPanelMixin = {
   /**
    * @returns {AiLayoutStateLike | null}

@@ -2,7 +2,6 @@ import * as htmlToImage from 'html-to-image';
 // fflate 替代 jszip：jszip 内置的 setImmediate/lie 兼容层含 createElement('script')，被 Obsidian 审核判为运行时注入脚本
 import { zip as fflateZip } from 'fflate';
 // 与发布链路(sync-to-rednote/)同一套图卡命名:synced-rednote-card_00.png …
-// @ts-ignore 纯函数 JS 模块,无类型声明
 import { rednoteCardFilename } from '../services/rednote-publish.js';
 import { Notice } from 'obsidian';
 import { listOverflowingPages } from './cardFit.ts';
@@ -66,7 +65,7 @@ export class DownloadManager {
                 sections[i].classList.remove(HIDDEN_CLASS);
                 sections[i].classList.add(VISIBLE_CLASS);
 
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await new Promise(resolve => window.setTimeout(resolve, 300));
                 const imageElement = element.querySelector<HTMLElement>('.red-image-preview');
                 if (!imageElement) throw new Error('找不到预览区域');
 
@@ -126,7 +125,7 @@ export class DownloadManager {
                 sections[i].classList.add(VISIBLE_CLASS);
 
                 // 确保浏览器完成重绘并等待资源加载
-                await new Promise(resolve => setTimeout(resolve, 300));
+                await new Promise(resolve => window.setTimeout(resolve, 300));
 
                 const imageElement = element.querySelector<HTMLElement>('.red-image-preview')!;
 
@@ -172,7 +171,7 @@ export class DownloadManager {
             const content = new Blob([zipBytes.buffer.slice(zipBytes.byteOffset, zipBytes.byteOffset + zipBytes.byteLength) as ArrayBuffer], { type: 'application/zip' });
 
             const url = URL.createObjectURL(content);
-            const link = Object.assign(document.createElement('a'), {
+            const link = Object.assign(createEl('a'), {
                 href: url,
                 download: `${zipFolderName}.zip`
             });
@@ -196,7 +195,7 @@ export class DownloadManager {
             }
 
             // 确保浏览器完成重绘并等待资源加载
-            await new Promise(resolve => setTimeout(resolve, 300));
+            await new Promise(resolve => window.setTimeout(resolve, 300));
 
             try {
                 // 使用 html-to-image 替代 dom-to-image
@@ -205,7 +204,7 @@ export class DownloadManager {
                 // 创建下载链接并触发下载
                 if (!blob) throw new Error('Blob 对象为空');
                 const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
+                const link = createEl('a');
                 link.href = url;
                 link.download = `${sanitizeExportFilename(noteName)}-${pageIndex + 1}.png`;
 
@@ -222,7 +221,7 @@ export class DownloadManager {
                         throw new Error('Canvas 转换为 Blob 失败');
                     }
                     const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
+                    const link = createEl('a');
                     link.href = url;
                     link.download = `${sanitizeExportFilename(noteName)}-${pageIndex + 1}.png`;
 

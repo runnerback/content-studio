@@ -4,6 +4,10 @@
 // 纯函数（入参 app 判断中英文 locale），从 input.js 抽出为共享 service，供入口、
 // 设置面板等多处复用。对外只暴露 getImageSwipeCommandCopy / createImageSwipeCalloutMarkdown。
 
+// 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
+/** @typedef {import('../input.js').AppLike} AppLike */
+/** @typedef {import('../input.js').ImageSwipeCopyLike} ImageSwipeCopyLike */
+
 /** @type {Record<string, ImageSwipeCopyLike>} */
 const IMAGE_SWIPE_COMMAND_COPY = {
   'image-swipe': {

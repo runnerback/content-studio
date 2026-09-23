@@ -1,5 +1,4 @@
 import type { Theme } from '../themeManager.ts';
-import { EventEmitter } from 'events';
 
 /**
  * 宿主插件接口(wechat-converter):rednote 设置存在宿主 settings.rednote
@@ -97,12 +96,11 @@ export const DEFAULT_SETTINGS: RedSettings = {
     },
 }
 
-export class SettingsManager extends EventEmitter {
+export class SettingsManager {
     private plugin: HostPluginLike;
     private settings: RedSettings;
 
     constructor(plugin: HostPluginLike) {
-        super();
         this.plugin = plugin;
         this.settings = DEFAULT_SETTINGS;
     }
@@ -168,7 +166,6 @@ export class SettingsManager extends EventEmitter {
         theme.isVisible = true;
         this.settings.customThemes.push(theme);
         await this.saveSettings();
-        this.emit('theme-visibility-changed');
     }
 
     async updateTheme(themeId: string, updatedTheme: Partial<Theme>) {
@@ -180,7 +177,6 @@ export class SettingsManager extends EventEmitter {
                     isVisible: updatedTheme.isVisible
                 };
                 await this.saveSettings();
-                this.emit('theme-visibility-changed');
                 return true;
             }
             return false;
@@ -193,7 +189,6 @@ export class SettingsManager extends EventEmitter {
                 ...updatedTheme
             };
             await this.saveSettings();
-            this.emit('theme-visibility-changed');
             return true;
         }
         
@@ -208,7 +203,6 @@ export class SettingsManager extends EventEmitter {
                 this.settings.themeId = 'default';
             }
             await this.saveSettings();
-            this.emit('theme-visibility-changed');
             return true;
         }
         return false;
