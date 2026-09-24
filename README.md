@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> Version 3.11.14 · Updated 2026-09-24 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
+> Version 3.11.15 · Updated 2026-09-24 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
 
 Turn your Obsidian notes into ready-to-publish content: **WeChat Official Account** articles, **Xiaohongshu (rednote)** image cards, and **Feishu** cloud docs, all previewed live inside Obsidian.
 

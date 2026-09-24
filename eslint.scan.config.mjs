@@ -1,4 +1,5 @@
-// 本地复现社区目录扫描（obsidianmd recommended + typescript-eslint 类型感知规则），不进主配置
+// 本地复现社区目录扫描（obsidianmd recommended + typescript-eslint 类型感知规则），不进主配置。
+// 运行方式：npm run scan:directory（带 --no-inline-config，代码里的行内规则开关一律不算数）
 import tseslint from "typescript-eslint";
 import obsidianmd from "eslint-plugin-obsidianmd";
 export default tseslint.config(
@@ -9,7 +10,8 @@ export default tseslint.config(
     extends: [...tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       parser: tseslint.parser,
-      parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },
+      // tsconfig.scan.json = tsconfig.json + "types": []：目录站/CI 的扫描环境没有 @types/node，本地必须同样不吃它
+      parserOptions: { project: "./tsconfig.scan.json", tsconfigRootDir: import.meta.dirname },
     },
   },
 );
