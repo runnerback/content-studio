@@ -124,6 +124,7 @@ export default [
       "services/wechatsync-results.js",
       "services/wechatsync-settings.js",
       "services/wechatsync-quota.js",
+      "services/platform-property.js",
       "views/connection-status-bar.js",
       "views/publish-modal/feishu.js",
       "views/publish-modal/image-grid.js",

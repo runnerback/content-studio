@@ -1,7 +1,7 @@
 {
 	"id": "note-content-studio",
 	"name": "Note Content Studio",
-	"version": "3.11.15",
+	"version": "3.11.16",
 	"minAppVersion": "1.13.0",
 	"description": "Turn notes into WeChat Official Account articles, Xiaohongshu image cards, and Feishu docs, with live preview.",
 	"author": "runnerback",

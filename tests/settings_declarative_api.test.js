@@ -27,6 +27,7 @@ function makeSettings(overrides = {}) {
     avatarBase64: '',
     enableWatermark: false,
     usePhoneFrame: true,
+    autoSwitchPlatformByProperty: true,
     wechatAccounts: [],
     defaultAccountId: '',
     proxyUrl: '',

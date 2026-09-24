@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS = {
   draftCache: createEmptyDraftCache(),
   // 预览设置
   usePhoneFrame: true, // 是否使用手机框预览
+  autoSwitchPlatformByProperty: true, // 切换文档时按 frontmatter 的 platform 属性自动切换预览平台
   // 渲染模式已切换为 native-only
   // 排版设置
   sidePadding: 16, // 页面两侧留白 (px)

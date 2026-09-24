@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> 版本 3.11.15 · 更新 2026-09-24 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
+> 版本 3.11.16 · 更新 2026-09-24 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
 
 把 Obsidian 笔记变成可直接发布的内容：**微信公众号**文章、**小红书**图文卡片、**飞书**云文档，全部在 Obsidian 内实时预览。
 
@@ -16,7 +16,7 @@
 
 1. 点击侧边栏 **Content Studio** 图标（或运行命令「打开预览面板」）打开预览面板；
 2. 编辑笔记，面板实时渲染，双向同步滚动；
-3. 顶栏切换平台（公众号 / 小红书 / X）、调整样式，通过「**发布与分发**」发布。
+3. 顶栏切换平台（公众号 / 小红书 / X）、调整样式，通过「**发布与分发**」发布。文档 frontmatter 写上 `platform: wechat | rednote | x`（或 公众号 / 小红书 / X），切换文档时预览会自动切到对应平台（设置里可关）。
 
 ## 配置
 

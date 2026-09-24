@@ -93,6 +93,7 @@ export interface ViewMixinsLike {
   generateAiLayoutForCurrentArticle(...args: unknown[]): Promise<unknown>;
   applyAiLayoutToPreview(...args: unknown[]): void;
   // ---- views/settings-panel/settings-panel.js ----
+  syncPreviewModeWithFile(...args: unknown[]): 'wechat' | 'rednote' | 'x' | null;
   applyToolbarMode(...args: unknown[]): void;
   createSettingsPanel(...args: unknown[]): unknown;
   createSection(...args: unknown[]): import('../input.js').ObsidianElementLike;

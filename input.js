@@ -22,7 +22,7 @@
  * @typedef {{ on: (name: string, callback: (...args: unknown[]) => unknown) => unknown, getActiveViewOfType: (viewType: unknown) => MarkdownViewLike | null, getActiveFile?: () => TFileLike | null, getLeavesOfType: (viewType: string) => LeafLike[], getRightLeaf: (split?: boolean) => LeafLike | null, getLeaf?: (type?: string | boolean) => LeafLike | null, onLayoutReady: (callback: () => void) => void, revealLeaf?: (leaf: unknown) => Promise<void>, setActiveLeaf?: (leaf: unknown, options?: Record<string, unknown>) => void }} WorkspaceLike
  * @typedef {{ adapter?: unknown, configDir?: string, on?: (name: string, callback: (...args: unknown[]) => unknown) => unknown, getConfig?: (key: string) => unknown, getAbstractFileByPath?: (path: string) => unknown, getResourcePath?: (file: unknown) => string, trash?: (file: unknown, useSystemTrash?: boolean) => Promise<void>, delete?: (file: unknown, force?: boolean) => Promise<void>, read?: (file: unknown) => Promise<string>, modify?: (file: unknown, data: string) => Promise<void> }} VaultLike
  * @typedef {{ processFrontMatter?: (file: unknown, callback: (frontmatter: Record<string, unknown>) => void) => Promise<void> }} FileManagerLike
- * @typedef {{ getFileCache?: (file: unknown) => { frontmatter?: Record<string, unknown> } | null }} MetadataCacheLike
+ * @typedef {{ getFileCache?: (file: unknown) => { frontmatter?: Record<string, unknown> } | null, on?: (name: string, callback: (...args: unknown[]) => unknown) => unknown }} MetadataCacheLike
  * @typedef {{ activeTab?: Record<string, unknown>, open?: () => void, openTabById?: (id: string) => void }} AppSettingLike
  * @typedef {{ vault: VaultLike, workspace: WorkspaceLike, fileManager?: FileManagerLike, metadataCache?: MetadataCacheLike, setting?: AppSettingLike, isMobile?: boolean }} AppLike
  * @typedef {{ id: string, name: string, callback?: () => unknown, editorCallback?: (editor: EditorLike) => unknown }} CommandLike
@@ -67,7 +67,7 @@
  * @typedef {{ id: string, name: string, kind: string, baseUrl: string, apiKey: string, model: string, enabled?: boolean }} AiProviderLike
  * @typedef {{ enabled: boolean, defaultLayoutFamily: string, defaultColorPalette: string, defaultProviderId: string, customColor?: string, includeImagesInLayout?: boolean, requestTimeoutMs?: number, layoutModel?: string, defaultStylePack?: string, providers: AiProviderLike[], articleLayoutsByPath: Record<string, unknown> }} AiSettingsLike
  * @typedef {{ blockKey: string, relativeTop: number, fallbackScrollTop: number }} AiLayoutPendingAnchorLike
- * @typedef {{ theme: string, themeColor: string, customColor: string, quoteCalloutStyleMode: string, fontFamily: string, fontSize: number, macCodeBlock: boolean, codeLineNumber: boolean, avatarUrl: string, avatarBase64: string, enableWatermark: boolean, showImageCaption: boolean, normalizeChinesePunctuation: boolean, wechatAccounts: WechatAccountLike[], defaultAccountId: string, proxyUrl: string, clientId: string, draftCache: unknown, usePhoneFrame: boolean, sidePadding: number, coloredHeader: boolean, cleanupAfterSync: boolean, cleanupUseSystemTrash: boolean, cleanupDirTemplate: string, multiPlatformSync: unknown, wechatAppId: string, wechatAppSecret: string, ai: AiSettingsLike, [key: string]: unknown }} PluginSettingsLike
+ * @typedef {{ theme: string, themeColor: string, customColor: string, quoteCalloutStyleMode: string, fontFamily: string, fontSize: number, macCodeBlock: boolean, codeLineNumber: boolean, avatarUrl: string, avatarBase64: string, enableWatermark: boolean, showImageCaption: boolean, normalizeChinesePunctuation: boolean, wechatAccounts: WechatAccountLike[], defaultAccountId: string, proxyUrl: string, clientId: string, draftCache: unknown, usePhoneFrame: boolean, autoSwitchPlatformByProperty: boolean, sidePadding: number, coloredHeader: boolean, cleanupAfterSync: boolean, cleanupUseSystemTrash: boolean, cleanupDirTemplate: string, multiPlatformSync: unknown, wechatAppId: string, wechatAppSecret: string, ai: AiSettingsLike, [key: string]: unknown }} PluginSettingsLike
  * @typedef {{ update: (values: Record<string, unknown>) => void }} ThemeRuntimeLike
  * @typedef {{ updateConfig?: (values: Record<string, unknown>) => void, reinit?: () => void, initMarkdownIt?: () => Promise<void> }} ConverterRuntimeLike
  * @typedef {{ renderForPreview: (markdown: string, context: { sourcePath: string, settings: PluginSettingsLike }) => Promise<string> }} RenderPipelineLike
@@ -597,6 +597,8 @@ class AppleStyleView extends ItemView {
         const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (activeView && activeView.file) {
           this.lastActiveFile = activeView.file;
+          // 按文档 frontmatter 的 platform 属性自动切换预览平台（设置可关；无属性不动）
+          this.syncPreviewModeWithFile(activeView.file);
           const nextSourcePath = activeView.file.path || '';
           if (nextSourcePath && nextSourcePath !== this.lastResolvedSourcePath) {
             this.markAiLayoutSourceSwitch(nextSourcePath);
@@ -614,6 +616,19 @@ class AppleStyleView extends ItemView {
 
       })
     );
+
+    // 当前文档的属性被编辑（比如刚写上 platform: rednote）时也同步一次预览平台
+    const metadataCache = this.app.metadataCache;
+    if (metadataCache?.on) {
+      this.registerEvent(
+        metadataCache.on('changed', (file) => {
+          const changed = /** @type {TFileLike | null} */ (file);
+          if (changed && this.lastActiveFile && changed.path === this.lastActiveFile.path) {
+            this.syncPreviewModeWithFile(changed);
+          }
+        })
+      );
+    }
 
     // 监听编辑器内容变化 (实时预览)
     /**

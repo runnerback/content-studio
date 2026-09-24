@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> Version 3.11.15 · Updated 2026-09-24 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
+> Version 3.11.16 · Updated 2026-09-24 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
 
 Turn your Obsidian notes into ready-to-publish content: **WeChat Official Account** articles, **Xiaohongshu (rednote)** image cards, and **Feishu** cloud docs, all previewed live inside Obsidian.
 
@@ -16,7 +16,7 @@ Turn your Obsidian notes into ready-to-publish content: **WeChat Official Accoun
 
 1. Click the **Content Studio** ribbon icon (or run the command `打开预览面板`) to open the preview panel.
 2. Edit your note. The panel renders it live, with two-way scroll sync.
-3. Use the panel toolbar to switch platform (公众号 / 小红书 / X), tweak styles, and publish via **发布与分发**.
+3. Use the panel toolbar to switch platform (公众号 / 小红书 / X), tweak styles, and publish via **发布与分发**. Add `platform: wechat | rednote | x` to a note's frontmatter and the preview switches to that platform automatically when you open the note (toggle in settings).
 
 ## Setup
 

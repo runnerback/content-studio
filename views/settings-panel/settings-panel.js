@@ -14,10 +14,26 @@ import { getObsidianSetIcon, getAppleThemeApi, isMobileClient } from '../../serv
 import { getEventTargetValue } from '../../services/dom-utils.js';
 import { APPLE_STYLE_VIEW_TITLE } from '../../services/settings-defaults.js';
 import { getImageSwipeCommandCopy } from '../../services/image-swipe.js';
+import { resolvePreviewModeFromFrontmatter } from '../../services/platform-property.js';
 
 /** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
 /** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const settingsPanelMixin = {
+  /**
+   * 按文档 frontmatter 的 `platform` 属性切换预览平台（设置 autoSwitchPlatformByProperty 可关，默认开）。
+   * 只在切换文档 / 文档属性变化时被调用；没有该属性或值不认识时保持当前模式，不和手动下拉框打架。
+   * @param {import('../../input.js').TFileLike | null | undefined} file
+   * @returns {'wechat' | 'rednote' | 'x' | null} 实际切到的模式；未切换返回 null
+   */
+  syncPreviewModeWithFile(file) {
+    if (!file || this.plugin.settings.autoSwitchPlatformByProperty === false) return null;
+    const cache = this.app.metadataCache?.getFileCache?.(/** @type {import('obsidian').TFile} */ (file));
+    const mode = resolvePreviewModeFromFrontmatter(cache?.frontmatter);
+    if (!mode || mode === this._previewMode || typeof this.setPreviewMode !== 'function') return null;
+    void this.setPreviewMode(mode);
+    return mode;
+  },
+
   /**
    * 顶栏按钮按模式显隐：公众号(样式设置/AI 编排/复制)一组；图卡模式(小红书/X)一组(样式设置/下载)；
    * 「发布与分发」通用，始终保留。只切 is-hidden 类，不写内联 style。
