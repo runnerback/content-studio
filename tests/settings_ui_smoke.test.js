@@ -157,19 +157,20 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     // 不再是单个 render 壳：顶层 = 说明行 + 三个分组
     expect(definitions.length).toBe(4);
     expect(definitions.some((item) => typeof item.render === 'function')).toBe(false);
-    // 3.11.4：顶层 = 说明行 + 「样式设置 / 分发设置 / AI 设置」三组，组内全是子页面入口
+    // 3.11.4：顶层 = 说明行 + 「样式设置 / 分发设置 / AI 设置」三组，组内是子页面入口；
+    // 3.11.16：样式设置组末尾多一个一级开关「按文档属性自动切换预览平台」（跨平台功能，不放进公众号排版页）
     const groups = definitions.filter((item) => item.type === 'group');
     expect(definitions.filter((item) => item.type === 'list')).toEqual([]);
     expect(definitions.filter((item) => item.type === 'page')).toEqual([]);
     expect(groups.map((group) => group.heading)).toEqual(['样式设置', '分发设置', 'AI 设置']);
-    const pagesByGroup = groups.map((group) => group.items.map((item) => `${item.type}:${item.name}`));
+    const pagesByGroup = groups.map((group) => group.items.map((item) => `${item.type || 'control'}:${item.name}`));
     expect(pagesByGroup).toEqual([
-      ['page:公众号排版', 'page:小红书图卡'],
+      ['page:公众号排版', 'page:小红书图卡', 'control:按文档属性自动切换预览平台'],
       ['page:微信公众号', 'page:飞书', `page:${MULTI_PLATFORM_TAB_LABEL}`],
       ['page:AI Provider 与编排'],
     ]);
     // 命令式子页面走 page 工厂；其余是声明式 items（含 group / list）
-    const allPages = groups.flatMap((group) => group.items);
+    const allPages = groups.flatMap((group) => group.items).filter((item) => item.type === 'page');
     const factoryPages = allPages.filter((page) => typeof page.page === 'function').map((page) => page.name);
     expect(factoryPages).toEqual(['小红书图卡', '飞书', MULTI_PLATFORM_TAB_LABEL]);
     allPages.filter((page) => typeof page.page !== 'function').forEach((page) => expect(Array.isArray(page.items)).toBe(true));

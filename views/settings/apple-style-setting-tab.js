@@ -242,6 +242,11 @@ export class AppleStyleSettingTab extends PluginSettingTab {
             desc: '图卡的用户信息、标题级别、页眉页脚、主题与字体管理（X 图卡同款）',
             page: () => new RednoteSettingPage(this),
           },
+          {
+            name: '按文档属性自动切换预览平台',
+            desc: '切换文档时读取 frontmatter 的 platform 属性并切到对应平台（公众号 / 小红书 / X），省去手动点顶栏下拉框。写作时在文档属性里加 platform: wechat / rednote / x（也可写 公众号 / 小红书 / X）即可；没有该属性的文档保持当前平台。',
+            control: { type: 'toggle', key: 'autoSwitchPlatformByProperty' },
+          },
         ],
       },
       {
@@ -307,10 +312,6 @@ export class AppleStyleSettingTab extends PluginSettingTab {
         name: '使用手机仿真框',
         desc: '开启后，预览区域将显示为 iPhone X 手机框样式；关闭则恢复为经典全宽预览模式（需重启插件面板生效）',
         control: { type: 'toggle', key: 'usePhoneFrame' },
-      }, {
-        name: '按文档属性自动切换预览平台',
-        desc: '切换文档时读取 frontmatter 的 platform 属性并切到对应平台，省去手动点顶栏下拉框。写作时在文档属性里加 platform: wechat / rednote / x（也可写 公众号 / 小红书 / X）即可；没有该属性的文档保持当前平台。',
-        control: { type: 'toggle', key: 'autoSwitchPlatformByProperty' },
       }],
     };
   }
