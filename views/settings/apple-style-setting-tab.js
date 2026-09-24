@@ -17,7 +17,7 @@ import {
   getActiveDocumentCompat,
 } from '../../services/obsidian-adapters.js';
 import { normalizeVaultPath, isAbsolutePathLike } from '../../services/path-utils.js';
-import { toReadableError, generateId } from '../../services/input-utils.js';
+import { toReadableError, toText, generateId } from '../../services/input-utils.js';
 import {
   MAX_ACCOUNTS,
   MULTI_PLATFORM_TAB_LABEL,
@@ -46,12 +46,36 @@ import {
 
 const { PluginSettingTab, Notice } = obsidianApi;
 
+/**
+ * @typedef {import('obsidian').SettingDefinitionItem} SettingDefinitionItem
+ * @typedef {import('obsidian').SettingDefinitionGroup} SettingDefinitionGroup
+ * @typedef {import('../../input.js').AppleStylePluginLike} AppleStylePluginLike
+ * @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance
+ * @typedef {import('../../input.js').WechatAccountLike} WechatAccountLike
+ * @typedef {import('../../input.js').AiProviderLike} AiProviderLike
+ */
+
 /** 「AI 编排」与「标题 AI 润色」共用的模型质量选项 */
 const AI_MODEL_QUALITY_OPTIONS = {
   'deepseek-v4-pro': 'DeepSeek V4 Pro（质量优先）',
   'deepseek-v4-flash': 'DeepSeek V4 Lite（快/省）',
 };
 const DEFAULT_AI_MODEL_QUALITY = 'deepseek-v4-pro';
+/**
+ * Provider 层只标明模型家族一项；具体 Pro/Lite 质量由各消费方（标题润色 / AI 编排）
+ * 在各自设置里选。value 用真实模型作默认/兜底（测试连接、消费方未覆盖时可用），label 只显示家族名。
+ */
+const AI_MODEL_FAMILY_OPTION = { value: 'deepseek-v4-pro', label: 'DeepSeek V4' };
+/**
+ * 各 Provider 类型的 Base URL 占位与默认值：切换类型且输入框为空时自动填入。
+ * OpenAI 兼容（DeepSeek 走这条）默认指向 DeepSeek。
+ * @type {Record<string, { placeholder: string, baseUrl: string }>}
+ */
+const AI_PROVIDER_BASE_URL_DEFAULTS = {
+  [AI_PROVIDER_KINDS.GEMINI]: { placeholder: 'https://generativelanguage.googleapis.com/v1beta', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+  [AI_PROVIDER_KINDS.ANTHROPIC]: { placeholder: 'https://api.anthropic.com/v1', baseUrl: 'https://api.anthropic.com/v1' },
+  [AI_PROVIDER_KINDS.OPENAI_COMPATIBLE]: { placeholder: 'https://api.deepseek.com/v1 或 http://localhost:11434/v1', baseUrl: 'https://api.deepseek.com/v1' },
+};
 /** 虚拟 key：面板按「秒」编辑，settings 里持久化的是 ai.requestTimeoutMs */
 export const AI_REQUEST_TIMEOUT_SECONDS_KEY = 'ai.requestTimeoutSeconds';
 const DEFAULT_AI_REQUEST_TIMEOUT_SECONDS = 120;
@@ -60,18 +84,24 @@ const MAX_AI_REQUEST_TIMEOUT_SECONDS = 180;
 const PANEL_RESTART_NOTICE = '设置已保存，请关闭并重新打开发布助手面板以生效';
 
 /**
- * 按点路径读取（如 'ai.enabled'）
- * @param {any} settings
+ * 按点路径读取（如 'ai.enabled'）；途中遇到 null / undefined 即返回 undefined
+ * @param {Record<string, unknown>} settings
  * @param {string} key
  * @returns {unknown}
  */
 function readSettingPath(settings, key) {
-  return key.split('.').reduce((current, segment) => (current == null ? undefined : current[segment]), settings);
+  /** @type {unknown} */
+  let current = settings;
+  for (const segment of key.split('.')) {
+    if (current === null || current === undefined) return undefined;
+    current = /** @type {Record<string, unknown>} */ (current)[segment];
+  }
+  return current;
 }
 
 /**
  * 按点路径写入。中间对象缺失说明 settings 未经 loadSettings 归一化，直接抛错暴露问题。
- * @param {any} settings
+ * @param {Record<string, unknown>} settings
  * @param {string} key
  * @param {unknown} value
  */
@@ -84,7 +114,7 @@ function writeSettingPath(settings, key, value) {
     if (!next || typeof next !== 'object') {
       throw new Error(`设置路径不存在：${key}`);
     }
-    cursor = next;
+    cursor = /** @type {Record<string, unknown>} */ (next);
   }
   cursor[leaf] = value;
 }
@@ -107,14 +137,14 @@ function toDropdownOptions(list) {
  */
 export class AppleStyleSettingTab extends PluginSettingTab {
   /**
-   * @param {any} app
-   * @param {any} plugin
+   * @param {import('obsidian').App} app
+   * @param {AppleStylePluginLike} plugin 运行时是 AppleStylePlugin（Plugin 子类）；测试里是形状对齐的普通对象
    */
   constructor(app, plugin) {
-    super(app, plugin);
-    /** @type {import('../../input.js').AppleStylePluginLike} */
+    super(app, /** @type {import('obsidian').Plugin} */ (/** @type {unknown} */ (plugin)));
+    /** @type {AppleStylePluginLike} */
     this.plugin = plugin;
-    /** @type {any} 当前打开的子页面（飞书 / 其他平台 / 小红书），供精确重绘 */
+    /** @type {import('./setting-pages.js').ContentStudioSettingPageLike | null} 当前打开的命令式子页面（飞书 / 其他平台 / 小红书图卡），供精确重绘 */
     this.activeSettingPage = null;
   }
 
@@ -135,7 +165,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
   }
 
   refreshOpenConverterAiState() {
-    const view = /** @type {any} */ (this.plugin.getConverterView?.() || null);
+    const view = /** @type {AppleStyleViewInstance | null} */ (this.plugin.getConverterView?.() || null);
     if (view && typeof view.updateAiToolbarState === 'function') {
       view.updateAiToolbarState();
     }
@@ -185,7 +215,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
   // 声明式定义（Obsidian 1.13+）
   // ==========================================================================
 
-  /** @returns {any[]} */
+  /** @returns {SettingDefinitionItem[]} */
   getSettingDefinitions() {
     return [
       {
@@ -265,7 +295,10 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     ];
   }
 
-  /** 「公众号排版」页：预览模式 */
+  /**
+   * 「公众号排版」页：预览模式
+   * @returns {SettingDefinitionGroup}
+   */
   getPreviewModeGroupDefinition() {
     return {
       type: 'group',
@@ -278,7 +311,10 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     };
   }
 
-  /** 「公众号排版」页：图片水印 */
+  /**
+   * 「公众号排版」页：图片水印
+   * @returns {SettingDefinitionGroup}
+   */
   getWatermarkGroupDefinition() {
     const settings = this.plugin.settings;
     return {
@@ -301,7 +337,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
           name: '清除本地头像',
           desc: '清除后改用下方「头像 URL（备用）」',
           visible: () => Boolean(this.plugin.settings.avatarBase64),
-          action: () => this.clearLocalAvatar(),
+          action: () => { void this.clearLocalAvatar(); },
         },
         {
           name: '头像 URL（备用）',
@@ -312,7 +348,10 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     };
   }
 
-  /** 「微信公众号」页：API 代理（原「高级设置」） */
+  /**
+   * 「微信公众号」页：API 代理（原「高级设置」）
+   * @returns {SettingDefinitionGroup}
+   */
   getProxyGroupDefinition() {
     return {
       type: 'group',
@@ -331,7 +370,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
         {
           name: '测试代理',
           desc: '测试代理是否连通、能否转发到微信',
-          action: () => this.testProxyConnection(),
+          action: () => { void this.testProxyConnection(); },
         },
       ],
     };
@@ -369,7 +408,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
         break;
       }
       case 'proxyUrl':
-        settings.proxyUrl = String(value || '').trim();
+        settings.proxyUrl = toText(value).trim();
         break;
       case 'ai.defaultProviderId':
       case 'defaultAccountId':
@@ -407,10 +446,9 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
   /**
    * 微信公众号账号：说明 + 默认账号下拉（group），账号列表（list：点击编辑、+ 添加、行尾删除）
-   * @returns {any[]}
+   * @returns {SettingDefinitionItem[]}
    */
   getWechatAccountDefinitions() {
-    /** @type {any[]} */
     const accounts = this.plugin.settings.wechatAccounts || [];
     const defaultId = this.plugin.settings.defaultAccountId;
     /** @type {Record<string, string>} */
@@ -457,17 +495,16 @@ export class AppleStyleSettingTab extends PluginSettingTab {
             this.showEditAccountModal(null);
           },
         },
-        onDelete: (/** @type {number} */ index) => this.deleteWechatAccount(index),
+        onDelete: (/** @type {number} */ index) => { void this.deleteWechatAccount(index); },
       },
     ];
   }
 
   /**
    * AI Provider：默认 Provider 下拉（group），Provider 列表（list）
-   * @returns {any[]}
+   * @returns {SettingDefinitionItem[]}
    */
   getAiProviderDefinitions() {
-    /** @type {any[]} */
     const providers = this.plugin.settings.ai.providers || [];
     const defaultProviderId = this.plugin.settings.ai.defaultProviderId;
     const runnableProviders = providers.filter((provider) => isAiProviderRunnable(provider) && provider.enabled !== false);
@@ -503,13 +540,13 @@ export class AppleStyleSettingTab extends PluginSettingTab {
           name: '添加 AI Provider',
           action: () => this.showEditAiProviderModal(null),
         },
-        onDelete: (/** @type {number} */ index) => this.deleteAiProvider(index),
+        onDelete: (/** @type {number} */ index) => { void this.deleteAiProvider(index); },
       },
     ];
   }
 
   /**
-   * @param {any} provider
+   * @param {AiProviderLike} provider
    * @returns {string}
    */
   describeAiProviderStatus(provider) {
@@ -518,7 +555,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     return '待补全';
   }
 
-  /** @returns {any} */
+  /** @returns {SettingDefinitionGroup} */
   getAiLayoutGroupDefinition() {
     const cache = this.getAiLayoutCacheSummary();
     return {
@@ -576,7 +613,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
           ? {
             name: '清空 AI 编排缓存',
             desc: `当前已缓存 ${cache.docCount} 篇文章、共 ${cache.layoutCount} 份编排风格结果。清空后需重新生成。`,
-            action: () => this.clearAiLayoutCache(),
+            action: () => { void this.clearAiLayoutCache(); },
           }
           : {
             name: 'AI 编排缓存',
@@ -590,20 +627,20 @@ export class AppleStyleSettingTab extends PluginSettingTab {
   /** @returns {{ docCount: number, layoutCount: number }} */
   getAiLayoutCacheSummary() {
     const entries = Object.values(this.plugin.settings.ai.articleLayoutsByPath || {});
-    const layoutCount = entries.reduce((count, entry) => {
+    let layoutCount = 0;
+    for (const entry of entries) {
       const normalizedEntry = normalizeArticleLayoutCacheEntry(entry);
-      if (!normalizedEntry) return count;
-      return count + Object.keys(normalizedEntry.familyStates || {}).length;
-    }, 0);
+      if (!normalizedEntry) continue;
+      layoutCount += Object.keys(normalizedEntry.familyStates || {}).length;
+    }
     return { docCount: entries.length, layoutCount };
   }
 
   /**
    * 标题 AI 润色：复用「默认 AI Provider」的 API Key / Base URL（DeepSeek），这里只单独选模型。
-   * @returns {any}
+   * @returns {SettingDefinitionGroup}
    */
   getTitlePolishGroupDefinition() {
-    /** @type {any[]} */
     const providers = this.plugin.settings.ai?.providers || [];
     const defaultProviderId = this.plugin.settings.ai?.defaultProviderId;
     const provider = providers.find((item) => item.id === defaultProviderId);
@@ -638,13 +675,13 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     const input = activeDocument.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.onchange = async (e) => {
+    input.onchange = (e) => {
       const target = e.target instanceof HTMLInputElement ? e.target : null;
       const file = target?.files?.[0] || null;
       if (!file) return;
 
       if (file.size > 100 * 1024) {
-        new Notice('❌ 图片太大，请选择小于 100KB 的图片');
+        new Notice('❌ 图片太大，请选择 100 千字节以内的图片');
         return;
       }
 
@@ -674,7 +711,6 @@ export class AppleStyleSettingTab extends PluginSettingTab {
    */
   async deleteWechatAccount(index) {
     const settings = this.plugin.settings;
-    /** @type {any[]} */
     const accounts = settings.wechatAccounts || [];
     const account = accounts[index];
     if (!account) {
@@ -702,7 +738,6 @@ export class AppleStyleSettingTab extends PluginSettingTab {
    */
   async deleteAiProvider(index) {
     const ai = this.plugin.settings.ai;
-    /** @type {any[]} */
     const providers = ai.providers || [];
     const provider = providers[index];
     if (!provider) {
@@ -751,7 +786,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       return;
     }
     if (!proxyUrl.toLowerCase().startsWith('https://')) {
-      new Notice('❌ 代理地址必须使用 https://');
+      new Notice('❌ 代理地址必须以 HTTPS 开头');
       return;
     }
     const progress = new Notice('⏳ 正在测试代理…', 0);
@@ -761,7 +796,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       const testUrl = 'https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=PROXY_TEST&secret=PROXY_TEST';
       const result = await api.sendRequest(testUrl, { method: 'GET' });
       if (result && result.errcode !== undefined) {
-        new Notice(`✅ 代理生效：请求已经代理转发到微信并收到响应（errcode ${result.errcode}）`, 6000);
+        new Notice(`✅ 代理生效：请求已经代理转发到微信并收到响应（errcode ${toText(result.errcode)}）`, 6000);
       } else {
         new Notice('✅ 代理已连通', 5000);
       }
@@ -774,7 +809,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
   /**
    * 子页面顶部说明（飞书 / 其他平台 页面复用）
-   * @param {any} containerEl
+   * @param {HTMLElement} containerEl
    * @param {string} description
    */
   renderSettingsTabIntro(containerEl, description) {
@@ -788,7 +823,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
   /**
    * 显示添加/编辑 AI Provider 的模态框
-   * @param {any} provider
+   * @param {AiProviderLike | null} provider
    */
   showEditAiProviderModal(provider) {
     const modal = createObsidianModal(this.app);
@@ -798,23 +833,23 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
     const nameGroup = form.createDiv({ cls: 'wechat-form-group' });
     nameGroup.createEl('label', { text: '名称' });
-    const nameInput = /** @type {any} */ (nameGroup.createEl('input', {
+    const nameInput = nameGroup.createEl('input', {
       type: 'text',
       placeholder: '例如：OpenAI / OpenRouter / 自建网关',
       value: provider?.name || ''
-    }));
+    });
 
     const kindGroup = form.createDiv({ cls: 'wechat-form-group' });
     kindGroup.createEl('label', { text: '类型' });
     const kindSelectWrap = kindGroup.createDiv({ cls: 'wechat-form-select-wrap' });
-    const kindSelect = /** @type {any} */ (kindSelectWrap.createEl('select', { cls: 'wechat-form-select' }));
+    const kindSelect = kindSelectWrap.createEl('select', { cls: 'wechat-form-select' });
     const providerKinds = [
       { value: AI_PROVIDER_KINDS.OPENAI_COMPATIBLE, label: 'OpenAI 兼容接口' },
       { value: AI_PROVIDER_KINDS.GEMINI, label: 'Gemini 兼容格式' },
       { value: AI_PROVIDER_KINDS.ANTHROPIC, label: 'Anthropic 兼容格式' },
     ];
     providerKinds.forEach((kind) => {
-      const option = /** @type {any} */ (kindSelect.createEl('option', { value: kind.value, text: kind.label }));
+      const option = kindSelect.createEl('option', { value: kind.value, text: kind.label });
       if ((provider?.kind || AI_PROVIDER_KINDS.OPENAI_COMPATIBLE) === kind.value) {
         option.selected = true;
       }
@@ -822,50 +857,35 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
     const baseUrlGroup = form.createDiv({ cls: 'wechat-form-group' });
     baseUrlGroup.createEl('label', { text: 'Base URL' });
-    const baseUrlInput = /** @type {any} */ (baseUrlGroup.createEl('input', {
+    const baseUrlInput = baseUrlGroup.createEl('input', {
       type: 'text',
       placeholder: 'https://api.openai.com/v1 或 http://localhost:11434/v1',
       value: provider?.baseUrl || 'https://api.deepseek.com/v1'
-    }));
+    });
 
     const apiKeyGroup = form.createDiv({ cls: 'wechat-form-group' });
-    apiKeyGroup.createEl('label', { text: 'API Key' });
-    const apiKeyInput = /** @type {any} */ (apiKeyGroup.createEl('input', {
+    apiKeyGroup.createEl('label', { text: 'API 密钥' });
+    const apiKeyInput = apiKeyGroup.createEl('input', {
       type: 'password',
       placeholder: 'sk-...',
       value: provider?.apiKey || ''
-    }));
+    });
 
-    // 模型：Provider 层只标明模型家族「DeepSeek V4」一项；具体 Pro/Lite 质量
-    // 由各消费方（标题润色 / AI 编排）在各自设置里选，故这里不放质量选项。
+    // 模型：Provider 层只标明模型家族一项（见 AI_MODEL_FAMILY_OPTION），不放质量选项。
     const modelGroup = form.createDiv({ cls: 'wechat-form-group' });
     modelGroup.createEl('label', { text: '模型' });
     const modelSelectWrap = modelGroup.createDiv({ cls: 'wechat-form-select-wrap' });
-    const modelSelect = /** @type {any} */ (modelSelectWrap.createEl('select', { cls: 'wechat-form-select' }));
-    // value 用真实模型作默认/兜底（测试连接、消费方未覆盖时可用），label 只显示家族名
-    const opt = /** @type {any} */ (modelSelect.createEl('option', { value: 'deepseek-v4-pro', text: 'DeepSeek V4' }));
+    const modelSelect = modelSelectWrap.createEl('select', { cls: 'wechat-form-select' });
+    const opt = modelSelect.createEl('option', { value: AI_MODEL_FAMILY_OPTION.value, text: AI_MODEL_FAMILY_OPTION.label });
     opt.selected = true;
 
     const applyKindDefaults = () => {
       const kind = kindSelect.value || AI_PROVIDER_KINDS.OPENAI_COMPATIBLE;
-      if (kind === AI_PROVIDER_KINDS.GEMINI) {
-        baseUrlInput.placeholder = 'https://generativelanguage.googleapis.com/v1beta';
-        if ((!provider || provider.kind !== kind) && !baseUrlInput.value.trim()) {
-          baseUrlInput.value = 'https://generativelanguage.googleapis.com/v1beta';
-        }
-        return;
-      }
-      if (kind === AI_PROVIDER_KINDS.ANTHROPIC) {
-        baseUrlInput.placeholder = 'https://api.anthropic.com/v1';
-        if ((!provider || provider.kind !== kind) && !baseUrlInput.value.trim()) {
-          baseUrlInput.value = 'https://api.anthropic.com/v1';
-        }
-        return;
-      }
-      // OpenAI 兼容（DeepSeek 走这条）：默认指向 DeepSeek
-      baseUrlInput.placeholder = 'https://api.deepseek.com/v1 或 http://localhost:11434/v1';
+      // 未知类型按 OpenAI 兼容处理
+      const defaults = AI_PROVIDER_BASE_URL_DEFAULTS[kind] || AI_PROVIDER_BASE_URL_DEFAULTS[AI_PROVIDER_KINDS.OPENAI_COMPATIBLE];
+      baseUrlInput.placeholder = defaults.placeholder;
       if ((!provider || provider.kind !== kind) && !baseUrlInput.value.trim()) {
-        baseUrlInput.value = 'https://api.deepseek.com/v1';
+        baseUrlInput.value = defaults.baseUrl;
       }
     };
     kindSelect.addEventListener('change', applyKindDefaults);
@@ -874,13 +894,10 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     const enabledGroup = form.createDiv({ cls: 'wechat-form-group' });
     enabledGroup.createEl('label', { text: '启用' });
     const enabledWrap = enabledGroup.createDiv({ cls: 'wechat-provider-enabled' });
-    const enabledToggle = /** @type {any} */ (enabledWrap.createEl('label', { cls: 'apple-toggle' }).createEl('input', {
-      type: 'checkbox',
-      cls: 'apple-toggle-input',
-      checked: provider?.enabled !== false ? true : undefined,
-    }));
+    const enabledLabel = enabledWrap.createEl('label', { cls: 'apple-toggle' });
+    const enabledToggle = enabledLabel.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
     enabledToggle.checked = provider?.enabled !== false;
-    enabledToggle.parentElement.createEl('span', { cls: 'apple-toggle-slider' });
+    enabledLabel.createEl('span', { cls: 'apple-toggle-slider' });
     enabledWrap.createEl('span', {
       cls: 'wechat-provider-enabled-text',
       text: '保存后可用于 AI 编排和连接测试',
@@ -910,7 +927,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       testBtn.textContent = '测试中...';
       try {
         await testAiProviderConnection(candidate, createObsidianFetchAdapter({ requestUrl: getObsidianRequestUrl(), request: getObsidianRequest() }));
-        new Notice('✅ AI Provider 连接成功！');
+        new Notice('✅ 连接成功！');
       } catch (error) {
         new Notice(`❌ 连接失败: ${toReadableError(error).message}`);
       }
@@ -962,7 +979,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
   /**
    * 显示添加/编辑账号的模态框
-   * @param {any} account
+   * @param {WechatAccountLike | null} account
    */
   showEditAccountModal(account) {
     const modal = createObsidianModal(this.app);
@@ -974,38 +991,38 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     // 账号名称
     const nameGroup = form.createDiv({ cls: 'wechat-form-group' });
     nameGroup.createEl('label', { text: '账号名称' });
-    const nameInput = /** @type {any} */ (nameGroup.createEl('input', {
+    const nameInput = nameGroup.createEl('input', {
       type: 'text',
       placeholder: '例如：我的公众号',
       value: account?.name || ''
-    }));
+    });
 
     // AppID
     const appIdGroup = form.createDiv({ cls: 'wechat-form-group' });
-    appIdGroup.createEl('label', { text: 'AppID' });
-    const appIdInput = /** @type {any} */ (appIdGroup.createEl('input', {
+    appIdGroup.createEl('label', { text: '开发者 ID' });
+    const appIdInput = appIdGroup.createEl('input', {
       type: 'text',
       placeholder: 'wx...',
       value: account?.appId || ''
-    }));
+    });
 
     // AppSecret
     const secretGroup = form.createDiv({ cls: 'wechat-form-group' });
-    secretGroup.createEl('label', { text: 'AppSecret' });
-    const secretInput = /** @type {any} */ (secretGroup.createEl('input', {
+    secretGroup.createEl('label', { text: '开发者密码' });
+    const secretInput = secretGroup.createEl('input', {
       type: 'password',
       placeholder: '开发者密钥',
       value: account?.appSecret || ''
-    }));
+    });
 
     // 默认作者
     const authorGroup = form.createDiv({ cls: 'wechat-form-group' });
     authorGroup.createEl('label', { text: '默认作者（可选）' });
-    const authorInput = /** @type {any} */ (authorGroup.createEl('input', {
+    const authorInput = authorGroup.createEl('input', {
       type: 'text',
       placeholder: '留空则不显示作者',
       value: account?.author || ''
-    }));
+    });
 
     const publishOptions = form.createEl('details', { cls: 'wechat-sync-advanced wechat-account-publish-options' });
     publishOptions.createEl('summary', {
@@ -1020,21 +1037,21 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
     const sourceUrlGroup = publishSection.createDiv({ cls: 'wechat-form-group' });
     sourceUrlGroup.createEl('label', { text: '默认原文链接（可选）' });
-    const sourceUrlInput = /** @type {any} */ (sourceUrlGroup.createEl('input', {
+    const sourceUrlInput = sourceUrlGroup.createEl('input', {
       type: 'url',
       placeholder: '留空则不同步原文链接',
       value: publishDefaults.contentSourceUrl,
-    }));
+    });
 
     const commentGroup = publishSection.createDiv({ cls: 'wechat-form-checkbox-group' });
     const commentLabel = commentGroup.createEl('label', { cls: 'wechat-form-checkbox-label' });
-    const commentInput = /** @type {any} */ (commentLabel.createEl('input', { type: 'checkbox' }));
+    const commentInput = commentLabel.createEl('input', { type: 'checkbox' });
     commentInput.checked = publishDefaults.openComment;
     commentLabel.appendText('默认开启留言');
 
     const fansCommentGroup = publishSection.createDiv({ cls: 'wechat-form-checkbox-group' });
     const fansCommentLabel = fansCommentGroup.createEl('label', { cls: 'wechat-form-checkbox-label' });
-    const fansCommentInput = /** @type {any} */ (fansCommentLabel.createEl('input', { type: 'checkbox' }));
+    const fansCommentInput = fansCommentLabel.createEl('input', { type: 'checkbox' });
     fansCommentInput.checked = publishDefaults.openComment && publishDefaults.onlyFansCanComment;
     fansCommentLabel.appendText('默认仅粉丝可留言');
     fansCommentGroup.createEl('div', {
@@ -1060,7 +1077,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     const testBtn = btnRow.createEl('button', { text: '测试连接', cls: 'wechat-btn-test' });
     testBtn.onclick = async () => {
       if (!appIdInput.value || !secretInput.value) {
-        new Notice('请填写 AppID 和 AppSecret');
+        new Notice('请填写开发者 ID 和开发者密码');
         return;
       }
       testBtn.disabled = true;
@@ -1083,7 +1100,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       const appSecret = secretInput.value.trim();
 
       if (!appId || !appSecret) {
-        new Notice('请填写 AppID 和 AppSecret');
+        new Notice('请填写开发者 ID 和开发者密码');
         return;
       }
 

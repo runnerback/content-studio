@@ -1,3 +1,5 @@
+import { toText } from './input-utils.js';
+
 /**
  * @typedef {{ id?: string, [key: string]: unknown }} SyncAccountLike
  */
@@ -30,7 +32,7 @@ export function resolveSyncAccount({ accounts, selectedAccountId, defaultAccount
  * @returns {string}
  */
 export function toSyncFriendlyMessage(errorMessage = '') {
-  const message = String(errorMessage || '');
+  const message = toText(errorMessage);
   if (message.includes('45002')) {
     return '文章太长，微信接口拒收。建议分篇发送，或使用插件顶部的「复制」按钮手动粘贴到公众号后台。';
   }

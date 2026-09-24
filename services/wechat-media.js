@@ -1,4 +1,5 @@
 import { createHtmlContainer, getActiveDocument, setElementHtml } from './dom-utils.js';
+import { toText } from './input-utils.js';
 
 /**
  * @typedef {{ url: string }} UploadImageResult
@@ -31,7 +32,7 @@ function getErrorMessage(error) {
   if (error && typeof error === 'object' && typeof error['message'] === 'string') {
     return error['message'];
   }
-  return String(error || '');
+  return toText(error);
 }
 
 /**
@@ -130,7 +131,7 @@ export async function processAllImages({
     const tasks = Array.from(uniqueUrls);
 
     await pMap(tasks, async (item) => {
-        const src = String(item || '');
+        const src = toText(item);
         const cacheKey = `${cacheNamespace}::${src}`;
         const cached = getCachedEntry(imageUploadCache, cacheKey);
         try {

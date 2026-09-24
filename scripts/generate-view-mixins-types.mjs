@@ -45,10 +45,13 @@ function returnsType(doc) {
   }
   return null;
 }
-function mapType(t) {
+// 类型名解析：优先 input.js 的共享 typedef；其次 mixin 文件自己声明的 @typedef（import('../views/..').Name）
+function mapType(t, localTypedefs, rel) {
   const names = [...t.matchAll(/\b([A-Z][A-Za-z0-9]*Like)\b/g)].map((m) => m[1]);
-  if (names.some((n) => !typedefNames.has(n))) return null;
-  return t.replace(/\b([A-Z][A-Za-z0-9]*Like)\b/g, "import('../input.js').$1").replace(/\s*\n\s*\*?\s*/g, " ");
+  if (names.some((n) => !typedefNames.has(n) && !localTypedefs.has(n))) return null;
+  return t
+    .replace(/\b([A-Z][A-Za-z0-9]*Like)\b/g, (_, n) => (typedefNames.has(n) ? `import('../input.js').${n}` : `import('../${rel}').${n}`))
+    .replace(/\s*\n\s*\*?\s*/g, " ");
 }
 
 const out = [
@@ -62,14 +65,19 @@ for (const rel of MIXINS) {
   if (!m) throw new Error(`${rel}: 找不到 mixin 对象字面量`);
   const objStart = m.index + m[0].length - 1;
   const body = src.slice(objStart, braceEnd(src, objStart));
+  // mixin 文件内自己声明的 typedef（非 import 别名）也可作为返回类型
+  const localTypedefs = new Set(
+    [...src.matchAll(/@typedef\s*\{(?!import\()[^]*?\}\s*([A-Z][A-Za-z0-9]*Like)\s*(?:\*\/|$)/gm)].map((m) => m[1]),
+  );
   out.push(`  // ---- ${rel} ----`);
   for (const mm of body.matchAll(/^ {2}(async )?([A-Za-z_]\w*)\s*\(([^)]*)\)\s*\{/gm)) {
     const [, isAsync, name] = mm;
     const bodyStart = mm.index + mm[0].length - 1;
     const methodBody = body.slice(bodyStart, braceEnd(body, bodyStart));
     const before = body.slice(0, mm.index);
-    const doc = /\/\*\*([\s\S]*?)\*\/\s*$/.exec(before);
-    let ret = doc ? (() => { const t = returnsType(doc[1]); return t ? mapType(t) : null; })() : null;
+    // 只取紧贴方法的那一段 JSDoc（内容不得跨越 */），否则会从 mixin 里第一段注释一路匹配到这里，拿到别的方法的 @returns
+    const doc = /\/\*\*((?:(?!\*\/)[\s\S])*)\*\/\s*$/.exec(before);
+    let ret = doc ? (() => { const t = returnsType(doc[1]); return t ? mapType(t, localTypedefs, rel) : null; })() : null;
     if (ret === null) ret = isAsync ? "Promise<unknown>" : (/^\s*return\s+[^;\n]/m.test(methodBody) ? "unknown" : "void");
     else if (isAsync && !ret.startsWith("Promise<")) ret = `Promise<${ret}>`;
     out.push(`  ${name}(...args: unknown[]): ${ret};`);

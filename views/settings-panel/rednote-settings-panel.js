@@ -7,10 +7,10 @@
 
 // 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
 /** @typedef {import('../../input.js').ObsidianElementLike} ObsidianElementLike */
-/** @typedef {import('../../input.js').ObsidianInputLike} ObsidianInputLike */
 
 import { obsidianApi } from '../../services/obsidian-adapters.js';
 import { getEventTargetValue } from '../../services/dom-utils.js';
+import { toReadableError } from '../../services/input-utils.js';
 
 const { Notice } = obsidianApi;
 
@@ -39,14 +39,14 @@ export const rednoteSettingsPanelMixin = {
      * @param {(value: string) => Promise<void>} onChange
      */
     const createSelectSection = (label, options, currentValue, onChange) => {
-      this.createSection(area, label, (section) => {
-        const select = /** @type {ObsidianInputLike} */ (section.createEl('select', { cls: 'apple-select' }));
+      this.createSection(area, label, /** @param {ObsidianElementLike} section */ (section) => {
+        const select = section.createEl('select', { cls: 'apple-select' });
         options.forEach(opt => {
-          const option = /** @type {ObsidianInputLike} */ (select.createEl('option', { value: opt.value, text: opt.label }));
+          const option = select.createEl('option', { value: opt.value, text: opt.label });
           if (opt.value === currentValue) option.selected = true;
         });
         select.addEventListener('change', (e) => {
-          onChange(getEventTargetValue(e, currentValue));
+          void onChange(getEventTargetValue(e, currentValue));
         });
       });
     };
@@ -60,16 +60,16 @@ export const rednoteSettingsPanelMixin = {
       (value) => controller.setFont(value));
 
     // === 字号 ===
-    this.createSection(area, '字号', (section) => {
+    this.createSection(area, '字号', /** @param {ObsidianElementLike} section */ (section) => {
       const row = section.createEl('div', {
         cls: 'apple-slider-container',
         style: 'width: 100%; display: flex; align-items: center; gap: 10px;'
       });
-      const slider = /** @type {ObsidianInputLike} */ (row.createEl('input', {
+      const slider = row.createEl('input', {
         type: 'range',
         cls: 'apple-slider',
         attr: { min: 12, max: 30, step: 1 }
-      }));
+      });
       slider.value = String(settings.fontSize || 16);
       slider.setCssStyles({ flex: '1' });
 
@@ -84,32 +84,37 @@ export const rednoteSettingsPanelMixin = {
       slider.addEventListener('change', (e) => {
         const size = parseInt(getEventTargetValue(e, slider.value), 10);
         valueLabel.setText(`${size}px`);
-        controller.setFontSize(size);
+        void controller.setFontSize(size);
       });
     });
 
     // === 页眉 / 页脚（2026-09-14）===
     // 分发文案的图卡不需要头像/昵称/时间和署名区。此前靠 CSS 片段 display:none 硬藏；
     // 现在是插件原生开关：关闭即整块移除 DOM，预览/导出/发布一致。设置页「显示设置」里也有同两项（默认折叠）。
-    this.createSection(area, '页眉 / 页脚', (section) => {
+    this.createSection(area, '页眉 / 页脚', /** @param {ObsidianElementLike} section */ (section) => {
+      /**
+       * @param {string} label
+       * @param {boolean} checked
+       * @param {(checked: boolean) => Promise<void>} onChange
+       */
       const makeToggle = (label, checked, onChange) => {
         const row = section.createEl('div', { cls: 'apple-toggle-row' });
         const toggle = row.createEl('label', { cls: 'apple-toggle' });
-        const checkbox = /** @type {ObsidianInputLike} */ (toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' }));
+        const checkbox = toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
         checkbox.checked = checked;
         toggle.createEl('span', { cls: 'apple-toggle-slider' });
         row.createEl('span', {
           text: label,
           attr: { style: 'font-size: 11px; color: var(--apple-secondary); opacity: 0.8; font-weight: 500;' }
         });
-        checkbox.addEventListener('change', () => { onChange(checkbox.checked); });
+        checkbox.addEventListener('change', () => { void onChange(checkbox.checked); });
       };
       makeToggle('显示页眉（头像 / 昵称 / 时间）', settings.showHeader !== false, (v) => controller.setShowHeader(v));
       makeToggle('显示页脚（署名）', settings.showFooter !== false, (v) => controller.setShowFooter(v));
     });
 
     // === 背景图 ===
-    this.createSection(area, '背景图', (section) => {
+    this.createSection(area, '背景图', /** @param {ObsidianElementLike} section */ (section) => {
       const btn = section.createEl('button', {
         cls: 'apple-btn-theme',
         text: '设置背景图片…',
@@ -121,7 +126,7 @@ export const rednoteSettingsPanelMixin = {
     });
 
     // === 使用指南(原底栏帮助按钮 tooltip 改为常驻说明) ===
-    this.createSection(area, '使用指南', (section) => {
+    this.createSection(area, '使用指南', /** @param {ObsidianElementLike} section */ (section) => {
       section.createEl('span', {
         text: controller.getUsageGuideText(),
         attr: {
@@ -165,7 +170,7 @@ export const rednoteSettingsPanelMixin = {
       new Notice(`${label}导出成功`);
     } catch (error) {
       console.error('图卡导出失败:', error);
-      new Notice(`导出失败: ${/** @type {Error} */ (error).message}`);
+      new Notice(`导出失败: ${toReadableError(error).message}`);
     }
   },
 };

@@ -4,6 +4,8 @@
 // 客户端直接调（走 Obsidian requestUrl 绕 CORS）。key/base/model 来自插件设置。
 // 注意：公司代理可能对出网做 TLS 重置，若 requestUrl 报网络错，需改走服务端中转。
 
+import { toRecord, toText } from './input-utils.js';
+
 const MAX_CONTENT_CHARS = 8000; // 正文过长时截断，够 LLM 抓住主旨即可
 const TITLE_COUNT = 5;
 
@@ -31,9 +33,10 @@ function parseTitles(raw) {
   text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
   // 优先按 JSON 数组解析
   try {
+    /** @type {unknown} */
     const arr = JSON.parse(text);
     if (Array.isArray(arr)) {
-      return arr.map((t) => String(t || '').trim()).filter(Boolean);
+      return arr.map((t) => toText(t).trim()).filter(Boolean);
     }
   } catch {
     // 落到按行解析
@@ -49,7 +52,7 @@ function parseTitles(raw) {
 /**
  * 调 LLM 为文章生成 5 个候选标题。
  * @param {{
- *   requestUrl: (options: Record<string, unknown>) => Promise<{ status: number, json?: any, text?: string }>,
+ *   requestUrl: (options: Record<string, unknown>) => Promise<{ status: number, json?: unknown, text?: string }>,
  *   apiBase: string,
  *   apiKey: string,
  *   model: string,
@@ -101,8 +104,9 @@ export async function polishTitleWithLlm({ requestUrl, apiBase, apiKey, model, c
     throw new Error(`LLM 调用失败：${detail}`);
   }
 
-  const data = resp.json || (resp.text ? JSON.parse(resp.text) : null);
-  const raw = data?.choices?.[0]?.message?.content;
+  const data = toRecord(resp.json || (resp.text ? JSON.parse(resp.text) : null));
+  const choices = Array.isArray(data.choices) ? data.choices : [];
+  const raw = toText(toRecord(toRecord(choices[0]).message).content);
   if (!raw) throw new Error('LLM 返回为空');
 
   const titles = parseTitles(raw).slice(0, TITLE_COUNT);

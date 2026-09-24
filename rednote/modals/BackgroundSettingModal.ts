@@ -117,7 +117,7 @@ export class BackgroundSettingModal extends Modal {
         const input = createEl('input');
         input.type = 'file';
         input.accept = 'image/*';
-        input.onchange = async () => {
+        input.onchange = () => {
             const file = input.files?.[0];
             if (file) {
                 const reader = new FileReader();

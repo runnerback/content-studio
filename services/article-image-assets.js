@@ -1,3 +1,5 @@
+import { toText } from './input-utils.js';
+
 const DEFAULT_MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
 const DEFAULT_MAX_TOTAL_IMAGE_SIZE_BYTES = 50 * 1024 * 1024;
 
@@ -95,7 +97,7 @@ function asApp(value) {
 
 /** @param {unknown} value */
 function normalizePath(value) {
-  return String(value || '')
+  return toText(value)
     .trim()
     .replace(/\\/g, '/')
     .replace(/^\/+/, '')
@@ -104,7 +106,7 @@ function normalizePath(value) {
 
 /** @param {unknown} value */
 function normalizeAbsoluteLocalPath(value) {
-  let pathValue = String(value || '').trim().replace(/\\/g, '/').replace(/\/{2,}/g, '/');
+  let pathValue = toText(value).trim().replace(/\\/g, '/').replace(/\/{2,}/g, '/');
   const hasDrivePrefix = /^[a-zA-Z]:\//.test(pathValue);
   if (!hasDrivePrefix) {
     pathValue = pathValue.replace(/\/+/g, '/');
@@ -124,48 +126,48 @@ function getDirname(filePath) {
 
 /** @param {...unknown} parts */
 function joinVaultPath(...parts) {
-  return normalizePath(parts.filter(Boolean).join('/'));
+  return normalizePath(parts.map((part) => toText(part)).filter(Boolean).join('/'));
 }
 
 /** @param {unknown} filename */
 function getExtension(filename) {
-  const ext = String(filename || '').split('?')[0].split('#')[0].split('.').pop();
+  const ext = toText(filename).split('?')[0].split('#')[0].split('.').pop();
   return ext && ext !== filename ? ext.toLowerCase() : '';
 }
 
 /** @param {unknown} src */
 function isRemoteImageSrc(src) {
-  return /^https?:\/\//i.test(String(src || '').trim());
+  return /^https?:\/\//i.test(toText(src).trim());
 }
 
 /** @param {unknown} src */
 function isDataImageSrc(src) {
-  return /^data:image\//i.test(String(src || '').trim());
+  return /^data:image\//i.test(toText(src).trim());
 }
 
 /** @param {unknown} src */
 function isAssetImageSrc(src) {
-  return /^asset:\/\//i.test(String(src || '').trim());
+  return /^asset:\/\//i.test(toText(src).trim());
 }
 
 /** @param {unknown} src */
 function isFileUrl(src) {
-  return /^file:\/\//i.test(String(src || '').trim());
+  return /^file:\/\//i.test(toText(src).trim());
 }
 
 /** @param {unknown} value */
 function decodeLocalPath(value) {
   try {
-    return decodeURI(String(value || '').trim());
+    return decodeURI(toText(value).trim());
   } catch {
-    return String(value || '').trim();
+    return toText(value).trim();
   }
 }
 
 /** @param {unknown} src */
 function getFileUrlPath(src) {
   try {
-    const url = new URL(String(src || '').trim());
+    const url = new URL(toText(src).trim());
     if (url.protocol !== 'file:') return '';
     if (url.hostname && url.hostname !== 'localhost') return '';
     const pathname = decodeURIComponent(url.pathname || '');
@@ -197,14 +199,14 @@ function getVaultRelativePathFromLocalPath(app, localPath) {
 
 /** @param {unknown} src */
 function getFilenameFromPath(src) {
-  const value = String(src || '').split('?')[0].split('#')[0].replace(/\\/g, '/');
+  const value = toText(src).split('?')[0].split('#')[0].replace(/\\/g, '/');
   const filename = value.split('/').filter(Boolean).pop();
   return filename || 'image';
 }
 
 /** @param {unknown} rawDestination */
 function stripMarkdownDestination(rawDestination) {
-  const raw = String(rawDestination || '').trim();
+  const raw = toText(rawDestination).trim();
   if (raw.startsWith('<')) {
     const end = raw.indexOf('>');
     if (end > 0) return raw.slice(1, end).trim();
@@ -214,7 +216,7 @@ function stripMarkdownDestination(rawDestination) {
 
 /** @param {unknown} rawTarget */
 function splitWikiEmbedTarget(rawTarget) {
-  const parts = String(rawTarget || '').split('|');
+  const parts = toText(rawTarget).split('|');
   const src = (parts.shift() || '').trim();
   let aliasParts = parts.map((part) => part.trim()).filter((part) => part.length > 0);
   if (aliasParts.length > 1 && isLikelyWikiImageSizeHint(aliasParts[aliasParts.length - 1])) {
@@ -226,7 +228,7 @@ function splitWikiEmbedTarget(rawTarget) {
 
 /** @param {unknown} value */
 function isLikelyWikiImageSizeHint(value) {
-  return /^\d+(?:\s*x\s*\d+)?$/i.test(String(value || '').trim());
+  return /^\d+(?:\s*x\s*\d+)?$/i.test(toText(value).trim());
 }
 
 /**
@@ -234,7 +236,7 @@ function isLikelyWikiImageSizeHint(value) {
  * @returns {ImageSizeHint | null}
  */
 function parseImageSizeHint(value) {
-  const match = String(value || '').trim().match(/^(\d+)(?:\s*x\s*(\d+))?$/i);
+  const match = toText(value).trim().match(/^(\d+)(?:\s*x\s*(\d+))?$/i);
   if (!match) return null;
   const width = Number(match[1] || 0);
   const height = match[2] ? Number(match[2]) : null;
@@ -248,7 +250,7 @@ function parseImageSizeHint(value) {
  * @returns {ImageSizeHint | null}
  */
 function extractSizeHintFromAltText(altText) {
-  const raw = String(altText || '').trim();
+  const raw = toText(altText).trim();
   if (!raw) return null;
   if (!raw.includes('|')) return parseImageSizeHint(raw);
   const parts = raw.split('|').map((part) => part.trim()).filter(Boolean);
@@ -270,7 +272,7 @@ function createAltFromSrc(src, fallback = '图片') {
  * @returns {ImageReference[]}
  */
 function collectWikiImageEmbeds(markdown) {
-  const sourceMarkdown = String(markdown || '');
+  const sourceMarkdown = toText(markdown);
   /** @type {ImageReference[]} */
   const results = [];
   const pattern = /!\[\[([^\]\n]+?)\]\]/g;
@@ -293,7 +295,7 @@ function collectWikiImageEmbeds(markdown) {
 
 /** @param {unknown} src */
 function isImageWikiTarget(src) {
-  const ext = getExtension(String(src || '').split('#')[0]);
+  const ext = getExtension(toText(src).split('#')[0]);
   return !!(SUPPORTED_IMAGE_MIME_BY_EXT[ext] || RECOGNIZED_UNSUPPORTED_IMAGE_MIME_BY_EXT[ext]);
 }
 
@@ -302,7 +304,7 @@ function isImageWikiTarget(src) {
  * @returns {ImageReference[]}
  */
 function collectPlainWikiImageLinks(markdown) {
-  const sourceMarkdown = String(markdown || '');
+  const sourceMarkdown = toText(markdown);
   /** @type {ImageReference[]} */
   const results = [];
   const pattern = /\[\[([^\]\n]+?)\]\]/g;
@@ -329,7 +331,7 @@ function collectPlainWikiImageLinks(markdown) {
  * @returns {ImageReference[]}
  */
 function collectMarkdownImages(markdown) {
-  const sourceMarkdown = String(markdown || '');
+  const sourceMarkdown = toText(markdown);
   /** @type {ImageReference[]} */
   const results = [];
   let index = 0;
@@ -408,7 +410,7 @@ function collectMarkdownImages(markdown) {
  * @returns {TextRange[]}
  */
 function collectFencedCodeRanges(markdown) {
-  const sourceMarkdown = String(markdown || '');
+  const sourceMarkdown = toText(markdown);
   /** @type {TextRange[]} */
   const ranges = [];
   const fencePattern = /^( {0,3})(`{3,}|~{3,})[^\n]*(?:\n|$)/gm;
@@ -437,7 +439,7 @@ function collectFencedCodeRanges(markdown) {
  * @returns {TextRange[]}
  */
 function collectInlineCodeRanges(markdown, blockedRanges = []) {
-  const sourceMarkdown = String(markdown || '');
+  const sourceMarkdown = toText(markdown);
   /** @type {TextRange[]} */
   const ranges = [];
   let index = 0;
@@ -481,7 +483,7 @@ function isInsideRanges(index, ranges) {
  * @returns {ImageReference[]}
  */
 function collectArticleImageReferences(markdown) {
-  const sourceMarkdown = String(markdown || '');
+  const sourceMarkdown = toText(markdown);
   const fencedCodeRanges = collectFencedCodeRanges(sourceMarkdown);
   const codeRanges = [
     ...fencedCodeRanges,
@@ -569,13 +571,14 @@ function getNoteSourcePath(noteFile) {
 function resolveVaultFile(app, src, noteFile) {
   const appRef = asApp(app);
   if (!appRef || !src) return null;
-  const decoded = String((() => {
+  const rawSrc = toText(src);
+  const decoded = (() => {
     try {
-      return decodeURI(src);
+      return decodeURI(rawSrc);
     } catch {
-      return src;
+      return rawSrc;
     }
-  })() || '');
+  })();
   const sourcePath = getNoteSourcePath(noteFile);
   const metadataCache = appRef.metadataCache;
   const vault = appRef.vault;
@@ -646,7 +649,7 @@ function createMarkdownImage(alt, src) {
  * @returns {string}
  */
 function replaceRanges(markdown, replacements) {
-  const sourceMarkdown = String(markdown || '');
+  const sourceMarkdown = toText(markdown);
   return replacements
     .slice()
     .sort((a, b) => b.start - a.start)
@@ -802,7 +805,7 @@ function getFirstMarkdownImageSrc(markdown) {
  * @returns {string}
  */
 function replaceArticleContentImageSources(html, assets = []) {
-  let output = String(html || '');
+  let output = toText(html);
   for (const asset of assets) {
     const assetSrc = `asset://${asset.id}`;
     const candidates = /** @type {string[]} */ ([
@@ -822,7 +825,7 @@ function replaceArticleContentImageSources(html, assets = []) {
 
 /** @param {unknown} value */
 function stripUrlQueryHash(value) {
-  const raw = String(value || '');
+  const raw = toText(value);
   if (!raw) return '';
   try {
     const url = new URL(raw);
@@ -839,7 +842,7 @@ function getRenderedSrcVaultPath(renderedSrc) {
   // Obsidian renders local images as `app://<vault-id>/<vault-relative-path>?<hash>`.
   // The pathname (after URL-decode + leading-slash strip) recovers the vault path.
   try {
-    const url = new URL(String(renderedSrc || ''));
+    const url = new URL(toText(renderedSrc));
     return decodeURIComponent(url.pathname.replace(/^\/+/, ''));
   } catch {
     return '';
@@ -852,7 +855,7 @@ function getRenderedSrcVaultPath(renderedSrc) {
  * @returns {ImageAsset | null}
  */
 function findAssetForRenderedSrc(renderedSrc, assets = []) {
-  const src = String(renderedSrc || '');
+  const src = toText(renderedSrc);
   if (!src || !Array.isArray(assets) || !assets.length) return null;
 
   // 1) Exact resourceSrc match (ignoring query/hash) — most reliable since
@@ -894,7 +897,7 @@ function findAssetForRenderedSrc(renderedSrc, assets = []) {
  * @returns {ImageAsset | null}
  */
 function findAssetForCover(coverString, assets = []) {
-  const cover = String(coverString || '').trim();
+  const cover = toText(coverString).trim();
   if (!cover.startsWith('asset://')) return null;
   if (!Array.isArray(assets) || !assets.length) return null;
   const id = cover.slice('asset://'.length);
@@ -917,11 +920,11 @@ function findAssetForCover(coverString, assets = []) {
  */
 function mapAppUrlImagesToAssetUrls(html, assets = []) {
   if (!html) return '';
-  return String(html).replace(
+  return toText(html).replace(
     /(<img\b[^>]*\bsrc=["'])([^"']+)(["'][^>]*>)/gi,
     (match, prefix, src, suffix) => {
       const source = /** @type {unknown} */ (src);
-      const srcValue = String(source || '');
+      const srcValue = toText(source);
       if (!/^(app|capacitor):\/\//i.test(srcValue)) return String(match || '');
       const asset = findAssetForRenderedSrc(srcValue, assets);
       if (!asset) return String(match || '');
@@ -932,7 +935,7 @@ function mapAppUrlImagesToAssetUrls(html, assets = []) {
 
 /** @param {unknown} value */
 function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return toText(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
@@ -963,7 +966,7 @@ async function resolveArticleImages(markdown, noteFile, options = {}) {
     maxTotalImageSizeBytes: options.maxTotalImageSizeBytes || DEFAULT_MAX_TOTAL_IMAGE_SIZE_BYTES,
     unsupportedExtensions: new Set((options.unsupportedImageExtensions || []).map((ext) => String(ext || '').toLowerCase().replace(/^\./, '')).filter(Boolean)),
   };
-  const sourceMarkdown = String(markdown || '');
+  const sourceMarkdown = toText(markdown);
   const references = collectArticleImageReferences(sourceMarkdown);
   /** @type {ImageWarning[]} */
   const warnings = [];
@@ -982,8 +985,8 @@ async function resolveArticleImages(markdown, noteFile, options = {}) {
    * @returns {Promise<{ src: string, asset?: ImageAsset, warning?: ImageWarning }>}
    */
   const resolveSrc = async (src, originalSrc = src) => {
-    const trimmed = String(src || '').trim();
-    const original = String(originalSrc || '');
+    const trimmed = toText(src).trim();
+    const original = toText(originalSrc);
     if (!trimmed) return { src: trimmed };
     if (!isLocalLikeSrc(trimmed)) return { src: trimmed };
     if (!isFileUrl(trimmed) && /^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {

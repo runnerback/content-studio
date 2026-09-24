@@ -14,14 +14,24 @@ import { getActiveDocument, getActiveWindowValue } from './dom-utils.js';
  * @returns {unknown}
  */
 function loadCommonJsDependency(specifier) {
+  const loader = resolveCommonJsLoader();
+  if (!loader) throw new Error(`CommonJS loader unavailable for ${specifier}`);
+  return loader(specifier);
+}
+
+/**
+ * 插件在 Obsidian 里以 CommonJS 模块加载：模块作用域有 require；测试/其他宿主退回 window.require。
+ * @returns {((specifier: string) => unknown) | null}
+ */
+function resolveCommonJsLoader() {
   if (typeof require === 'function') {
-    return /** @type {(s: string) => unknown} */ (require)(specifier);
+    return /** @type {(specifier: string) => unknown} */ (require);
   }
   const activeWindowRequire = getActiveWindowValue('require');
   if (typeof activeWindowRequire === 'function') {
-    return /** @type {(s: string) => unknown} */ (activeWindowRequire)(specifier);
+    return /** @type {(specifier: string) => unknown} */ (activeWindowRequire);
   }
-  throw new Error(`CommonJS loader unavailable for ${specifier}`);
+  return null;
 }
 
 /** @type {typeof import('obsidian')} 测试环境下由 __mocks__/obsidian.js 顶替，形状按官方类型对齐 */
@@ -56,10 +66,11 @@ export function getObsidianRequest() {
 }
 
 /**
- * @returns {any}
+ * 主题包在 window.AppleTheme 上注册的主题/配色列表 API
+ * @returns {import('../input.js').AppleThemeApiLike}
  */
 export function getAppleThemeApi() {
-  return getActiveWindowValue('AppleTheme');
+  return /** @type {import('../input.js').AppleThemeApiLike} */ (getActiveWindowValue('AppleTheme'));
 }
 
 /**
@@ -90,8 +101,8 @@ export function createFallbackSvgElement() {
 }
 
 /**
- * @param {any} workspace
- * @param {any} leaf
+ * @param {import('../input.js').WorkspaceLike | null | undefined} workspace
+ * @param {import('../input.js').LeafLike | null | undefined} leaf
  * @returns {Promise<void>}
  */
 export function revealLeafCompat(workspace, leaf) {
@@ -104,15 +115,16 @@ export function revealLeafCompat(workspace, leaf) {
     workspace.setActiveLeaf(leaf, { focus: true });
     return Promise.resolve();
   }
-  const leafLike = /** @type {any} */ (leaf);
-  if (typeof leafLike.open === 'function') {
-    leafLike.open();
+  if (typeof leaf.open === 'function') {
+    leaf.open();
   }
   return Promise.resolve();
 }
 
+/** @typedef {{ settings?: Record<string, unknown> }} PluginWithSettingsSlotLike */
+
 /**
- * @param {any} plugin
+ * @param {PluginWithSettingsSlotLike | null | undefined} plugin
  * @returns {Record<string, unknown>}
  */
 export function getPluginSettings(plugin) {
@@ -121,7 +133,7 @@ export function getPluginSettings(plugin) {
 }
 
 /**
- * @param {any} plugin
+ * @param {PluginWithSettingsSlotLike | null | undefined} plugin
  * @param {Record<string, unknown>} settings
  * @returns {Record<string, unknown>}
  */
@@ -135,7 +147,7 @@ export function setPluginSettings(plugin, settings) {
  * 重绘插件设置面板（Obsidian 1.13+ 声明式 Settings API）。
  * 若当前正打开某个子页面（飞书 / 其他平台 / 小红书），只重绘该子页面；
  * 否则调用 tab.update() 让宿主按 getSettingDefinitions() 重新渲染顶层内容。
- * @param {any} tab AppleStyleSettingTab 实例
+ * @param {import('../input.js').SettingTabCompatLike | null | undefined} tab AppleStyleSettingTab 实例
  * @returns {boolean} 是否触发了重绘
  */
 export function refreshSettingTabCompat(tab) {

@@ -633,7 +633,7 @@ describe('AppleStyleView - showMultiPlatformSyncModal platform rows', () => {
     expect(modal.contentEl.textContent).toContain('掘金');
 
     const upgradeBtn = Array.from(modal.contentEl.querySelectorAll('button'))
-      .find((button) => button.textContent === '升级 Pro');
+      .find((button) => button.textContent === '升级到付费档位');
     expect(upgradeBtn).toBeUndefined();
   });
 
@@ -716,7 +716,7 @@ describe('AppleStyleView - showMultiPlatformSyncModal platform rows', () => {
     const modal = modalCapture.getLastModal();
     const buttonTexts = Array.from(modal.contentEl.querySelectorAll('button')).map((button) => button.textContent);
     expect(buttonTexts).not.toContain('重新选择平台');
-    expect(buttonTexts).not.toContain('升级 Pro');
+    expect(buttonTexts).not.toContain('升级到付费档位');
     expect(buttonTexts).toContain('关闭');
   });
 });
@@ -778,7 +778,7 @@ describe('publish modal - daily quota', () => {
     expect(modal.isOpen).toBe(false);
   });
 
-  it('额度弹窗：显示档位用量、重置时间，提供「升级 Pro / Max」与「填写许可密钥」', () => {
+  it('额度弹窗：显示档位用量、重置时间，提供「升级到付费档位」与「填写许可密钥」', () => {
     const view = makeView({ selectedPlatforms: ['xiaohongshu'] });
     view.showMultiPlatformQuotaBlockedModal = AppleStyleView.prototype.showMultiPlatformQuotaBlockedModal.bind(view);
     view.openExternalUrl = vi.fn(() => true);
@@ -789,7 +789,7 @@ describe('publish modal - daily quota', () => {
     expect(modal.contentEl.textContent).toContain('Free 档 · 今日剩余 0/3 次');
     expect(modal.contentEl.textContent).toContain('9/16 00:00 重置');
     const buttons = Array.from(modal.contentEl.querySelectorAll('button'));
-    const upgrade = buttons.find((b) => b.textContent === '升级 Pro / Max');
+    const upgrade = buttons.find((b) => b.textContent === '升级到付费档位');
     expect(upgrade).toBeDefined();
     upgrade.onclick();
     expect(view.openExternalUrl).toHaveBeenCalledWith('https://example.com/upgrade');

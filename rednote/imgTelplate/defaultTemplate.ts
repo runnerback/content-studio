@@ -1,5 +1,5 @@
 import type { ImgTemplate } from '../imgTemplateManager.ts';
-import type { SettingsManager } from '../settings/settings.ts';
+import type { RedSettings, SettingsManager } from '../settings/settings.ts';
 import { DEFAULT_SETTINGS } from '../settings/settings.ts';
 import { Notice, setIcon } from 'obsidian';
 
@@ -71,14 +71,14 @@ export class DefaultTemplate implements ImgTemplate {
         return parent.createDiv({ cls: 'red-user-info' });
     }
 
-    private createUserLeftSection(parent: HTMLElement, settings: any): HTMLElement {
+    private createUserLeftSection(parent: HTMLElement, settings: RedSettings): HTMLElement {
         const userLeft = parent.createDiv({ cls: 'red-user-left' });
         this.createAvatarSection(userLeft, settings);
         this.createUserMetaSection(userLeft, settings);
         return userLeft;
     }
 
-    private createAvatarSection(parent: HTMLElement, settings: any) {
+    private createAvatarSection(parent: HTMLElement, settings: RedSettings) {
         const avatar = parent.createDiv({
             cls: 'red-user-avatar',
             attr: { 'title': '点击上传头像' }
@@ -102,7 +102,7 @@ export class DefaultTemplate implements ImgTemplate {
         avatar.addEventListener('click', () => this.handleAvatarClick());
     }
 
-    private createUserMetaSection(parent: HTMLElement, settings: any) {
+    private createUserMetaSection(parent: HTMLElement, settings: RedSettings) {
         const userMeta = parent.createDiv({ cls: 'red-user-meta' });
         
         const userNameContainer = userMeta.createDiv({ cls: 'red-user-name-container' });
@@ -126,7 +126,7 @@ export class DefaultTemplate implements ImgTemplate {
         userId.addEventListener('click', () => this.handleUserIdEdit(userId));
     }
 
-    private createTimeSection(parent: HTMLElement, settings: any) {
+    private createTimeSection(parent: HTMLElement, settings: RedSettings) {
         const userRight = parent.createDiv({ cls: 'red-user-right' });
         userRight.createDiv({
             cls: 'red-post-time',
@@ -159,12 +159,12 @@ export class DefaultTemplate implements ImgTemplate {
         });
     }
 
-    private async handleAvatarClick() {
+    private handleAvatarClick() {
         const input = createEl('input');
         input.type = 'file';
         input.accept = 'image/*';
 
-        input.addEventListener('change', async () => {
+        input.addEventListener('change', () => {
             const file = input.files?.[0];
             if (file) {
                 try {
@@ -187,7 +187,7 @@ export class DefaultTemplate implements ImgTemplate {
         input.click();
     }
 
-    private async handleUserNameEdit(element: HTMLElement) {
+    private handleUserNameEdit(element: HTMLElement) {
         const input = createEl('input');
         input.value = element.textContent || '';
         input.className = 'red-user-edit-input';
@@ -204,15 +204,15 @@ export class DefaultTemplate implements ImgTemplate {
             input.replaceWith(element);
         };
 
-        input.addEventListener('blur', handleBlur);
-        input.addEventListener('keypress', async (e) => {
+        input.addEventListener('blur', () => { void handleBlur(); });
+        input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                await handleBlur();
+                void handleBlur();
             }
         });
     }
 
-    private async handleUserIdEdit(element: HTMLElement) {
+    private handleUserIdEdit(element: HTMLElement) {
         const input = createEl('input');
         input.value = element.textContent || '';
         input.className = 'red-user-edit-input';
@@ -229,15 +229,15 @@ export class DefaultTemplate implements ImgTemplate {
             input.replaceWith(element);
         };
 
-        input.addEventListener('blur', handleBlur);
-        input.addEventListener('keypress', async (e) => {
+        input.addEventListener('blur', () => { void handleBlur(); });
+        input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                await handleBlur();
+                void handleBlur();
             }
         });
     }
 
-    private async handleFooterTextEdit(element: HTMLElement, position: 'left' | 'right') {
+    private handleFooterTextEdit(element: HTMLElement, position: 'left' | 'right') {
         const input = createEl('input');
         input.value = element.textContent || '';
         input.className = 'red-footer-edit-input';
@@ -256,10 +256,10 @@ export class DefaultTemplate implements ImgTemplate {
             input.replaceWith(element);
         };
 
-        input.addEventListener('blur', handleBlur);
-        input.addEventListener('keypress', async (e) => {
+        input.addEventListener('blur', () => { void handleBlur(); });
+        input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                await handleBlur();
+                void handleBlur();
             }
         });
     }

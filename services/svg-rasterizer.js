@@ -1,4 +1,5 @@
 import { getActiveDocument } from './dom-utils.js';
+import { toReadableError } from './input-utils.js';
 
 /**
  * @typedef {{ logicalWidth: number, logicalHeight: number, rawStyle: string }} SvgLogicalSize
@@ -256,7 +257,7 @@ async function rasterizeSvg(svgElement, options = {}) {
           }, 'image/png');
         } catch (error) {
           URL.revokeObjectURL(url);
-          reject(error);
+          reject(error instanceof Error ? error : new Error(toReadableError(error).message));
         }
       };
 
@@ -266,7 +267,7 @@ async function rasterizeSvg(svgElement, options = {}) {
       };
       image.src = url;
     } catch (error) {
-      reject(error);
+      reject(error instanceof Error ? error : new Error(toReadableError(error).message));
     }
   });
 }

@@ -4,6 +4,7 @@ import {
   getAiLayoutSkillList,
   getAiLayoutSharedResources,
 } from './ai-layout-runtime/registry.js';
+import { toText } from './input-utils.js';
 
 const AI_LAYOUT_SELECTION_AUTO = 'auto';
 /**
@@ -93,7 +94,7 @@ function createSchemaIssue(path, message, fatal = false) {
  * @returns {string}
  */
 function normalizeBlockFieldKey(field) {
-  const normalized = String(field || '').trim();
+  const normalized = toText(field).trim();
   if (!normalized) return normalized;
   if (normalized === 'items[{label,text}]') return 'items';
   const bracketIndex = normalized.indexOf('[');

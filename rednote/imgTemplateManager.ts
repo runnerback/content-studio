@@ -1,5 +1,5 @@
 import { DefaultTemplate } from './imgTelplate/defaultTemplate.ts';
-import type { SettingsManager } from './settings/settings.ts';
+import type { RedSettings, SettingsManager } from './settings/settings.ts';
 import type { ThemeManager } from './themeManager.ts';
 export interface ImgTemplate {
     id: string;
@@ -9,7 +9,7 @@ export interface ImgTemplate {
         content: true;
         footer?: boolean;
     };
-    render: (element: HTMLElement, settings: any) => void;
+    render: (element: HTMLElement, settings: RedSettings) => void;
 }
 
 export class ImgTemplateManager {
@@ -57,7 +57,7 @@ export class ImgTemplateManager {
         }
     }
 
-    applyTemplate(previewEl: HTMLElement, settings: any) {
+    applyTemplate(previewEl: HTMLElement, settings: RedSettings) {
         if (!this.currentTemplate) {
             this.currentTemplate = this.templates[0];
         }

@@ -8,6 +8,7 @@
 // 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
 /** @typedef {import('../../input.js').ImageUploadFailureLike} ImageUploadFailureLike */
 /** @typedef {import('../../input.js').WechatsyncAssetLike} WechatsyncAssetLike */
+/** @typedef {import('../../services/wechat-api.js').WechatAPI} WechatAPI */
 
 import { obsidianApi, getObsidianRequestUrl, getActiveDocumentCompat, createFallbackSvgElement } from '../../services/obsidian-adapters.js';
 import { createHtmlContainer } from '../../services/dom-utils.js';
@@ -175,12 +176,12 @@ export const mediaAssetsMixin = {
    * @param {unknown[]} [assets]
    * @returns {Promise<string>}
    */
-  async prepareHtmlForWechatsyncArticleViaBridge(html, assets = []) {
+  prepareHtmlForWechatsyncArticleViaBridge(html, assets = []) {
     const mapped = mapAppUrlImagesToAssetUrls(html || '', assets);
     const tempDiv = createHtmlContainer('div', mapped);
-    if (!tempDiv) return '';
+    if (!tempDiv) return Promise.resolve('');
     this.transformCodeBlocksForWechatsync(tempDiv);
-    return tempDiv.innerHTML;
+    return Promise.resolve(tempDiv.innerHTML);
   },
 
   // Bridge publish flow: produce a small inline JPEG data URL for the

@@ -24,21 +24,16 @@ import {
 } from '../../services/wechatsync-bridge.js';
 
 import {
-  getFallbackWechatsyncPlatforms,
   getWechatsyncPlatformStatusBadge,
-  normalizeWechatsyncAuthSnapshot,
   normalizeWechatsyncPlatformList,
-  summarizeWechatsyncPlatformResponse,
   isEnabledWechatsyncPlatform,
   getEnabledWechatsyncPlatforms,
 } from '../../services/wechatsync-results.js';
 
 import {
   getAvailableWechatsyncPlatforms,
-  mergeWechatsyncPlatformLists,
   normalizeMultiPlatformSyncSettings,
   normalizeWechatSyncCapabilities,
-  parseWechatsyncPlatformIds,
 } from '../../services/wechatsync-settings.js';
 
 import {
@@ -61,16 +56,16 @@ import { getActiveWindowValue } from '../../services/dom-utils.js';
  * @typedef {{ setName: (value: string) => WechatSettingLike, setDesc: (value: string) => WechatSettingLike, setHeading: () => WechatSettingLike, addToggle: (handler: (toggle: WechatToggleLike) => unknown) => WechatSettingLike, addText: (handler: (text: WechatTextLike) => unknown) => WechatSettingLike, addButton: (handler: (button: WechatButtonLike) => unknown) => WechatSettingLike }} WechatSettingLike
  * @typedef {new (containerEl: WechatSettingsElement) => WechatSettingLike} WechatSettingConstructor
  * @typedef {new (message: string, timeout?: number) => unknown} WechatNoticeConstructor
- * @typedef {{ listSupportedPlatforms: (options?: Record<string, unknown>) => Promise<unknown>, getAuthSnapshot: (options?: Record<string, unknown>) => Promise<unknown>, start: () => Promise<unknown>, waitForConnection: (timeoutMs: number) => Promise<unknown>, health: (options?: Record<string, unknown>) => Promise<unknown>, getStatus?: () => Promise<unknown>, getDiagnostics?: () => unknown }} WechatBridgeLike
+ * @typedef {{ listSupportedPlatforms: (options?: Record<string, unknown>) => Promise<unknown>, getAuthSnapshot: (options?: Record<string, unknown>) => Promise<unknown>, checkAuth: (platform: string, options?: { timeoutMs?: number, forceRefresh?: boolean }) => Promise<unknown>, quotaStatus: (options?: { licenseKey?: string, timeoutMs?: number }) => Promise<unknown>, start: () => Promise<unknown>, waitForConnection: (timeoutMs: number) => Promise<unknown>, health: (options?: Record<string, unknown>) => Promise<unknown>, getStatus?: () => Promise<unknown>, getDiagnostics?: () => unknown }} WechatBridgeLike
  * @typedef {{ multiPlatformSync?: unknown }} WechatPluginSettingsLike
  * @typedef {{ settings: WechatPluginSettingsLike, obsidianApi?: Partial<WechatObsidianApiLike>, activeView?: { openExternalUrl?: (url: string) => boolean }, openExternalUrl?: (url: string) => boolean, saveSettings: () => Promise<void>, startWechatSyncBridgeInBackground: (reason: string) => unknown, getWechatSyncBridgeService: () => WechatBridgeLike, _wechatSyncBridgeService?: { stop?: () => Promise<unknown> } }} WechatPluginLike
  * @typedef {{ plugin: WechatPluginLike, renderSettingsTabIntro?: (containerEl: WechatSettingsElement, description: string) => void, [key: string]: unknown }} WechatSettingsTabLike
- * @typedef {{ Setting: WechatSettingConstructor, Notice: WechatNoticeConstructor }} WechatObsidianApiLike
+ * @typedef {import('../../services/wechatsync-quota.js').LicenseRequestUrlLike} WechatRequestUrlLike
+ * @typedef {{ Setting: WechatSettingConstructor, Notice: WechatNoticeConstructor, requestUrl?: WechatRequestUrlLike }} WechatObsidianApiLike
  * @typedef {{ color: string, path: string }} BrowserIconDef
  * @typedef {{ id: string, name: string, authKnown?: boolean, authStatus?: string, authenticated?: boolean }} WechatPlatformLike
  * @typedef {{ status?: string, checkedAt?: number, platforms?: unknown, capabilities?: Record<string, unknown>, message?: string }} WechatConnectionLike
  * @typedef {{ ok?: boolean, tokenValid?: boolean, error?: string, capabilities?: Record<string, unknown> }} WechatHealthLike
- * @typedef {{ checkedAt?: number, platforms?: unknown }} WechatAuthSnapshotLike
  * @typedef {{ helloRejections?: number, lastHelloRejection?: { reason?: string } }} WechatDiagnosticsLike
  * @typedef {{ cls: string, text: string, status?: string }} PlatformStatusBadgeLike
  */
@@ -93,12 +88,12 @@ function toReadableError(error) {
   }
   if (isRecord(error)) {
     return {
-      message: typeof error.message === 'string' ? error.message : String(error),
+      message: typeof error.message === 'string' ? error.message : '',
       code: typeof error.code === 'string' ? error.code : undefined,
       stack: typeof error.stack === 'string' ? error.stack : undefined,
     };
   }
-  return { message: String(error || '') };
+  return { message: toText(error) };
 }
 
 /**
@@ -188,18 +183,6 @@ function toHealthResult(value) {
 
 /**
  * @param {unknown} value
- * @returns {WechatAuthSnapshotLike}
- */
-function toAuthSnapshot(value) {
-  const record = toRecord(value);
-  return {
-    checkedAt: toTimestamp(record.checkedAt),
-    platforms: record.platforms,
-  };
-}
-
-/**
- * @param {unknown} value
  * @returns {WechatDiagnosticsLike}
  */
 function toDiagnostics(value) {
@@ -278,11 +261,11 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
   });
   guide.createEl('div', {
     cls: 'wechat-multiplatform-onboarding-title',
-    text: '多平台发布依赖配套浏览器扩展「多栖 Crosspost」',
+    text: '多平台发布依赖配套浏览器扩展「多栖」',
   });
   const steps = guide.createEl('ol', { cls: 'wechat-multiplatform-onboarding-steps' });
   steps.createEl('li', { text: '获取：扩展随本仓库维护（crosspost/packages/extension/dist，pnpm run build:extension 构建），不上应用商店。' });
-  steps.createEl('li', { text: '安装：Edge / Chrome → 扩展程序 → 打开「开发者模式」→「加载已解压的扩展程序」→ 选择上述 dist 目录；仓库目录改名或重建 dist 后需重新加载并重新配对。' });
+  steps.createEl('li', { text: '安装：浏览器 → 扩展程序 → 打开「开发者模式」→「加载已解压的扩展程序」→ 选择上述 dist 目录；仓库目录改名或重建 dist 后需重新加载并重新配对。' });
   steps.createEl('li', { text: '配对：打开扩展弹窗 → 设置 → 复制「连接令牌」，填到下方；两端令牌一致即完成配对。' });
   steps.createEl('li', { text: '发布：在「发布与分发」选择小红书或 X，图卡与正文会经扩展用你的浏览器登录态存入草稿箱。' });
 
@@ -331,7 +314,7 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
     .setName('连接令牌')
     .setDesc('填入浏览器插件本地服务中显示的连接令牌，用于确认 Obsidian 与插件属于同一组连接。')
     .addText(text => text
-      .setPlaceholder('xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx')
+      .setPlaceholder('粘贴扩展弹窗中显示的连接令牌')
       .setValue(toText(multiPlatformSettings.token))
       .onChange(async (value) => {
         plugin.settings.multiPlatformSync = normalizeMultiPlatformSyncSettings({
@@ -348,7 +331,7 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
     let redeemOrderNo = '';
     new Setting(containerEl)
       .setName('第一步：用爱发电订单号兑换密钥')
-      .setDesc('小红书 / X 发布按日计量，Free 档每日 3 次。在爱发电购买 Pro / Max 后，把订单号粘贴到这里点「兑换」，许可密钥会自动填入下方。')
+      .setDesc('小红书 / X 发布按日计量，免费档每日 3 次。在爱发电购买付费档后，把订单号粘贴到这里点「兑换」，许可密钥会自动填入下方。')
       .addText(text => text
         .setPlaceholder('爱发电订单号')
         .onChange((value) => { redeemOrderNo = value; }))
@@ -375,10 +358,10 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
   }
 
   new Setting(containerEl)
-    .setName('第二步：许可密钥（Pro / Max）')
-    .setDesc('兑换成功后自动填入；也可手动粘贴已有密钥。留空即 Free 档（每日 3 次），Pro 每日 30 次，Max 不限。')
+    .setName('第二步：许可密钥（付费档）')
+    .setDesc('兑换成功后自动填入；也可手动粘贴已有密钥。留空按免费档计量（每日 3 次），付费档的每日次数见下方档位说明。')
     .addText(text => text
-      .setPlaceholder('NCS-XXXXX-XXXXX-XXXXX-XXXXX')
+      .setPlaceholder('兑换后自动填入，也可手动粘贴已有密钥')
       .setValue(toText(multiPlatformSettings.licenseKey))
       .onChange(async (value) => {
         plugin.settings.multiPlatformSync = normalizeMultiPlatformSyncSettings({
@@ -397,10 +380,15 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
     const quotaBody = quotaBar.createDiv({ cls: 'wechat-quota-status-body' });
     const planLine = quotaBody.createDiv({ cls: 'wechat-quota-plan-line' });
     const tierLine = quotaBody.createDiv({ cls: 'wechat-quota-tier-line', text: '档位：读取中…' });
+    /** @param {string} url */
     const openUpgrade = (url) => {
       if (typeof plugin.openExternalUrl === 'function') plugin.openExternalUrl(url);
       else window.open(url, '_blank', 'noopener');
     };
+    /**
+     * @param {string} url
+     * @param {string} label
+     */
     const renderUpgradeLink = (url, label) => {
       if (!url) return;
       const link = quotaBody.createEl('a', { cls: 'wechat-quota-upgrade-link', text: label, href: url });
@@ -583,23 +571,6 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
     return toRecordList(normalizeWechatsyncPlatformList(response));
   };
 
-  /**
-   * @param {WechatBridgeLike} bridge
-   * @param {string[]} [platforms]
-   * @param {Record<string, unknown>[]} [fallbackPlatforms]
-   * @returns {Promise<WechatAuthSnapshotLike>}
-   */
-  const getAuthSnapshotFromExtension = async (bridge, platforms = [], fallbackPlatforms = []) => {
-    const response = await bridge.getAuthSnapshot({
-      platforms,
-      maxAgeMs: 86400000,
-      timeoutMs: 5000,
-    });
-    return toAuthSnapshot(normalizeWechatsyncAuthSnapshot(response, fallbackPlatforms));
-  };
-  const hasExtensionPlatformList = Array.isArray(multiPlatformSettings.supportedPlatforms)
-    && multiPlatformSettings.supportedPlatforms.length > 0
-    && multiPlatformSettings.connection?.status === 'connected';
   const availablePlatforms = toPlatformList(getAvailableWechatsyncPlatforms(multiPlatformSettings));
   const getPlatformAuthBadge = (platform = {}) => toPlatformStatusBadge(getWechatsyncPlatformStatusBadge(platform, {
     bridgeConnected: multiPlatformSettings.connection?.status === 'connected',
@@ -672,7 +643,6 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
         let bridgeStartStatus = null;
         let shouldRedisplay = false;
         try {
-          const currentBeforeTest = normalizeMultiPlatformSyncSettings(plugin.settings.multiPlatformSync);
           const debugSettings = normalizeMultiPlatformSyncSettings(plugin.settings.multiPlatformSync);
           console.debug('[Wechatsync] test connection started', {
             port: debugSettings.port,
@@ -698,12 +668,12 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
               }
               const healthResult = toHealthResult(await bridge.health({ timeoutMs: 5000 }));
               if (healthResult?.tokenValid === false) {
-                const authError = new Error('连接令牌校验失败。请确认 Obsidian 与浏览器插件使用同一个连接令牌。');
+                const authError = /** @type {Error & { code?: string }} */ (new Error('连接令牌校验失败。请确认 Obsidian 与浏览器插件使用同一个连接令牌。'));
                 authError.code = 'AUTH_FAILED';
                 throw authError;
               }
               if (healthResult?.ok === false) {
-                const healthError = new Error(healthResult.error || '浏览器插件健康检查失败');
+                const healthError = /** @type {Error & { code?: string }} */ (new Error(healthResult.error || '浏览器插件健康检查失败'));
                 healthError.code = 'BRIDGE_REQUEST_TIMEOUT';
                 throw healthError;
               }

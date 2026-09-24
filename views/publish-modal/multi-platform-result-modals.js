@@ -23,16 +23,19 @@ import {
   getWechatSyncResultUrl,
   getWechatSyncResultError,
 } from '../../services/wechatsync-results.js';
-import { toRecord } from '../../services/input-utils.js';
+import { toRecord, toText, toReadableError } from '../../services/input-utils.js';
 import { formatQuotaSummary, formatQuotaResetTime, formatLicenseStateHint } from '../../services/wechatsync-quota.js';
 
 const { Notice } = obsidianApi;
 
 /** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @typedef {import('../../input.js').WechatsyncTaskSnapshotLike} WechatsyncTaskSnapshotLike */
+/** @typedef {import('../../input.js').WechatsyncQuotaResultLike} WechatsyncQuotaResultLike */
 /** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const multiPlatformResultModalsMixin = {
   /**
-   * @param {{ syncId?: string, title?: string, platforms?: unknown[], task?: any, usedFallbackSend?: boolean, quotaResult?: any }} [options]
+   * @param {{ syncId?: string, title?: string, platforms?: unknown[], task?: WechatsyncTaskSnapshotLike | null, usedFallbackSend?: boolean, quotaResult?: WechatsyncQuotaResultLike | null }} [options]
+   * @returns {void}
    */
   showWechatsyncEnqueueAcceptedModal({
     syncId = '',
@@ -43,7 +46,7 @@ export const multiPlatformResultModalsMixin = {
     quotaResult = null,
   } = {}) {
     const taskId = String(syncId || '').trim();
-    const quotaRecord = quotaResult || {};
+    const quotaRecord = /** @type {WechatsyncQuotaResultLike} */ (quotaResult || {});
     const requestedPlatforms = Array.isArray(platforms) ? platforms : [];
     const skippedPlatformIds = parseWechatsyncPlatformIds(Array.isArray(quotaRecord.skippedPlatforms) ? quotaRecord.skippedPlatforms : []);
     const quotaPublishedPlatforms = Array.isArray(quotaRecord.publishedPlatforms) ? quotaRecord.publishedPlatforms : [];
@@ -83,7 +86,7 @@ export const multiPlatformResultModalsMixin = {
      * @param {(item: unknown) => string} [getId]
      * @returns {unknown[]}
      */
-    const sortPlatformItems = (items = [], getId = (item) => String(item || '')) => /** @type {unknown[]} */ (sortWechatsyncPlatformItemsForDisplay(Array.isArray(items) ? items : [], {
+    const sortPlatformItems = (items = [], getId = (item) => toText(item)) => /** @type {unknown[]} */ (sortWechatsyncPlatformItemsForDisplay(Array.isArray(items) ? items : [], {
       bridgeConnected: multiPlatformSettings.connection?.status === 'connected',
       getPlatformId: getId,
       getPlatform: (item) => {
@@ -96,7 +99,10 @@ export const multiPlatformResultModalsMixin = {
     /** @param {unknown[]} [ids] */
     const formatPlatformNames = (ids = []) => {
       const names = sortPlatformItems(parseWechatsyncPlatformIds(Array.isArray(ids) ? ids : []))
-        .map((id) => platformById.get(String(id))?.name || String(id))
+        .map((id) => {
+          const idText = toText(id);
+          return platformById.get(idText)?.name || idText;
+        })
         .filter(Boolean);
       return names.length ? names.join('、') : '无';
     };
@@ -154,7 +160,7 @@ export const multiPlatformResultModalsMixin = {
 
     for (const item of taskPlatforms) {
       const itemRecord = toRecord(item);
-      const platformId = String(itemRecord.id || itemRecord.platform || item || '').trim();
+      const platformId = toText(itemRecord.id || itemRecord.platform || item).trim();
       if (!platformId) continue;
       const platformName = typeof itemRecord.name === 'string' ? itemRecord.name : (platformById.get(platformId)?.name || platformId);
       const row = list.createDiv({ cls: 'wechat-multiplatform-result-row' });
@@ -164,7 +170,7 @@ export const multiPlatformResultModalsMixin = {
     }
 
     for (const platformItem of sortPlatformItems(skippedPlatformIds)) {
-      const platformId = String(platformItem || '');
+      const platformId = toText(platformItem);
       const platformName = platformById.get(platformId)?.name || platformId;
       const row = list.createDiv({ cls: 'wechat-multiplatform-result-row is-warning' });
       row.createEl('div', {
@@ -185,19 +191,21 @@ export const multiPlatformResultModalsMixin = {
     if (taskId) {
       const openBtn = btnRow.createEl('button', { text: '查看任务', cls: 'mod-cta' });
       openBtn.onclick = () => {
-        this.openWechatsyncTask(taskId);
+        void this.openWechatsyncTask(taskId);
       };
     }
     modal.open();
   },
 
   /**
-   * @param {{ quotaResult?: any, requestedPlatformIds?: unknown[] }} [options]
+   * @param {{ quotaResult?: WechatsyncQuotaResultLike, requestedPlatformIds?: unknown[] }} [options]
+   * @returns {void}
    */
   showMultiPlatformQuotaBlockedModal({ quotaResult = {}, requestedPlatformIds = [] } = {}) {
     const multiPlatformSettings = normalizeMultiPlatformSyncSettings(this.plugin.settings.multiPlatformSync);
     const platformCatalog = getAvailableWechatsyncPlatforms(multiPlatformSettings);
     const platformById = new Map(platformCatalog.map((platform) => [platform.id, platform]));
+    /** @param {unknown[]} [ids] */
     const sortPlatformIds = (ids = []) => sortWechatsyncPlatformItemsForDisplay(parseWechatsyncPlatformIds(ids), {
       bridgeConnected: multiPlatformSettings.connection?.status === 'connected',
       getPlatformId: (id) => id,
@@ -207,6 +215,7 @@ export const multiPlatformResultModalsMixin = {
       ? quotaResult.skippedPlatforms
       : requestedPlatformIds;
     const skippedPlatformIds = parseWechatsyncPlatformIds(skippedPlatforms);
+    /** @param {unknown[]} [ids] */
     const formatPlatformNames = (ids = []) => {
       const names = sortPlatformIds(ids)
         .map((id) => platformById.get(id)?.name || id)
@@ -268,7 +277,7 @@ export const multiPlatformResultModalsMixin = {
         this.openPluginSettings();
       };
       if (upgradeUrl) {
-        const upgradeBtn = btnRow.createEl('button', { text: '升级 Pro / Max', cls: 'mod-cta' });
+        const upgradeBtn = btnRow.createEl('button', { text: '升级到付费档位', cls: 'mod-cta' });
         upgradeBtn.onclick = () => this.openExternalUrl(upgradeUrl);
       }
     }
@@ -277,12 +286,16 @@ export const multiPlatformResultModalsMixin = {
   },
 
   /**
-   * @param {{ results?: any[], requestedPlatformIds?: unknown[], fatalError?: any }} [options]
+   * @param {{ results?: unknown[], requestedPlatformIds?: unknown[], fatalError?: unknown }} [options]
+   * @returns {void}
    */
   showMultiPlatformSyncResultModal({ results = [], requestedPlatformIds = [], fatalError = null } = {}) {
+    // fatalError 可能是 Error / 桥接错误对象 / 字符串，先统一取出 code 与 message
+    const fatalErrorCode = toText(toRecord(fatalError).code);
+    const fatalErrorMessage = fatalError ? toReadableError(fatalError).message : '';
     if (typeof getObsidianModalClass() !== 'function') {
       const message = fatalError
-        ? `浏览器插件同步失败：${fatalError.message || String(fatalError)}`
+        ? `浏览器插件同步失败：${fatalErrorMessage}`
         : '同步完成，请在浏览器插件中查看结果';
       new Notice(message, 10000);
       return;
@@ -313,12 +326,13 @@ export const multiPlatformResultModalsMixin = {
     }
 
     /**
-     * @param {any} [result]
+     * @param {unknown} [result]
      * @returns {string}
      */
     const getPlatformName = (result = {}) => {
+      const record = toRecord(result);
       const id = getWechatSyncResultPlatformId(result);
-      return result.platformName || result.name || platformById.get(id)?.name || id || '未知平台';
+      return toText(record.platformName) || toText(record.name) || platformById.get(id)?.name || id || '未知平台';
     };
 
     const summary = modal.contentEl.createDiv({
@@ -332,9 +346,9 @@ export const multiPlatformResultModalsMixin = {
     });
     summary.createEl('p', {
       text: fatalError
-        ? (fatalError.code === 'SYNC_TIMEOUT'
+        ? (fatalErrorCode === 'SYNC_TIMEOUT'
           ? 'Obsidian 没有等到浏览器插件的最终回调。插件可能仍在后台同步，请先查看插件历史或目标平台草稿箱；之后可以减少平台后重试。'
-          : (fatalError.message || '浏览器插件连接中断，请检查插件、连接令牌或浏览器登录态后重试。'))
+          : (fatalErrorMessage || '浏览器插件连接中断，请检查插件、连接令牌或浏览器登录态后重试。'))
         : (normalizedResults.length > 0
           ? `${successCount}/${normalizedResults.length} 个平台已保存为草稿。成功的平台可以直接打开草稿检查，失败的平台修复后重新同步。`
           : '请求已发送到浏览器插件。若这里没有返回平台明细，请在浏览器插件中查看结果。'),
@@ -347,9 +361,9 @@ export const multiPlatformResultModalsMixin = {
       const body = row.createDiv({ cls: 'wechat-multiplatform-result-body' });
       body.createEl('div', { text: '浏览器插件发布', cls: 'wechat-multiplatform-result-name' });
       body.createEl('div', {
-        text: fatalError.code === 'SYNC_TIMEOUT'
+        text: fatalErrorCode === 'SYNC_TIMEOUT'
           ? '同步请求已超时，暂时无法拿到逐平台进度。请在浏览器插件侧确认是否已经生成草稿。'
-          : (fatalError.message || '连接不可用'),
+          : (fatalErrorMessage || '连接不可用'),
         cls: 'wechat-multiplatform-result-detail',
       });
     } else if (normalizedResults.length === 0) {

@@ -6,7 +6,7 @@
 
 import { obsidianApi, createObsidianModal, isMobileClient } from '../../services/obsidian-adapters.js';
 import { normalizeMultiPlatformSyncSettings, hasWechatSyncCapability } from '../../services/wechatsync-settings.js';
-import { toReadableError, isRecord, toRecord } from '../../services/input-utils.js';
+import { toReadableError, toRecord, toText } from '../../services/input-utils.js';
 import { isUnsupportedBridgeMethodError as isWechatSyncUnsupportedMethodError } from '../../services/wechatsync-bridge.js';
 import { showMultiPlatformPublishModal } from './multi-platform.js';
 import { renderFeishuPublishTab } from './feishu.js';
@@ -19,6 +19,10 @@ import { setDraftAssociation } from '../../services/wechat-draft-cache.js';
 const { Notice } = obsidianApi;
 
 /** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @typedef {import('../../input.js').ModalLike} ModalLike */
+/** @typedef {import('../../input.js').WechatAccountLike} WechatAccountLike */
+/** @typedef {import('../../input.js').WechatSyncBridgeServiceLike} WechatSyncBridgeServiceLike */
+/** @typedef {import('../../input.js').WechatsyncTaskSnapshotLike} WechatsyncTaskSnapshotLike */
 /** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const wechatSyncActionsMixin = {
   /**
@@ -26,9 +30,9 @@ export const wechatSyncActionsMixin = {
    * @returns {Promise<boolean>}
    */
   async openWechatsyncTask(syncId) {
-    const taskId = String(syncId || '').trim();
+    const taskId = toText(syncId).trim();
     if (!taskId) {
-      new Notice('当前任务没有 syncId，请在浏览器插件历史记录中查看最近任务');
+      new Notice('当前任务没有任务 ID，请在浏览器插件历史记录中查看最近任务');
       return false;
     }
 
@@ -66,7 +70,7 @@ export const wechatSyncActionsMixin = {
           const linkResult = typeof bridge.getSyncTaskLink === 'function'
             ? toRecord(await bridge.getSyncTaskLink(taskId, { timeoutMs: 5000 }))
             : {};
-          const url = String(linkResult?.url || '').trim();
+          const url = toText(linkResult.url).trim();
           if (linkResult?.canOpen !== false && url) {
             return this.openExternalUrl(url, { allowExtensionUrls: true });
           }
@@ -101,22 +105,22 @@ export const wechatSyncActionsMixin = {
   },
 
   /**
-   * @param {any} bridge
+   * @param {WechatSyncBridgeServiceLike} bridge
    * @param {unknown} syncId
-   * @returns {Promise<any>}
+   * @returns {Promise<WechatsyncTaskSnapshotLike | null>}
    */
   async getWechatsyncTaskSnapshot(bridge, syncId) {
-    const taskId = String(syncId || '').trim();
+    const taskId = toText(syncId).trim();
     if (!taskId) return null;
     const settings = normalizeMultiPlatformSyncSettings(this.plugin.settings.multiPlatformSync);
     if (!hasWechatSyncCapability(settings, 'getSyncTask')) return null;
 
     try {
-      const task = typeof bridge.getSyncTask === 'function'
+      const task = /** @type {WechatsyncTaskSnapshotLike} */ (typeof bridge.getSyncTask === 'function'
         ? toRecord(await bridge.getSyncTask(taskId, { timeoutMs: 5000 }))
-        : {};
-      if (task?.found === false) return task;
-      return Object.keys(task).length ? /** @type {any} */ (task) : null;
+        : {});
+      if (task.found === false) return task;
+      return Object.keys(task).length ? task : null;
     } catch (error) {
       if (isWechatSyncUnsupportedMethodError(error)) return null;
       const readableError = toReadableError(error);
@@ -132,22 +136,20 @@ export const wechatSyncActionsMixin = {
 
   /**
    * @param {Record<string, unknown>} [options]
-   * @returns {Promise<unknown>}
+   * @returns {void}
    */
-  async showMultiPlatformSyncModal(options = {}) {
-    return /** @type {Promise<unknown>} */ (showMultiPlatformPublishModal(this, { ...options, obsidianApi }));
+  showMultiPlatformSyncModal(options = {}) {
+    showMultiPlatformPublishModal(this, { ...options, obsidianApi });
   },
 
   /**
-   * @param {{ modal?: any }} [options]
+   * @param {{ modal?: ModalLike }} [options]
    */
   showFeishuSyncModal(options = {}) {
     const modal = options.modal || createObsidianModal(this.app);
     const mobileSync = isMobileClient(this.app);
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- reason: dynamic modal parameter
     this.preparePublishModalShell(modal, { mode: 'feishu', mobileSync });
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- reason: dynamic modal parameter
     const { wechatTab, multiPlatformTab } = this.createPublishModeTabs(modal, 'feishu');
     if (wechatTab) {
       wechatTab.onclick = () => {
@@ -160,11 +162,9 @@ export const wechatSyncActionsMixin = {
       };
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-member-access -- reason: dynamic modal element
     renderFeishuPublishTab(this, modal, modal.contentEl, { obsidianApi });
 
     if (!options.modal) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access -- reason: dynamic modal API call
       modal.open();
     }
   },
@@ -172,7 +172,7 @@ export const wechatSyncActionsMixin = {
   /**
    * 发布/分发成功后，把"已同步"状态写入源笔记的 frontmatter（英文 key）。
    * 仅记录成功的平台；累加去重；不改文件名/文件夹。
-   * @param {any} file
+   * @param {unknown} file
    * @param {{ successfulTargets: Array<{ platform: string, kind?: string, account?: string, url?: string }>, requestedCount?: number }} payload
    * @returns {Promise<void>}
    */
@@ -199,12 +199,11 @@ export const wechatSyncActionsMixin = {
    * 处理同步到微信逻辑
    */
   async onSyncToWechat() {
-    const accountRecord = /** @type {unknown} */ (resolveSyncAccount({
+    const account = /** @type {WechatAccountLike | null} */ (resolveSyncAccount({
       accounts: this.plugin.settings.wechatAccounts || [],
       selectedAccountId: this.selectedAccountId,
       defaultAccountId: this.plugin.settings.defaultAccountId,
     }));
-    const account = isRecord(accountRecord) ? /** @type {any} */ (accountRecord) : null;
 
     if (!account) {
       this.promptConfigureWechatAccount();
@@ -224,7 +223,7 @@ export const wechatSyncActionsMixin = {
     const publishMeta = this.getFrontmatterPublishMeta(activeFile);
 
     try {
-      const syncService = /** @type {any} */ (createWechatSyncService({
+      const syncService = createWechatSyncService({
         createApi: (appId, appSecret, proxyUrl) => new WechatAPI(appId, appSecret, proxyUrl, this.plugin.settings.clientId),
         srcToBlob: (src) => this.srcToBlob(String(src || '')),
         coverUploadCache: this.coverUploadCache,
@@ -232,9 +231,9 @@ export const wechatSyncActionsMixin = {
         processMathFormulas: (html, api, progressCallback) => this.processMathFormulas(String(html || ''), api, progressCallback),
         prepareHtmlForDraft: (html) => this.prepareHtmlForWechatDraft(String(html || '')),
         cleanHtmlForDraft: (html) => this.cleanHtmlForDraft(String(html || '')),
-        cleanupConfiguredDirectory: (file) => this.cleanupConfiguredDirectory(isRecord(file) ? /** @type {any} */ (file) : null),
+        cleanupConfiguredDirectory: (file) => this.cleanupConfiguredDirectory(file ?? null),
         getFirstImageFromArticle: () => this.getFirstImageFromArticle(),
-      }));
+      });
 
       const result = await syncService.syncToDraft({
         account,

@@ -17,6 +17,10 @@ const { AI_REQUEST_TIMEOUT_SECONDS_KEY } = await import('../views/settings/apple
 const { refreshSettingTabCompat } = await import('../services/obsidian-adapters.js');
 const { createDefaultFeishuSyncSettings } = await import('../services/feishu-settings.js');
 
+// 设置项的 action / onDelete 回调是 fire-and-forget（内部 void 一个 async 方法），
+// 测试用一个宏任务等待其 await 链（确认弹窗 → saveSettings → update）跑完
+const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 function makeSettings(overrides = {}) {
   return {
     avatarUrl: '',
@@ -293,11 +297,11 @@ describe('AppleStyleSettingTab - 账号 / AI Provider 列表', () => {
       .filter((button) => button.textContent === '删除');
     expect(deleteButtons).toHaveLength(2);
 
-    const pending = deleteButtons[0].onclick();
+    deleteButtons[0].onclick();
     const modal = globalThis.__obsidianModalRegistry.at(-1);
     expect(modal.titleEl.textContent).toBe('删除公众号账号');
     Array.from(modal.contentEl.querySelectorAll('button')).find((button) => button.textContent === '删除').click();
-    await pending;
+    await flushPromises();
 
     expect(plugin.settings.wechatAccounts.map((account) => account.id)).toEqual(['a2']);
     expect(plugin.settings.defaultAccountId).toBe('a2');
@@ -385,7 +389,7 @@ describe('AppleStyleSettingTab - 子页面', () => {
     expect(refreshSettingTabCompat({})).toBe(false);
   });
 
-  it('小红书图卡 page lazy-loads RedSettingTab into its container', async () => {
+  it('小红书图卡 page lazy-loads RedSettingsPanel into its container', async () => {
     const plugin = makePlugin();
     const tab = renderTab(plugin);
     const page = tab.renderPage('小红书图卡');

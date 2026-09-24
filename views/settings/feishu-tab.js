@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- reason: JS file handles dynamic API responses without strict typescript type annotations */
 // views/settings/feishu-tab.js
 //
 // Renders the「飞书」settings tab in the AppleStyleSettingTab.
@@ -13,6 +12,22 @@ import {
   normalizeFeishuSyncSettings,
   resetFeishuApiUsage,
 } from '../../services/feishu-settings.js';
+import { toReadableError, toRecord } from '../../services/input-utils.js';
+
+/**
+ * @typedef {import('../../services/feishu-settings.js').FeishuSyncSettingsLike} FeishuSyncSettingsLike
+ * @typedef {import('../../services/feishu-api.js').FeishuRequestUrlLike} FeishuRequestUrlLike
+ * @typedef {{ setValue: (value: boolean) => FeishuToggleLike, onChange: (callback: (value: boolean) => unknown) => FeishuToggleLike }} FeishuToggleLike
+ * @typedef {{ inputEl: HTMLInputElement, setPlaceholder: (value: string) => FeishuTextLike, setValue: (value: string) => FeishuTextLike, onChange: (callback: (value: string) => unknown) => FeishuTextLike }} FeishuTextLike
+ * @typedef {{ setButtonText: (value: string) => FeishuButtonLike, onClick: (callback: () => unknown) => FeishuButtonLike }} FeishuButtonLike
+ * @typedef {{ setName: (value: string) => FeishuSettingLike, setDesc: (value: string) => FeishuSettingLike, addToggle: (callback: (toggle: FeishuToggleLike) => unknown) => FeishuSettingLike, addText: (callback: (text: FeishuTextLike) => unknown) => FeishuSettingLike, addButton: (callback: (button: FeishuButtonLike) => unknown) => FeishuSettingLike }} FeishuSettingLike
+ * @typedef {new (containerEl: HTMLElement) => FeishuSettingLike} FeishuSettingConstructor
+ * @typedef {{ hide: () => unknown }} FeishuNoticeLike
+ * @typedef {new (message: string, duration?: number) => FeishuNoticeLike} FeishuNoticeConstructor
+ * @typedef {{ Setting: FeishuSettingConstructor, Notice: FeishuNoticeConstructor, requestUrl?: FeishuRequestUrlLike }} FeishuObsidianApiLike
+ * @typedef {{ settings: { feishuSync?: unknown, [key: string]: unknown }, saveSettings: () => Promise<unknown>, openExternalUrl?: (url: string) => boolean, obsidianApi?: unknown }} FeishuSettingsPluginLike
+ * @typedef {{ plugin: FeishuSettingsPluginLike, renderSettingsTabIntro?: (containerEl: HTMLElement, description: string) => void }} FeishuSettingsTabLike
+ */
 
 /**
  * @param {number} value
@@ -34,11 +49,11 @@ function formatFeishuUsagePercent(count, limit) {
 
 /**
  * @param {HTMLDivElement} containerEl
- * @param {any} tab
- * @param {object} plugin
- * @param {ReturnType<typeof normalizeFeishuSyncSettings>} settings
- * @param {Record<string, unknown>} obsidian
- * @param {any} Notice
+ * @param {FeishuSettingsTabLike} tab
+ * @param {FeishuSettingsPluginLike} plugin
+ * @param {FeishuSyncSettingsLike} settings
+ * @param {FeishuObsidianApiLike} obsidian
+ * @param {FeishuNoticeConstructor | undefined} Notice
  * @returns {void}
  */
 function renderFeishuUsageStats(containerEl, tab, plugin, settings, obsidian, Notice) {
@@ -115,16 +130,15 @@ function renderFeishuUsageStats(containerEl, tab, plugin, settings, obsidian, No
 
 /**
  * Renders the Feishu Sync settings inside the settings tab.
- * @param {any} tab AppleStyleSettingTab instance
+ * @param {FeishuSettingsTabLike} tab AppleStyleSettingTab instance
  * @param {HTMLDivElement} containerEl settings tab sub-container
- * @param {object} [options={}] Injected options
+ * @param {{ obsidianApi?: FeishuObsidianApiLike }} [options={}] Injected options
  */
 function renderFeishuSettingsTab(tab, containerEl, options = {}) {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic obsidian api resolution
-  const obsidian = options.obsidianApi || tab.plugin.obsidianApi || getActiveWindowValue('obsidian') || {};
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic Setting component
+  // 注入的 obsidianApi 优先；否则回落到插件持有的 obsidian 模块或窗口全局
+  const obsidian = options.obsidianApi
+    || /** @type {FeishuObsidianApiLike} */ (toRecord(tab.plugin.obsidianApi || getActiveWindowValue('obsidian')));
   const Setting = obsidian.Setting;
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic Notice component
   const Notice = obsidian.Notice;
 
   const { plugin } = tab;
@@ -166,10 +180,10 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // 2. App ID
   new Setting(containerEl)
-    .setName('飞书自建应用 App ID')
-    .setDesc('在飞书开放平台（open.feishu.cn）中，您创建的企业自建应用的 App ID')
+    .setName('飞书自建应用 ID')
+    .setDesc('在飞书开放平台（open.feishu.cn）中，您创建的企业自建应用的应用 ID')
     .addText((text) => text
-      .setPlaceholder('cli_a248xxxxxxxxxxxx')
+      .setPlaceholder('请输入应用 ID')
       .setValue(settings.appId)
       .onChange(async (value) => {
         settings.appId = value.trim();
@@ -179,12 +193,12 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // 3. App Secret
   new Setting(containerEl)
-    .setName('飞书自建应用 App Secret')
-    .setDesc('自建应用的 App Secret 凭证')
+    .setName('飞书自建应用密钥')
+    .setDesc('自建应用的应用密钥凭证')
     .addText((text) => {
       text.inputEl.type = 'password'; // mask the password input
       text
-        .setPlaceholder('xxxxxxxxxxxxxxxxxxxx')
+        .setPlaceholder('请输入应用密钥')
         .setValue(settings.appSecret)
         .onChange(async (value) => {
           settings.appSecret = value.trim();
@@ -194,10 +208,10 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // 4. Folder Token
   new Setting(containerEl)
-    .setName('同步目标文件夹 Token')
-    .setDesc('飞书文件夹链接中的最后一串字符。例如：https://feishu.cn/drive/folder/fldcnXXXXXXXXX 的 Token 是 fldcnXXXXXXXXX')
+    .setName('同步目标文件夹 token')
+    .setDesc('飞书文件夹链接末尾的一串字符。例如链接 feishu.cn/drive/folder/fldcnxxxxxxxxx 中，fldcnxxxxxxxxx 就是文件夹 token。')
     .addText((text) => text
-      .setPlaceholder('fldcnxxxxxxxxxxxxxxxxxx')
+      .setPlaceholder('请输入文件夹 token')
       .setValue(settings.folderToken)
       .onChange(async (value) => {
         settings.folderToken = value.trim();
@@ -207,10 +221,10 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // 5. User ID
   new Setting(containerEl)
-    .setName('飞书用户 ID (User ID)')
-    .setDesc('用于在同步成功后，把文档的所有权由机器人自动转移给您本人（您的飞书云盘中）。建议使用 user_id 格式，如 abc1234。')
+    .setName('飞书用户 ID')
+    .setDesc('用于在同步成功后，把文档的所有权由机器人自动转移给您本人（您的飞书云盘中）。建议使用 user ID 格式，如 abc1234。')
     .addText((text) => text
-      .setPlaceholder('abc1234')
+      .setPlaceholder('例如 abc1234')
       .setValue(settings.userId)
       .onChange(async (value) => {
         settings.userId = value.trim();
@@ -226,11 +240,11 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
       .setButtonText('测试连接')
       .onClick(async () => {
         if (!settings.appId || !settings.appSecret) {
-          new Notice('❌ 请先填写 App ID 和 App Secret！');
+          new Notice('❌ 请先填写应用 ID 和应用密钥！');
           return;
         }
         if (!settings.folderToken) {
-          new Notice('❌ 请先填写同步目标文件夹 Token！');
+          new Notice('❌ 请先填写同步目标文件夹 token！');
           return;
         }
 
@@ -243,13 +257,13 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
               apiUsageChanged = true;
             },
           });
-          
+
           // Verify authentication token
           await client.getAccessToken();
-          
+
           // Verify folder read access
           await client.listFolderItems(settings.folderToken);
-          
+
           notice.hide();
           if (apiUsageChanged) await plugin.saveSettings();
           new Notice('✅ 飞书连接成功，且目标文件夹访问正常！');
@@ -257,7 +271,7 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
           notice.hide();
           await plugin.saveSettings();
           console.error('[飞书连接测试失败]:', err);
-          new Notice(`❌ 飞书连接测试失败: ${err.message || String(err)}`, 7000);
+          new Notice(`❌ 飞书连接测试失败: ${toReadableError(err).message}`, 7000);
         }
       })
     );
@@ -275,7 +289,7 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // Title
   const titleEl = guideCard.createEl('h3', { cls: 'guide-card-title' });
-  titleEl.setText('飞书应用配置简易步骤 (SOP Guide):');
+  titleEl.setText('飞书应用配置简易步骤：');
   titleEl.setCssStyles({
     fontSize: '15px',
     fontWeight: '600',
@@ -291,7 +305,11 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
     gap: '14px',
   });
 
-  // Helper function to render a step item
+  /**
+   * Helper function to render a step item
+   * @param {number} num
+   * @param {(body: HTMLDivElement) => void} contentFn
+   */
   const renderStep = (num, contentFn) => {
     const stepRow = stepsContainer.createDiv();
     stepRow.setCssStyles({
@@ -357,10 +375,14 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
       borderLeft: '2px solid var(--interactive-accent)',
     });
 
+    /**
+     * @param {string} codeText
+     * @param {string} descText
+     */
     const addSubItem = (codeText, descText) => {
       const item = subList.createDiv();
       item.setCssStyles({ display: 'flex', alignItems: 'center', gap: '6px' });
-      
+
       const code = item.createEl('code', { text: codeText });
       code.setCssStyles({
         fontFamily: 'var(--font-monospace)',
@@ -393,5 +415,3 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 export {
   renderFeishuSettingsTab,
 };
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- reason: resume typed linting after Feishu settings Obsidian UI boundary */

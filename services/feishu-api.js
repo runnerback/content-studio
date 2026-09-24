@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- reason: JS file handles dynamic API responses without strict typescript type annotations */
 // services/feishu-api.js
 //
 // Stateless / low-level API client for Feishu OpenAPI using Obsidian's requestUrl.
@@ -7,12 +6,46 @@
 
 import { getActiveWindowValue } from './dom-utils.js';
 import { buildMultipartBody } from './feishu-multipart.js';
+import {
+  getResponseJsonRecord,
+  isRecord,
+  normalizeRequestUrlResponse,
+  toReadableError,
+  toRecord,
+  toText,
+} from './input-utils.js';
+
+/**
+ * 请求参数与 Obsidian requestUrl 的 RequestUrlParam 字段一致；requestUrl 也允许注入测试桩。
+ * @typedef {{ url: string, method?: string, headers?: Record<string, string>, body?: string | ArrayBuffer, contentType?: string, throw?: boolean }} FeishuRequestOptionsLike
+ * @typedef {(options: FeishuRequestOptionsLike) => Promise<unknown> | unknown} FeishuRequestUrlLike
+ * @typedef {import('./input-utils.js').RequestUrlResponseLike} RequestUrlResponseLike
+ */
+
+/**
+ * 飞书 OpenAPI 响应体：统一信封 + 各接口 data 结构。
+ * @typedef {{ code?: number, msg?: string }} FeishuApiEnvelopeLike
+ * @typedef {FeishuApiEnvelopeLike & { tenant_access_token?: string, expire?: number }} FeishuTokenResponseLike
+ * @typedef {{ type?: string, name?: string, token?: string }} FeishuDriveFileLike
+ * @typedef {FeishuApiEnvelopeLike & { data?: { files?: FeishuDriveFileLike[] } }} FeishuFolderListResponseLike
+ * @typedef {FeishuApiEnvelopeLike & { data?: { token?: string } }} FeishuCreateFolderResponseLike
+ * @typedef {FeishuApiEnvelopeLike & { data?: { file_token?: string } }} FeishuUploadResponseLike
+ * @typedef {FeishuApiEnvelopeLike & { data?: { ticket?: string } }} FeishuImportTaskCreateResponseLike
+ * @typedef {{ job_status?: number, token?: string, url?: string }} FeishuImportTaskResultLike
+ * @typedef {FeishuApiEnvelopeLike & { data?: FeishuImportTaskResultLike & { result?: FeishuImportTaskResultLike } }} FeishuImportTaskQueryResponseLike
+ * @typedef {{ block_id: string, parent_id: string, block_type: number, children?: unknown, [key: string]: unknown }} FeishuDocBlockLike
+ * @typedef {FeishuApiEnvelopeLike & { data?: { items?: FeishuDocBlockLike[] } }} FeishuDocBlocksResponseLike
+ * @typedef {FeishuApiEnvelopeLike & { data?: { blocks?: Record<string, unknown>[] } }} FeishuConvertBlocksResponseLike
+ * @typedef {{ children?: FeishuDocBlockLike[], [key: string]: unknown }} FeishuCreateBlocksResultLike
+ * @typedef {FeishuApiEnvelopeLike & { data?: FeishuCreateBlocksResultLike }} FeishuCreateBlocksResponseLike
+ * @typedef {FeishuApiEnvelopeLike & { data?: Record<string, unknown> }} FeishuGenericDataResponseLike
+ */
 
 class FeishuApiClient {
   /**
    * @param {string} appId
    * @param {string} appSecret
-   * @param {any} [requestUrl] Injected requestUrl implementation
+   * @param {FeishuRequestUrlLike | null} [requestUrl] Injected requestUrl implementation
    * @param {{ onApiCall?: (label: string, options: Record<string, unknown>) => void }} [options]
    */
   constructor(appId, appSecret, requestUrl, options = {}) {
@@ -22,10 +55,11 @@ class FeishuApiClient {
     this.tokenExpiry = 0;
     this.baseUrl = 'https://open.feishu.cn/open-apis';
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic requestUrl extraction
-    const obsidianApi = getActiveWindowValue('obsidian');
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic requestUrl extraction
-    this.requestUrl = requestUrl || (obsidianApi && typeof obsidianApi.requestUrl === 'function' ? obsidianApi.requestUrl : null);
+    const windowRequestUrl = toRecord(getActiveWindowValue('obsidian')).requestUrl;
+    /** @type {FeishuRequestUrlLike | null} */
+    this.requestUrl = requestUrl || (typeof windowRequestUrl === 'function'
+      ? /** @type {FeishuRequestUrlLike} */ (windowRequestUrl)
+      : null);
     this.onApiCall = typeof options.onApiCall === 'function' ? options.onApiCall : null;
   }
 
@@ -47,8 +81,8 @@ class FeishuApiClient {
    * Obsidian requestUrl throws before exposing Feishu's JSON body on HTTP 400+ by default.
    * Keep requests non-throwing here so user-facing errors include the failing endpoint and Feishu message.
    * @param {string} label
-   * @param {Record<string, unknown>} options
-   * @returns {Promise<any>}
+   * @param {FeishuRequestOptionsLike} options
+   * @returns {Promise<RequestUrlResponseLike>}
    */
   async sendRequest(label, options) {
     if (typeof this.requestUrl !== 'function') {
@@ -60,6 +94,7 @@ class FeishuApiClient {
       throw: false,
     };
 
+    /** @type {unknown} */
     let resp;
     try {
       resp = await this.requestUrl(requestOptions);
@@ -69,65 +104,66 @@ class FeishuApiClient {
     }
     this.recordApiCall(label, requestOptions);
 
-    const status = Number(resp?.status || 0);
+    // 先不读 json：Obsidian 的 json 是 getter，非 JSON 响应体访问时会抛错，错误路径要走 formatResponseDetails 兜住
+    const rawResponse = toRecord(resp);
+    const status = Number(rawResponse.status || 0);
     if (status >= 400) {
-      throw this.createHttpError(label, options.url, resp);
+      throw this.createHttpError(label, options.url, rawResponse);
     }
-    return resp;
+    return normalizeRequestUrlResponse(resp);
   }
 
   /**
    * @param {string} label
-   * @param {unknown} url
+   * @param {string} url
    * @param {unknown} err
    * @returns {Error}
    */
   createTransportError(label, url, err) {
-    const message = err && typeof err === 'object' && 'message' in err
-      ? err.message
-      : String(err || '未知网络错误');
+    const message = toReadableError(err).message || '未知网络错误';
     return new Error(`${label} 请求失败：${message} (${this.formatEndpoint(url)})`);
   }
 
   /**
    * @param {string} label
-   * @param {unknown} url
-   * @param {any} resp
+   * @param {string} url
+   * @param {Record<string, unknown>} resp
    * @returns {Error}
    */
   createHttpError(label, url, resp) {
-    const status = Number(resp?.status || 0);
+    const status = Number(resp.status || 0);
     const details = this.formatResponseDetails(resp);
     return new Error(`${label} 请求失败，HTTP ${status}${details ? `：${details}` : ''} (${this.formatEndpoint(url)})`);
   }
 
   /**
-   * @param {any} resp
+   * @param {Record<string, unknown>} resp
    * @returns {string}
    */
   formatResponseDetails(resp) {
+    /** @type {unknown} */
     let json = null;
     try {
-      json = resp?.json;
+      json = resp.json;
     } catch {
       json = null;
     }
-    if (json && typeof json === 'object') {
-      const code = json.code ?? json.Code ?? '';
-      const msg = json.msg || json.message || json.Message || json.error || '';
-      const requestId = json.request_id || json.requestId || json.log_id || '';
+    if (isRecord(json)) {
+      const code = toText(json.code ?? json.Code);
+      const msg = toText(json.msg || json.message || json.Message || json.error);
+      const requestId = toText(json.request_id || json.requestId || json.log_id);
       return [
         code !== '' ? `code ${code}` : '',
-        msg ? String(msg) : '',
+        msg,
         requestId ? `request_id ${requestId}` : '',
       ].filter(Boolean).join(', ');
     }
-    const text = String(resp?.text || '').trim();
+    const text = toText(resp.text).trim();
     return text.length > 300 ? `${text.slice(0, 300)}...` : text;
   }
 
   /**
-   * @param {unknown} url
+   * @param {string} url
    * @returns {string}
    */
   formatEndpoint(url) {
@@ -162,7 +198,7 @@ class FeishuApiClient {
       }),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuTokenResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`获取飞书 tenant_access_token 失败 (code ${data.code}): ${data.msg}`);
     }
@@ -198,7 +234,7 @@ class FeishuApiClient {
       },
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuFolderListResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`读取飞书文件夹失败 (code ${data.code}): ${data.msg}`);
     }
@@ -234,7 +270,7 @@ class FeishuApiClient {
       }),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuCreateFolderResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`创建飞书文件夹失败 (code ${data.code}): ${data.msg}`);
     }
@@ -265,6 +301,7 @@ class FeishuApiClient {
       binaryData[i] = binaryStr.charCodeAt(i);
     }
 
+    /** @type {Record<string, string>} */
     const fields = {
       file_name: fileName,
       parent_type: 'explorer',
@@ -294,7 +331,7 @@ class FeishuApiClient {
       body,
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuUploadResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`上传飞书临时文件失败 (code ${data.code}): ${data.msg}`);
     }
@@ -325,7 +362,7 @@ class FeishuApiClient {
       },
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuApiEnvelopeLike} */ (getResponseJsonRecord(resp));
     return data.code === 0;
   }
 
@@ -343,6 +380,7 @@ class FeishuApiClient {
     const lastDotIndex = fileName.lastIndexOf('.');
     const pureFileName = lastDotIndex > 0 ? fileName.substring(0, lastDotIndex) : fileName;
 
+    /** @type {{ file_extension: string, file_name: string, type: string, file_token: string, point?: { mount_type: number, mount_key: string } }} */
     const requestBody = {
       file_extension: 'md',
       file_name: pureFileName,
@@ -367,7 +405,7 @@ class FeishuApiClient {
       body: JSON.stringify(requestBody),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuImportTaskCreateResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`创建飞书导入任务失败 (code ${data.code}): ${data.msg}`);
     }
@@ -383,7 +421,7 @@ class FeishuApiClient {
   /**
    * Query import task status.
    * @param {string} ticket
-   * @returns {Promise<{ job_status: number, token?: string, url?: string }>}
+   * @returns {Promise<FeishuImportTaskResultLike>}
    */
   async queryImportTask(ticket) {
     const token = await this.getAccessToken();
@@ -398,7 +436,7 @@ class FeishuApiClient {
       },
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuImportTaskQueryResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`查询飞书导入任务状态失败 (code ${data.code}): ${data.msg}`);
     }
@@ -450,7 +488,7 @@ class FeishuApiClient {
   /**
    * Fetch all blocks of a docx document.
    * @param {string} documentId
-   * @returns {Promise<Array<{ block_id: string, parent_id: string, block_type: number }>>}
+   * @returns {Promise<FeishuDocBlockLike[]>}
    */
   async getDocumentBlocks(documentId) {
     const token = await this.getAccessToken();
@@ -464,7 +502,7 @@ class FeishuApiClient {
       },
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuDocBlocksResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`获取飞书文档结构失败 (code ${data.code}): ${data.msg}`);
     }
@@ -497,7 +535,7 @@ class FeishuApiClient {
       }),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuApiEnvelopeLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`批量删除飞书文档块失败 (code ${data.code}): ${data.msg}`);
     }
@@ -534,7 +572,7 @@ class FeishuApiClient {
       }),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuApiEnvelopeLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`删除飞书文档块失败 (code ${data.code}): ${data.msg}`);
     }
@@ -545,7 +583,7 @@ class FeishuApiClient {
   /**
    * Convert markdown text to docx block structures.
    * @param {string} markdownContent
-   * @returns {Promise<Array<Record<string, unknown>>>>}
+   * @returns {Promise<Array<Record<string, unknown>>>}
    */
   async convertMarkdownToBlocks(markdownContent) {
     const token = await this.getAccessToken();
@@ -564,7 +602,7 @@ class FeishuApiClient {
       }),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuConvertBlocksResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`转换 Markdown 到文档块失败 (code ${data.code}): ${data.msg}`);
     }
@@ -578,7 +616,7 @@ class FeishuApiClient {
    * @param {string} parentId
    * @param {number} index
    * @param {Array<Record<string, unknown>>} children
-   * @returns {Promise<unknown>}
+   * @returns {Promise<FeishuCreateBlocksResultLike | undefined>}
    */
   async createDocumentBlocks(documentId, parentId, index, children) {
     const token = await this.getAccessToken();
@@ -597,7 +635,7 @@ class FeishuApiClient {
       }),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuCreateBlocksResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`插入文档块失败 (code ${data.code}): ${data.msg}`);
     }
@@ -665,7 +703,7 @@ class FeishuApiClient {
       body,
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuUploadResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`上传飞书文档图片素材失败 (code ${data.code}): ${data.msg}`);
     }
@@ -683,7 +721,7 @@ class FeishuApiClient {
    * @param {string} documentId
    * @param {string} blockId
    * @param {Record<string, unknown>} blockData
-   * @returns {Promise<unknown>}
+   * @returns {Promise<Record<string, unknown> | undefined>}
    */
   async updateBlock(documentId, blockId, blockData) {
     const token = await this.getAccessToken();
@@ -699,7 +737,7 @@ class FeishuApiClient {
       body: JSON.stringify(blockData),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuGenericDataResponseLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`更新飞书文档块失败 (code ${data.code}): ${data.msg}`);
     }
@@ -729,7 +767,7 @@ class FeishuApiClient {
       }),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuApiEnvelopeLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`重命名飞书文件失败 (code ${data.code}): ${data.msg}`);
     }
@@ -760,7 +798,7 @@ class FeishuApiClient {
       }),
     });
 
-    const data = resp.json;
+    const data = /** @type {FeishuApiEnvelopeLike} */ (getResponseJsonRecord(resp));
     if (data.code !== 0) {
       throw new Error(`转移飞书文档所有权失败 (code ${data.code}): ${data.msg}`);
     }
@@ -772,5 +810,3 @@ class FeishuApiClient {
 export {
   FeishuApiClient,
 };
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- reason: resume typed linting after Feishu API response boundary */

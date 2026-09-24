@@ -127,7 +127,7 @@ export class DownloadManager {
                 // 确保浏览器完成重绘并等待资源加载
                 await new Promise(resolve => window.setTimeout(resolve, 300));
 
-                const imageElement = element.querySelector<HTMLElement>('.red-image-preview')!;
+                const imageElement = element.querySelector<HTMLElement>('.red-image-preview');
 
                 try {
                     const blob = await htmlToImage.toBlob(imageElement, this.getExportConfig(imageElement));
@@ -189,7 +189,7 @@ export class DownloadManager {
      */
     static async downloadSingleImage(element: HTMLElement, noteName: string, pageIndex: number): Promise<void> {
         try {
-            const imageElement = element.querySelector('.red-image-preview') as HTMLElement;
+            const imageElement = element.querySelector<HTMLElement>('.red-image-preview');
             if (!imageElement) {
                 throw new Error('找不到预览区域');
             }

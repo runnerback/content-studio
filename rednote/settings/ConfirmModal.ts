@@ -7,13 +7,13 @@ export class ConfirmModal extends Modal {
     // 参数属性展开(Node strip-only TS 兼容),行为等价
     private title: string;
     private message: string;
-    private onConfirm: () => void;
+    private onConfirm: () => void | Promise<void>;
 
     constructor(
         app: App,
         title: string,
         message: string,
-        onConfirm: () => void
+        onConfirm: () => void | Promise<void>
     ) {
         super(app);
         this.title = title;
@@ -71,7 +71,7 @@ export class ConfirmModal extends Modal {
 
         if (this.confirmed) {
 
-            this.onConfirm();
+            void this.onConfirm();
 
         }
 

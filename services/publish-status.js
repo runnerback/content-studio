@@ -29,6 +29,7 @@ export const FRONTMATTER_KEYS = Object.freeze({
 const DEPRECATED_KEYS = ['publish_targets', 'last_publish_at', 'publish_platform'];
 
 // 平台名归一(frontmatter 口径):扩展/各链路上报的别名统一成简短稳定名。
+/** @type {Readonly<Record<string, string>>} */
 const PLATFORM_NAME_ALIASES = Object.freeze({
   xiaohongshu: 'rednote',
   xhs: 'rednote',
@@ -155,9 +156,11 @@ export function resolvePublishStatus(requestedCount, successCount) {
  * @returns {string[]}
  */
 export function mergePlatformList(existing, incoming) {
+  /** @type {string[]} */
   const out = [];
+  /** @type {Set<string>} */
   const seen = new Set();
-  const push = (value) => {
+  const push = (/** @type {unknown} */ value) => {
     // 归一化后再去重:旧笔记里的 xiaohongshu 与新的 rednote 合并为一项
     const key = normalizePlatformName(value);
     if (key && !seen.has(key)) {

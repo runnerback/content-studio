@@ -1,6 +1,7 @@
 import markdownit from '../lib/markdown-it.min.js';
 import hljs from '../lib/highlight.min.js';
 import '../lib/mathjax-plugin.js';
+import { toText } from './input-utils.js';
 
 /**
  * @typedef {Record<string, unknown> & { window?: RuntimeGlobal }} RuntimeGlobal
@@ -98,7 +99,7 @@ async function loadRuntimeDependencies() {
  */
 function getAvatarSrc(settings = {}) {
   if (!settings.enableWatermark) return '';
-  return String(settings.avatarBase64 || settings.avatarUrl || '');
+  return toText(settings.avatarBase64 || settings.avatarUrl);
 }
 
 /**

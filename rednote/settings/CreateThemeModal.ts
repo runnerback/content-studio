@@ -13,15 +13,16 @@ type ThemeSection =
     | Pick<ThemeStyles, 'image'>;
 import { ThemePreviewModal } from './ThemePreviewModal.ts';
 import type { RednoteHost as RedPlugin } from '../host.ts';
+import { toReadableError } from '../../services/input-utils.js';
 export class CreateThemeModal extends Modal {
     theme: Theme;
-    onSubmit: (theme: Theme) => void;
+    onSubmit: (theme: Theme) => void | Promise<void>;
     private nameInput: HTMLInputElement;
     private plugin: RedPlugin;
     private themeSelect: HTMLSelectElement;
     private showSampleTemplate = false;
     private existingTheme: Theme | undefined;
-    constructor(app: App, plugin: RedPlugin, onSubmit: (theme: Theme) => void, existingTheme?: Theme) {
+    constructor(app: App, plugin: RedPlugin, onSubmit: (theme: Theme) => void | Promise<void>, existingTheme?: Theme) {
         super(app);
         this.plugin = plugin;
         this.existingTheme = existingTheme;
@@ -215,20 +216,21 @@ export class CreateThemeModal extends Modal {
             .addButton(btn => btn
                 .setButtonText('保存')
                 .setCta()
-                .onClick(async () => {
-                    if (await this.validateAndSubmit()) {
-                        this.close();
-                    }
-                }));
+                .onClick(() => this.submitAndClose()));
 
-        this.nameInput.addEventListener('keydown', async (e) => {
+        this.nameInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                if (await this.validateAndSubmit()) {
-                    this.close();
-                }
+                void this.submitAndClose();
             }
         });
+    }
+
+    /** 校验并提交主题,成功后关闭弹窗(保存按钮与回车共用) */
+    private async submitAndClose() {
+        if (await this.validateAndSubmit()) {
+            this.close();
+        }
     }
 
     private getThemeOptions(): Record<string, string> {
@@ -407,7 +409,7 @@ export class CreateThemeModal extends Modal {
             await this.onSubmit(this.theme);
             return true;
         } catch (error) {
-            new Notice('保存失败：' + error.message, 3000);
+            new Notice('保存失败：' + toReadableError(error).message, 3000);
             return false;
         }
     }
@@ -446,17 +448,17 @@ export class CreateThemeModal extends Modal {
                         styles.paragraph = styles.paragraph.replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
 
                         // 更新强调文字颜色
-                        Object.keys(styles.emphasis).forEach(key => {
+                        (Object.keys(styles.emphasis) as (keyof ThemeStyles['emphasis'])[]).forEach(key => {
                             styles.emphasis[key] = styles.emphasis[key].replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
                         });
 
                         // 更新标题颜色
-                        ['h2', 'h3', 'base'].forEach(level => {
+                        (['h2', 'h3', 'base'] as const).forEach(level => {
                             styles.title[level].content = styles.title[level].content.replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
                         });
 
                         // 更新列表颜色
-                        ['container', 'item', 'taskList'].forEach(key => {
+                        (['container', 'item', 'taskList'] as const).forEach(key => {
                             styles.list[key] = styles.list[key].replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
                         });
 
@@ -464,7 +466,7 @@ export class CreateThemeModal extends Modal {
                         styles.quote = styles.quote.replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
 
                         // 更新代码颜色
-                        ['block', 'inline'].forEach(key => {
+                        (['block', 'inline'] as const).forEach(key => {
                             styles.code[key] = styles.code[key].replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
                         });
 
@@ -477,7 +479,7 @@ export class CreateThemeModal extends Modal {
                         styles.table.cell = styles.table.cell.replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
 
                         // 更新脚注颜色
-                        ['ref', 'backref'].forEach(key => {
+                        (['ref', 'backref'] as const).forEach(key => {
                             styles.footnote[key] = styles.footnote[key].replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
                         });
                         styles.image = styles.image.replace(/border:\s*1px solid\s*#[a-fA-F0-9]+80/, `border: 1px solid ${value}80`);
@@ -490,7 +492,7 @@ export class CreateThemeModal extends Modal {
     private addBackGroupStylesSettings(container: HTMLElement, styles: string) {
         const titleSection = container.createDiv('title-level-section');
         // 解析现有的样式字符串
-        const styleMap = new Map();
+        const styleMap = new Map<string, string>();
         if (styles) {
             styles.split(';').forEach(style => {
                 const [property, value] = style.split(':').map(s => s.trim());
@@ -569,7 +571,7 @@ export class CreateThemeModal extends Modal {
                 const currentColor = styles.userName.match(/color:\s*(#[a-fA-F0-9]+)/)?.[1];
                 color.setValue(currentColor)
                     .onChange(value => {
-                        ['userName', 'userId', 'postTime'].forEach(key => {
+                        (['userName', 'userId', 'postTime'] as const).forEach(key => {
                             styles[key] = styles[key].replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
                         });
                         styles.avatar.container = styles.avatar.container
@@ -648,7 +650,7 @@ export class CreateThemeModal extends Modal {
     }
 
     private addTitleSettings(container: HTMLElement, styles: ThemeStyles['title']) {
-        ['h2', 'h3', 'base'].forEach(level => {
+        (['h2', 'h3', 'base'] as const).forEach(level => {
             const titleSection = container.createDiv('style-section');
 
             // 创建折叠面板标题区域
@@ -663,7 +665,7 @@ export class CreateThemeModal extends Modal {
             // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
             header.addEventListener('click', () => {
-                const section = content.parentElement as HTMLElement;
+                const section = content.parentElement;
                 const isExpanded = !section.hasClass('is-expanded');
                 section.toggleClass('is-expanded', isExpanded);
                 setIcon(toggle, isExpanded ? 'chevron-down' : 'chevron-right');
@@ -729,14 +731,14 @@ export class CreateThemeModal extends Modal {
             .setDesc('设置页脚区域的上下内边距（单位：px）')
             .addText(text => {
                 // 解析当前padding
-                let match = styles.container.match(/padding:\s*(\d+)px\s*(\d+)px/);
+                const match = styles.container.match(/padding:\s*(\d+)px\s*(\d+)px/);
                 let paddingTop = '16', paddingLR = '16';
                 if (match) {
                     paddingTop = match[1];
                     paddingLR = match[2];
                 } else {
                     // 兼容只有一个值的情况
-                    let single = styles.container.match(/padding:\s*(\d+)px/);
+                    const single = styles.container.match(/padding:\s*(\d+)px/);
                     if (single) {
                         paddingTop = single[1];
                         paddingLR = single[1];
@@ -772,7 +774,7 @@ export class CreateThemeModal extends Modal {
         // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
         paragraphHeader.addEventListener('click', () => {
-            const section = paragraphContent.parentElement as HTMLElement;
+            const section = paragraphContent.parentElement;
             const isExpanded = !section.hasClass('is-expanded');
             section.toggleClass('is-expanded', isExpanded);
             setIcon(paragraphToggle, isExpanded ? 'chevron-down' : 'chevron-right');
@@ -827,7 +829,7 @@ export class CreateThemeModal extends Modal {
         // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
         emphasisHeader.addEventListener('click', () => {
-            const section = emphasisContent.parentElement as HTMLElement;
+            const section = emphasisContent.parentElement;
             const isExpanded = !section.hasClass('is-expanded');
             section.toggleClass('is-expanded', isExpanded);
             setIcon(emphasisToggle, isExpanded ? 'chevron-down' : 'chevron-right');
@@ -903,7 +905,7 @@ export class CreateThemeModal extends Modal {
                 const currentColor = styles.item.match(/color:\s*(#[a-fA-F0-9]+)/)?.[1];
                 color.setValue(currentColor)
                     .onChange(value => {
-                        ['container', 'item', 'taskList'].forEach(key => {
+                        (['container', 'item', 'taskList'] as const).forEach(key => {
                             styles[key] = styles[key].replace(/color:\s*#[a-fA-F0-9]+/, `color: ${value}`);
                         });
                     });
@@ -969,7 +971,7 @@ export class CreateThemeModal extends Modal {
         // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
         codeBlockHeader.addEventListener('click', () => {
-            const section = codeBlockContent.parentElement as HTMLElement;
+            const section = codeBlockContent.parentElement;
             const isExpanded = !section.hasClass('is-expanded');
             section.toggleClass('is-expanded', isExpanded);
             setIcon(codeBlockToggle, isExpanded ? 'chevron-down' : 'chevron-right');
@@ -1013,7 +1015,7 @@ export class CreateThemeModal extends Modal {
         // 折叠状态由 .style-section.is-expanded 控制（CSS 已定义），不写内联 display
 
         inlineCodeHeader.addEventListener('click', () => {
-            const section = inlineCodeContent.parentElement as HTMLElement;
+            const section = inlineCodeContent.parentElement;
             const isExpanded = !section.hasClass('is-expanded');
             section.toggleClass('is-expanded', isExpanded);
             setIcon(inlineCodeToggle, isExpanded ? 'chevron-down' : 'chevron-right');
@@ -1086,11 +1088,12 @@ export class CreateThemeModal extends Modal {
                                     .replace(/background-repeat:[^;]+;/, '')
                                     .replace(/background-position:[^;]+;/, '');
                                 break;
-                            case 'gradient':
+                            case 'gradient': {
                                 const color = styles.link.match(/color:\s*(#[a-fA-F0-9]+)/)?.[1] || '#d2691e';
                                 styles.link = styles.link.replace(/text-decoration:[^;]+;/, 'text-decoration: none;')
                                     + ` background-image: linear-gradient(to right, ${color}80, ${color}80); background-size: 0% 1px; background-repeat: no-repeat; background-position: 0 100%; transition: all 0.3s ease;`;
                                 break;
+                            }
                         }
                     });
             });

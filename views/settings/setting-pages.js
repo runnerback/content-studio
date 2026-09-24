@@ -15,17 +15,20 @@ import { renderMultiPlatformSettingsTab } from './multi-platform-tab.js';
 
 const { SettingPage } = obsidianApi;
 
+/** @typedef {import('./apple-style-setting-tab.js').AppleStyleSettingTab} SettingTabLike */
+/** @typedef {ContentStudioSettingPage} ContentStudioSettingPageLike */
+
 /**
  * 子页面公共基类：记录/清除 tab.activeSettingPage，display 时清空容器再渲染。
  */
 class ContentStudioSettingPage extends SettingPage {
   /**
-   * @param {any} tab AppleStyleSettingTab 实例
+   * @param {SettingTabLike} tab AppleStyleSettingTab 实例
    * @param {string} title 页面标题（同时用于返回栏）
    */
   constructor(tab, title) {
     super();
-    /** @type {any} */
+    /** @type {SettingTabLike} */
     this.tab = tab;
     this.title = title;
   }
@@ -51,7 +54,7 @@ class ContentStudioSettingPage extends SettingPage {
 
 /** 「飞书」子页面：沿用 renderFeishuSettingsTab */
 export class FeishuSettingPage extends ContentStudioSettingPage {
-  /** @param {any} tab */
+  /** @param {SettingTabLike} tab */
   constructor(tab) {
     super(tab, '飞书');
   }
@@ -63,7 +66,7 @@ export class FeishuSettingPage extends ContentStudioSettingPage {
 
 /** 「其他平台」子页面：沿用 renderMultiPlatformSettingsTab */
 export class MultiPlatformSettingPage extends ContentStudioSettingPage {
-  /** @param {any} tab */
+  /** @param {SettingTabLike} tab */
   constructor(tab) {
     super(tab, MULTI_PLATFORM_TAB_LABEL);
   }
@@ -74,11 +77,11 @@ export class MultiPlatformSettingPage extends ContentStudioSettingPage {
 }
 
 /**
- * 「小红书图卡」子页面：懒加载 RedSettingTab（用户信息 / 标题级别 / 主题与字体管理），
- * 把它的 containerEl 指到本页容器后调用其 display()。
+ * 「小红书图卡」子页面：懒加载 RedSettingsPanel（用户信息 / 标题级别 / 主题与字体管理），
+ * 把本页容器交给它命令式渲染。
  */
 export class RednoteSettingPage extends ContentStudioSettingPage {
-  /** @param {any} tab */
+  /** @param {SettingTabLike} tab */
   constructor(tab) {
     super(tab, '小红书图卡');
     /** @type {Promise<void> | null} 供测试等待懒加载完成 */
@@ -89,12 +92,10 @@ export class RednoteSettingPage extends ContentStudioSettingPage {
     const containerEl = this.containerEl;
     this.loadPromise = (async () => {
       try {
-        const { RedSettingTab } = await import('../../rednote/index.ts');
+        const { RedSettingsPanel } = await import('../../rednote/index.ts');
         // 懒加载期间用户可能已离开本页：此时不再往已隐藏的容器里渲染
         if (this.tab.activeSettingPage !== this) return;
-        const redTab = new RedSettingTab(this.tab.app, this.tab.plugin);
-        redTab.containerEl = containerEl;
-        redTab.display();
+        new RedSettingsPanel(this.tab.app, this.tab.plugin, containerEl).render();
       } catch (error) {
         containerEl.createEl('p', {
           text: `小红书设置加载失败：${toReadableError(error).message}`,

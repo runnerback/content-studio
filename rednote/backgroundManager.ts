@@ -16,7 +16,7 @@ export class BackgroundManager {
             if (match) {
                 const [, key, value] = match.map(item => item.trim());
                 if (key && value) {
-                    element.style[key as any] = value;
+                    element.style.setProperty(key, value);
                 }
             }
         });

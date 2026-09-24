@@ -147,7 +147,7 @@ const CALLOUT_SEMANTIC_COLORS = {
  * @returns {string}
  */
 function resolveCalloutSemanticColor(type, fallbackColor) {
-  const key = String(type || '').trim().toLowerCase();
+  const key = toText(type).trim().toLowerCase();
   const group = CALLOUT_SEMANTIC_GROUPS[key] || 'info';
   return CALLOUT_SEMANTIC_COLORS[group] || fallbackColor;
 }
@@ -194,10 +194,11 @@ class AppleStyleConverter {
   }
 
   /**
+   * 同步初始化 markdown-it；返回 Promise 只是维持既有 await 调用约定
    * @returns {Promise<void>}
    */
-  async initMarkdownIt() {
-    if (this.md) return;
+  initMarkdownIt() {
+    if (this.md) return Promise.resolve();
     const markdownIt = getRuntimeDependency('markdownit');
     if (typeof markdownIt === 'undefined') throw new Error('markdown-it 未加载');
     this.hljs = /** @type {HighlightJsLike | null} */ (getRuntimeDependency('hljs') || null);
@@ -212,6 +213,7 @@ class AppleStyleConverter {
     }
 
     this.setupRenderRules();
+    return Promise.resolve();
   }
 
   reinit() { this.md = null; }
@@ -809,7 +811,7 @@ class AppleStyleConverter {
     const barBackground = '#161b22'; // 工具栏背景
     const borderColor = '#30363d';   // 边框颜色
 
-    let lines = content.replace(/\r\n/g, '\n').split('\n');
+    const lines = content.replace(/\r\n/g, '\n').split('\n');
     while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
 
     // Mac 头部
@@ -949,6 +951,7 @@ ${macHeader}
       /style="([^"]*)"/gi,
       (_match, styleText) => {
         let style = String(styleText || '');
+        /** @type {string | null} */
         let topValue = null;
         style = style.replace(/(^|;)\s*top\s*:\s*([^;"]+)\s*;?/i, (_m, prefix, value) => {
           topValue = String(value || '').trim();
@@ -1158,7 +1161,7 @@ ${macHeader}
    */
   validateLink(url, isImage = false) {
     if (!url) return '#';
-    const value = String(url).trim();
+    const value = toText(url).trim();
     if (!value) return '#';
 
     // Keep legacy parity: allow raw data:image src in image context.
@@ -1205,7 +1208,7 @@ ${macHeader}
     sanitized = sanitized.replace(/<(a|img|source|video|audio|area)\b([^>]*)>/gi, (_match, tag, attrs) => {
       const tagName = String(tag || '');
       const isImageTag = /^(img|source)$/i.test(tagName);
-      let newAttrs = String(attrs || '').replace(/\b(href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi, (_attrMatch, attrName, qVal, sqVal, uVal) => {
+      const newAttrs = String(attrs || '').replace(/\b(href|src)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi, (_attrMatch, attrName, qVal, sqVal, uVal) => {
         const val = String(qVal || sqVal || uVal || '');
         const safeVal = this.validateLink(val, isImageTag);
         const quote = qVal !== undefined ? '"' : (sqVal !== undefined ? "'" : '"');

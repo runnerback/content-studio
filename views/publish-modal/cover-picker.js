@@ -5,15 +5,30 @@
 // the view prototype) so method bodies keep using `this` unchanged.
 
 import { createObsidianModal, isMobileClient } from '../../services/obsidian-adapters.js';
-import { toReadableError } from '../../services/input-utils.js';
+import { toReadableError, toOptionalNumber, isRecord } from '../../services/input-utils.js';
 import { collectArticleImageReferences } from '../../services/article-image-assets.js';
 import { renderSelectableImageGrid } from './image-grid.js';
 
 /** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/** @typedef {import('../../input.js').TFileLike} TFileLike */
+/** @typedef {import('../../input.js').WechatMaterialItemLike} WechatMaterialItemLike */
+/** @typedef {import('../../input.js').WechatMaterialPageLike} WechatMaterialPageLike */
+/** @typedef {import('../../input.js').WechatMaterialSelectionLike} WechatMaterialSelectionLike */
+/** @typedef {import('./image-grid.js').ImagePickerItem} ImagePickerItem */
+/**
+ * 素材库分页接口：WechatAPI 实例或测试里的等价对象（只用到 appId / proxyUrl / batchGetMaterials）
+ * @typedef {{ appId?: string, proxyUrl?: string, batchGetMaterials: (type: string, offset?: number, count?: number) => Promise<unknown> }} WechatMaterialApiLike
+ * "本篇引用"封面候选：src 为 Obsidian 资源路径，path 为 vault 内路径
+ * @typedef {{ src: string, name: string, path: string, alt: string }} ReferencedImageLike
+ * metadataCache.getFirstLinkpathDest 未在共享 MetadataCacheLike 里声明，这里按使用面收窄
+ * @typedef {{ getFirstLinkpathDest?: (linkpath: string, sourcePath: string) => unknown }} LinkpathResolverLike
+ * getFirstLinkpathDest 解析出的 vault 文件（只用到 path / name / extension）
+ * @typedef {{ path: string, name?: string, extension: string }} ResolvedVaultFileLike
+ */
 /** @satisfies {ThisType<AppleStyleViewInstance>} */
 export const coverPickerMixin = {
   /**
-   * @param {any} api
+   * @param {WechatMaterialApiLike} api
    * @param {string} type
    * @param {number} offset
    * @param {number} count
@@ -30,16 +45,16 @@ export const coverPickerMixin = {
   },
 
   /**
-   * @param {any} api
+   * @param {WechatMaterialApiLike} api
    * @param {string} type
    * @param {number} offset
    * @param {number} count
    * @param {{ forceRefresh?: boolean, ttlMs?: number }} [options]
-   * @returns {Promise<any>}
+   * @returns {Promise<WechatMaterialPageLike>}
    */
   async loadWechatMaterialPage(api, type, offset, count, options = {}) {
     const forceRefresh = options.forceRefresh === true;
-    const ttlMs = Number.isFinite(options.ttlMs) ? options.ttlMs : 5 * 60 * 1000;
+    const ttlMs = toOptionalNumber(options.ttlMs) ?? 5 * 60 * 1000;
     if (!this.wechatMaterialCache) this.wechatMaterialCache = new Map();
 
     const key = this.getWechatMaterialCacheKey(api, type, offset, count);
@@ -57,7 +72,7 @@ export const coverPickerMixin = {
       };
     }
 
-    const data = await api.batchGetMaterials(type, offset, count);
+    const data = /** @type {WechatMaterialPageLike} */ (await api.batchGetMaterials(type, offset, count));
     this.wechatMaterialCache.set(key, {
       cachedAt: now,
       data,
@@ -69,8 +84,8 @@ export const coverPickerMixin = {
   },
 
   /**
-   * @param {any} api
-   * @param {(material: any) => unknown} onSelect
+   * @param {WechatMaterialApiLike} api
+   * @param {(material: WechatMaterialSelectionLike) => unknown} onSelect
    */
   async showMaterialPickerModal(api, onSelect) {
     const modal = createObsidianModal(this.app);
@@ -86,7 +101,7 @@ export const coverPickerMixin = {
     const pageSize = 12;
     let currentPage = 1;
     let totalCount = 0;
-    /** @type {any} */
+    /** @type {WechatMaterialSelectionLike | null} */
     let selectedItem = null;
     let isLoading = false;
 
@@ -134,7 +149,7 @@ export const coverPickerMixin = {
     };
 
     /**
-     * @param {any[]} items
+     * @param {WechatMaterialItemLike[]} items
      */
     const renderItems = (items) => {
       const mapped = (Array.isArray(items) ? items : [])
@@ -142,22 +157,24 @@ export const coverPickerMixin = {
           const mediaId = item.media_id || item.mediaId || '';
           if (!mediaId) return null;
           const name = item.name || '未命名图片';
-          return {
+          /** @type {ImagePickerItem} */
+          const pickerItem = {
             key: mediaId,
             thumbUrl: item.url || '',
             name,
             title: name,
             payload: { mediaId, url: item.url || '', name: item.name || '' },
           };
+          return pickerItem;
         })
-        .filter(Boolean);
+        .filter((entry) => entry !== null);
       renderSelectableImageGrid({
         grid,
-        items: /** @type {any[]} */ (mapped),
+        items: mapped,
         confirmBtn,
         emptyText: '素材库中暂无图片素材',
         onSelect: (payload) => {
-          selectedItem = payload;
+          selectedItem = /** @type {WechatMaterialSelectionLike} */ (payload);
         },
       });
     };
@@ -182,7 +199,7 @@ export const coverPickerMixin = {
         const data = await this.loadWechatMaterialPage(api, 'image', offset, pageSize, {
           forceRefresh: options.forceRefresh === true,
         });
-        totalCount = Number.isFinite(data.total_count) ? data.total_count : 0;
+        totalCount = toOptionalNumber(data.total_count) ?? 0;
         const items = Array.isArray(data.item) ? data.item : [];
         countLabel.setText(totalCount > 0 ? `共 ${totalCount} 张图片素材` : '暂无图片素材');
         cacheLabel.setText(data.fromCache ? '当前页列表来自缓存' : '');
@@ -216,11 +233,11 @@ export const coverPickerMixin = {
 
   /**
    * 收集当前 md 文档里引用的本地图片（jpg/png/webp），用于"本篇引用"封面选择。
-   * @param {any} activeFile
-   * @returns {Promise<Array<{ src: string, name: string, path: string, alt: string }>>}
+   * @param {TFileLike | null | undefined} activeFile
+   * @returns {Promise<ReferencedImageLike[]>}
    */
   async getReferencedLocalImages(activeFile) {
-    /** @type {Array<{ src: string, name: string, path: string, alt: string }>} */
+    /** @type {ReferencedImageLike[]} */
     const out = [];
     try {
       if (!activeFile || typeof this.app?.vault?.read !== 'function') return out;
@@ -229,6 +246,7 @@ export const coverPickerMixin = {
       const allowedExtensions = new Set(['jpg', 'jpeg', 'png', 'webp']);
       const seenPaths = new Set();
       const sourcePath = typeof activeFile.path === 'string' ? activeFile.path : '';
+      const linkpathResolver = /** @type {LinkpathResolverLike | undefined} */ (this.app.metadataCache);
 
       for (const reference of references) {
         let raw = String(reference?.src || '').trim();
@@ -245,8 +263,10 @@ export const coverPickerMixin = {
           void decodeError; // 非法编码时保留原样
         }
 
-        const resolved = this.app.metadataCache?.getFirstLinkpathDest?.(linkpath, sourcePath);
-        const file = resolved && typeof resolved.extension === 'string' ? resolved : null;
+        const resolved = linkpathResolver?.getFirstLinkpathDest?.(linkpath, sourcePath);
+        const file = isRecord(resolved) && typeof resolved.extension === 'string'
+          ? /** @type {ResolvedVaultFileLike} */ (resolved)
+          : null;
         if (!file) continue;
         if (!allowedExtensions.has(file.extension.toLowerCase())) continue;
         if (seenPaths.has(file.path)) continue;
@@ -269,8 +289,8 @@ export const coverPickerMixin = {
 
   /**
    * 弹出"本篇引用图片"网格，供用户选择一张作为封面。
-   * @param {any} activeFile
-   * @param {(image: { src: string, name: string, path: string, alt: string }) => void} onSelect
+   * @param {TFileLike | null | undefined} activeFile
+   * @param {(image: ReferencedImageLike) => void} onSelect
    * @returns {Promise<void>}
    */
   async showReferencedImagePickerModal(activeFile, onSelect) {
@@ -299,7 +319,7 @@ export const coverPickerMixin = {
     const confirmBtn = footer.createEl('button', { text: '使用这张封面', cls: 'mod-cta wechat-material-confirm' });
     confirmBtn.disabled = true;
 
-    /** @type {{ src: string, name: string, path: string, alt: string } | null} */
+    /** @type {ReferencedImageLike | null} */
     let selected = null;
 
     renderSelectableImageGrid({
@@ -314,7 +334,7 @@ export const coverPickerMixin = {
       confirmBtn,
       emptyText: '本篇没有可用作封面的图片（仅支持本地 jpg / png / webp）。',
       onSelect: (payload) => {
-        selected = /** @type {{ src: string, name: string, path: string, alt: string }} */ (payload);
+        selected = /** @type {ReferencedImageLike} */ (payload);
       },
     });
 

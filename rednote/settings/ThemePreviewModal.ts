@@ -1,13 +1,14 @@
 import { App, Modal, setIcon } from 'obsidian';
 import { ThemeManager } from '../themeManager.ts';
+import type { Theme } from '../themeManager.ts';
 import { SettingsManager } from '../settings/settings.ts';
 
 export class ThemePreviewModal extends Modal {
-    private theme: any;
+    private theme: Theme;
     private themeManager: ThemeManager;
     private settingsManager: SettingsManager;
 
-    constructor(app: App, settingsManager: SettingsManager, theme: any, themeManager: ThemeManager) {
+    constructor(app: App, settingsManager: SettingsManager, theme: Theme, themeManager: ThemeManager) {
         super(app);
         this.settingsManager = settingsManager;
         this.theme = theme;
@@ -66,7 +67,7 @@ export class ThemePreviewModal extends Modal {
         const content = previewContainer.createDiv('red-preview-content');
 
         // 标题样式
-        content.createEl('h2', { text: '探索 Note Content Studio 的无限可能' });
+        content.createEl('h2', { text: '探索图卡排版的无限可能' });
 
         // 段落样式
         const paragraph1 = content.createEl('p');
@@ -90,7 +91,7 @@ export class ThemePreviewModal extends Modal {
         ['red', 'yellow', 'green'].forEach(color => {
             dots.createSpan({ cls: `red-code-dot red-code-dot-${color}` });
         });
-        codeBlock.createEl('code', { text: 'console.log("欢迎使用 Note Content Studio！");' });
+        codeBlock.createEl('code', { text: '// 欢迎使用小红书图卡\nconsole.log("让笔记发帖更简单");' });
 
         // 分隔线样式
         content.createEl('hr');

@@ -5,6 +5,7 @@
 // adapter (obsidian-adapters), so it is independent of the view/plugin.
 
 import {
+  toText,
   toReadableError,
   sleep,
   parseJsonRecord,
@@ -235,7 +236,7 @@ export class WechatAPI {
       this.expireTime = Date.now() + ((toOptionalNumber(data.expires_in) ?? 7200) * 1000);
       return this.accessToken;
     } else {
-      throw new Error(`获取 Token 失败: ${data.errmsg || '未知错误'} (${data.errcode || '??'})`);
+      throw new Error(`获取 Token 失败: ${toText(data.errmsg) || '未知错误'} (${toText(data.errcode) || '??'})`);
     }
   }
 

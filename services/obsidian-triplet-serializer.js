@@ -1436,7 +1436,8 @@ function normalizeMathPresentation(container) {
     if (!el || typeof el.getAttribute !== 'function' || typeof el.setAttribute !== 'function') return;
     const style = String(el.getAttribute('style') || '');
     if (!/\btop\s*:/i.test(style)) return;
-    let topValue = null;
+    /** @type {string} */
+    let topValue = '';
     let nextStyle = style.replace(/(^|;)\s*top\s*:\s*([^;]+)\s*;?/i, (_m, prefix, value) => {
       topValue = String(value || '').trim();
       return String(prefix || '');

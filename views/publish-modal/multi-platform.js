@@ -29,7 +29,6 @@ import {
 } from '../../services/wechatsync-bridge.js';
 
 import {
-  getAvailableWechatsyncPlatforms,
   normalizeWechatSyncCapabilities,
   normalizeMultiPlatformConnection,
   normalizeMultiPlatformSyncSettings,
@@ -62,7 +61,7 @@ const MAX_MATERIAL_COVER_ASSET_CACHE_ENTRIES = 3;
 /**
  * @typedef {{ id?: string, filename: string, mimeType: string, size: number, base64: string, source?: Record<string, unknown> }} BridgeAssetLike
  * @typedef {{ cachedAt: number, asset: BridgeAssetLike }} MaterialCoverCacheEntryLike
- * @typedef {{ requestUrl?: (options: Record<string, unknown>) => Promise<unknown>, obsidianApi?: Partial<ObsidianApiLike>, modal?: PublishModalLike }} PublishModalOptionsLike
+ * @typedef {{ requestUrl?: (options: Record<string, unknown>) => Promise<unknown>, obsidianApi?: Partial<ObsidianApiLike>, modal?: PublishModalLike, preferredPlatform?: string }} PublishModalOptionsLike
  * @typedef {{ isMobile?: boolean }} PlatformLike
  * @typedef {{ Modal: new (app: unknown) => PublishModalLike, Notice: new (message: string, timeout?: number) => NoticeLike, Platform?: PlatformLike, requestUrl?: (options: Record<string, unknown>) => Promise<unknown> }} ObsidianApiLike
  * @typedef {{ hide: () => void, setMessage?: (message: string) => void }} NoticeLike
@@ -73,12 +72,14 @@ const MAX_MATERIAL_COVER_ASSET_CACHE_ENTRIES = 3;
  * @typedef {{ syncId?: string, requestId?: string, accepted?: boolean, quotaBlocked?: boolean, skippedPlatforms?: unknown, message?: string, publishedPlatforms?: unknown, platforms?: unknown }} EnqueueResultLike
  * @typedef {{ cls: string, text: string, status?: string }} PlatformStatusBadgeLike
  * @typedef {{ code?: string, message: string, stack?: string }} ReadableErrorLike
- * @typedef {{ health?: (options?: Record<string, unknown>) => Promise<unknown>, getActiveClientDescriptor?: () => unknown, getStatus?: () => unknown, enqueueSyncArticle?: (payload: Record<string, unknown>) => Promise<unknown>, sendArticle?: (payload: Record<string, unknown>) => Promise<unknown> }} BridgeLike
+ * @typedef {{ start: () => Promise<unknown>, waitForConnection: (timeoutMs?: number) => Promise<unknown>, health?: (options?: Record<string, unknown>) => Promise<unknown>, quotaStatus?: (options?: { licenseKey?: string }) => Promise<unknown>, getActiveClientDescriptor?: () => unknown, getStatus?: () => unknown, enqueueSyncArticle?: (payload: Record<string, unknown>) => Promise<unknown>, sendArticle?: (payload: Record<string, unknown>) => Promise<unknown> }} BridgeLike
+ * @typedef {{ article: Record<string, unknown>, dirPath: string, cardCount: number }} CardArticlePrepLike
+ * @typedef {{ successfulTargets: { platform: string, kind?: string, url?: string }[], requestedCount?: number }} PublishStatusPayloadLike
  * @typedef {{ settings: { multiPlatformSync?: unknown }, obsidianApi?: Partial<ObsidianApiLike>, getWechatSyncBridgeService: () => BridgeLike, saveSettings: () => Promise<void> }} PluginLike
  * @typedef {{ path: string, basename: string }} FileLike
  * @typedef {{ title?: string, cover?: string }} PublishMetaLike
  * @typedef {{ markdown: string, assets: BridgeAssetLike[], cover?: string, firstImageSrc?: string, warnings?: unknown[] }} ResolvedImagesLike
- * @typedef {{ app?: unknown, currentHtml?: string, lastResolvedMarkdown?: string, sessionCoverBase64?: string, sessionThumbMediaId?: string, wechatMaterialCoverAssetCache?: Map<string, MaterialCoverCacheEntryLike>, articleStates: Map<string, Record<string, unknown>>, plugin: PluginLike, getMissingRenderNotice: () => string, preparePublishModalShell: (modal: PublishModalLike, options: Record<string, unknown>) => void, createPublishModeTabs: (modal: PublishModalLike, mode: string) => { wechatTab: ModalContentElementLike }, showSyncModal: (options: Record<string, unknown>) => void, openPluginSettings: () => boolean, getPublishContextFile: () => FileLike | null, getFrontmatterPublishMeta: (file: FileLike | null) => PublishMetaLike, getCurrentExportHtml: () => string, getFirstImageFromArticle: () => string, prepareHtmlForWechatsyncArticleViaBridge: (html: string, assets: BridgeAssetLike[]) => Promise<string>, generateCoverThumbnailFromAsset: (asset: BridgeAssetLike) => Promise<string>, getWechatsyncTaskSnapshot: (bridge: BridgeLike, syncId: string) => Promise<unknown>, showMultiPlatformQuotaBlockedModal: (options: Record<string, unknown>) => void, showWechatsyncEnqueueAcceptedModal: (options: Record<string, unknown>) => void, showMultiPlatformSyncResultModal: (options: Record<string, unknown>) => void }} PublishViewLike
+ * @typedef {{ app?: unknown, currentHtml?: string, lastResolvedMarkdown?: string, sessionCoverBase64?: string, sessionThumbMediaId?: string, wechatMaterialCoverAssetCache?: Map<string, MaterialCoverCacheEntryLike>, articleStates: Map<string, Record<string, unknown>>, plugin: PluginLike, getMissingRenderNotice: () => string, preparePublishModalShell: (modal: PublishModalLike, options: Record<string, unknown>) => void, createPublishModeTabs: (modal: PublishModalLike, mode: string) => { wechatTab: ModalContentElementLike, feishuTab: ModalContentElementLike, multiPlatformTab: ModalContentElementLike }, showSyncModal: (options: Record<string, unknown>) => void, showFeishuSyncModal: (options: Record<string, unknown>) => void, prepareRednoteCardArticle: () => Promise<CardArticlePrepLike>, prepareXCardArticle: () => Promise<CardArticlePrepLike>, recordPublishStatus?: (file: FileLike, payload: PublishStatusPayloadLike) => Promise<void>, openPluginSettings: () => boolean, getPublishContextFile: () => FileLike | null, getFrontmatterPublishMeta: (file: FileLike | null) => PublishMetaLike, getCurrentExportHtml: () => string, getFirstImageFromArticle: () => string, prepareHtmlForWechatsyncArticleViaBridge: (html: string, assets: BridgeAssetLike[]) => Promise<string>, generateCoverThumbnailFromAsset: (asset: BridgeAssetLike) => Promise<string>, getWechatsyncTaskSnapshot: (bridge: BridgeLike, syncId: string) => Promise<unknown>, showMultiPlatformQuotaBlockedModal: (options: Record<string, unknown>) => void, showWechatsyncEnqueueAcceptedModal: (options: Record<string, unknown>) => void, showMultiPlatformSyncResultModal: (options: Record<string, unknown>) => void }} PublishViewLike
  */
 
 /**
@@ -130,7 +131,7 @@ function toReadableError(error) {
   }
   const record = toRecord(error);
   return {
-    message: toText(record.message) || String(error || ''),
+    message: toText(record.message) || toText(error),
     code: toText(record.code),
     stack: toText(record.stack),
   };
@@ -293,6 +294,7 @@ function isUnsupportedBridgeError(error) {
 
 /**
  * @param {number} [selectedCount]
+ * @param {Record<string, unknown> | null} [quota]
  * @returns {string}
  */
 function getQuotaHintText(selectedCount = 0, quota = null) {
@@ -405,7 +407,7 @@ function cloneMaterialCoverAsset(cachedAsset, id) {
  */
 async function downloadMaterialCoverAsBridgeAsset(view, coverUrl, assets = [], options = {}) {
   const viewRecord = toRecord(view);
-  const url = String(coverUrl || '').trim();
+  const url = toText(coverUrl).trim();
   if (!/^https?:\/\//i.test(url)) {
     throw new Error('微信素材库封面缺少可下载 URL，无法用于多平台发布。请改用本地封面或 frontmatter cover。');
   }
@@ -448,7 +450,7 @@ async function downloadMaterialCoverAsBridgeAsset(view, coverUrl, assets = [], o
   }
 
   const headers = toRecord(responseRecord.headers);
-  const mimeType = String(headers['content-type'] || headers['Content-Type'] || 'image/jpeg').split(';')[0].trim() || 'image/jpeg';
+  const mimeType = (toText(headers['content-type']) || toText(headers['Content-Type']) || 'image/jpeg').split(';')[0].trim() || 'image/jpeg';
   if (!/^image\/(png|jpe?g|gif|webp)$/i.test(mimeType)) {
     throw new Error(`微信素材库封面格式不支持：${mimeType}`);
   }
@@ -554,9 +556,9 @@ function getObsidianApi(view, options = {}) {
 /**
  * @param {PublishViewLike} view
  * @param {PublishModalOptionsLike} [options]
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function showMultiPlatformPublishModal(view, options = {}) {
+function showMultiPlatformPublishModal(view, options = {}) {
   const obsidian = getObsidianApi(view, options);
   const { Notice, Platform } = obsidian;
   if (!view.currentHtml) {
@@ -578,9 +580,7 @@ async function showMultiPlatformPublishModal(view, options = {}) {
     view.showSyncModal({ modal });
   };
   if (feishuTab) {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- reason: dynamic tab element click handler
     feishuTab.onclick = () => {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- reason: dynamic modal invocation
       view.showFeishuSyncModal({ modal });
     };
   }
@@ -610,7 +610,7 @@ async function showMultiPlatformPublishModal(view, options = {}) {
     settingsBtn.onclick = () => {
       modal.close();
       if (!view.openPluginSettings()) {
-        new Notice('请在设置中打开 Content Studio并开启浏览器插件发布');
+        new Notice('请在插件设置中开启浏览器插件发布');
       }
     };
     if (shouldOpenModal) modal.open();

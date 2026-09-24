@@ -16,6 +16,8 @@
 /** @typedef {import('../../input.js').AiSchemaValidationLike} AiSchemaValidationLike */
 /** @typedef {import('../../input.js').AiSettingsLike} AiSettingsLike */
 /** @typedef {import('../../input.js').VisibleAiLayoutSnapshotLike} VisibleAiLayoutSnapshotLike */
+// AI 编排面板额外读取的设置字段（input.js 的 AiSettingsLike 尚未收录 layoutModel / defaultStylePack）
+// 移除区块后用于恢复滚动位置的锚点（input.js 里 aiLayoutPendingAnchor 仅声明为 unknown）
 
 import { obsidianApi, getObsidianRequestUrl, getObsidianRequest } from '../../services/obsidian-adapters.js';
 import { normalizeVaultPath } from '../../services/path-utils.js';
@@ -53,6 +55,13 @@ const { Notice } = obsidianApi;
 
 // 源切换后短暂抑制 stale 提示的时长（ms）；随 markAiLayoutSourceSwitch 一并从 input.js 迁入。
 const AI_LAYOUT_SOURCE_SWITCH_STALE_SUPPRESS_MS = 700;
+
+/**
+ * 读取面板 select 控件的当前值。这些字段在 input.js 构造函数里声明为 HTMLElement，
+ * 而它们由 createEl('select') 创建并按 ObsidianInputLike 使用，这里统一收窄后取 value；控件不存在时返回空串。
+ * @param {HTMLElement | null | undefined} element
+ * @returns {string}
+ */
 
 /** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
 /** @satisfies {ThisType<AppleStyleViewInstance>} */
@@ -195,9 +204,10 @@ export const aiLayoutPanelMixin = {
         const pack = getColorPaletteById(palette.value);
         button.style.setProperty('--btn-color', pack?.tokens?.accent || '#7c3aed');
       }
-      button.addEventListener('click', async () => {
-        await this.onAiColorPaletteChange(palette.value);
-        if (isCustom) this.aiCustomColorInput?.click();
+      button.addEventListener('click', () => {
+        void this.onAiColorPaletteChange(palette.value).then(() => {
+          if (isCustom) this.aiCustomColorInput?.click();
+        });
       });
     });
     this.aiCustomColorInput = /** @type {ObsidianInputLike} */ (paletteControl.createEl('input', {
@@ -209,32 +219,31 @@ export const aiLayoutPanelMixin = {
       const nextColor = normalizeHexColor(getEventTargetValue(event, this.getAiCustomColor()), this.getAiCustomColor());
       this.plugin.settings.ai.customColor = nextColor;
     });
-    this.aiCustomColorInput.addEventListener('change', async (event) => {
+    this.aiCustomColorInput.addEventListener('change', (event) => {
       const nextColor = normalizeHexColor(getEventTargetValue(event, this.getAiCustomColor()), this.getAiCustomColor());
       this.plugin.settings.ai.customColor = nextColor;
-      await this.plugin.saveSettings();
-      await this.onAiColorPaletteChange('custom', { skipSave: true });
+      void this.plugin.saveSettings().then(() => this.onAiColorPaletteChange('custom', { skipSave: true }));
     });
     this.updateAiColorPaletteControls();
     this.aiLayoutFamilySelect.addEventListener('change', () => {
-      this.onAiLayoutFamilyChange(this.aiLayoutFamilySelect.value || this.plugin.settings.ai?.defaultLayoutFamily || AI_LAYOUT_SELECTION_AUTO);
+      this.onAiLayoutFamilyChange(this.aiLayoutFamilySelect?.value || this.plugin.settings.ai?.defaultLayoutFamily || AI_LAYOUT_SELECTION_AUTO);
     });
     this.aiColorPaletteSelect.addEventListener('change', () => {
-      this.onAiColorPaletteChange(this.aiColorPaletteSelect.value || this.plugin.settings.ai?.defaultColorPalette || AI_LAYOUT_SELECTION_AUTO);
+      void this.onAiColorPaletteChange(this.aiColorPaletteSelect?.value || this.plugin.settings.ai?.defaultColorPalette || AI_LAYOUT_SELECTION_AUTO);
     });
 
     const actionRow = area.createDiv({ cls: 'apple-ai-layout-actions' });
     this.aiGenerateBtn = actionRow.createEl('button', { cls: 'apple-btn-primary', text: '生成并应用' });
-    this.aiGenerateBtn.addEventListener('click', () => this.handleAiPrimaryAction());
+    this.aiGenerateBtn.addEventListener('click', () => { void this.handleAiPrimaryAction(); });
 
     this.aiRegenerateBtn = actionRow.createEl('button', { cls: 'apple-btn-secondary', text: '重新生成并应用' });
-    this.aiRegenerateBtn.addEventListener('click', () => this.generateAiLayoutForCurrentArticle({ applyAfterGenerate: true }));
+    this.aiRegenerateBtn.addEventListener('click', () => { void this.generateAiLayoutForCurrentArticle({ applyAfterGenerate: true }); });
 
     this.aiResetBtn = actionRow.createEl('button', { cls: 'apple-btn-secondary', text: '恢复普通预览' });
     this.aiResetBtn.addEventListener('click', () => this.restoreBasePreview());
 
     this.aiRestoreBlocksBtn = actionRow.createEl('button', { cls: 'apple-btn-secondary', text: '恢复已移除' });
-    this.aiRestoreBlocksBtn.addEventListener('click', () => this.restoreRemovedAiLayoutBlocks());
+    this.aiRestoreBlocksBtn.addEventListener('click', () => { void this.restoreRemovedAiLayoutBlocks(); });
 
     this.aiResultSection = area.createDiv({ cls: 'apple-ai-layout-section apple-ai-layout-result-section' });
     this.aiResultSection.createEl('label', { cls: 'apple-setting-label', text: '区块' });
@@ -271,15 +280,15 @@ export const aiLayoutPanelMixin = {
     this.aiCopyPromptBtn = debugTools.createEl('button', {
       cls: 'apple-ai-layout-debug-copy',
       text: '复制给 AI',
-      title: '复制一份包含文章摘录、布局摘要和调试信息的排查 Prompt',
+      title: '复制一份包含文章摘录、布局摘要和调试信息的排查提示词',
     });
-    this.aiCopyPromptBtn.addEventListener('click', () => this.copyAiLayoutPromptContext());
+    this.aiCopyPromptBtn.addEventListener('click', () => { void this.copyAiLayoutPromptContext(); });
     this.aiCopyDebugBtn = debugTools.createEl('button', {
       cls: 'apple-ai-layout-debug-copy',
       text: '复制当前内容',
       title: '复制当前调试面板内容',
     });
-    this.aiCopyDebugBtn.addEventListener('click', () => this.copyAiLayoutDebugSnapshot());
+    this.aiCopyDebugBtn.addEventListener('click', () => { void this.copyAiLayoutDebugSnapshot(); });
     this.aiDebugPanelBody = this.aiDebugPanel.createEl('pre', { cls: 'apple-ai-layout-debug-body' });
 
     this.aiLayoutLoadingMask = parent.createDiv({ cls: 'apple-ai-layout-loading-mask' });
@@ -389,7 +398,7 @@ export const aiLayoutPanelMixin = {
   /**
    * @param {string} value
    */
-  async onAiLayoutFamilyChange(value) {
+  onAiLayoutFamilyChange(value) {
     const nextValue = value || this.plugin.settings.ai?.defaultLayoutFamily || AI_LAYOUT_SELECTION_AUTO;
     this.pendingAiLayoutFamily = nextValue;
     if (this.aiLayoutFamilySelect && this.aiLayoutFamilySelect.value !== nextValue) {
@@ -727,7 +736,7 @@ export const aiLayoutPanelMixin = {
       if (!this.baseRenderedHtml) {
         await this.convertCurrent(true, { showLoading: false });
       }
-      const aiSettings = this.plugin.settings.ai || createDefaultAiSettings();
+      const aiSettings = /** @type {AiSettingsLike} */ (this.plugin.settings.ai || createDefaultAiSettings());
       const baseProvider = resolveAiProvider(aiSettings);
       // AI 编排用自己的模型质量(layoutModel)覆盖 provider 的默认模型
       const provider = baseProvider
@@ -920,19 +929,20 @@ export const aiLayoutPanelMixin = {
    * @param {AiLayoutContextLike} [context]
    * @returns {{ layoutFamily: string, state: AiLayoutStateLike, label: string, isCurrentContent: boolean, isStaleContent: boolean, fromAuto: boolean, updatedAt: number }[]}
    */
-  getCachedAiLayoutFamilyItems(context = this.getCurrentLayoutContext()) {
+  getCachedAiLayoutFamilyItems(context) {
+    const layoutContext = context || this.getCurrentLayoutContext();
     const entry = this.getCurrentArticleLayoutCacheEntry();
     if (!entry?.familyStates) return [];
     return Object.entries(entry.familyStates)
       .map(([layoutFamily, state]) => {
         const typedState = toAiLayoutState(state);
         if (!typedState?.layoutJson?.blocks?.length) return null;
-        const isCurrentContent = !!(context.sourceHash && typedState.sourceHash && typedState.sourceHash === context.sourceHash);
+        const isCurrentContent = !!(layoutContext.sourceHash && typedState.sourceHash && typedState.sourceHash === layoutContext.sourceHash);
         const isStaleContent = !!(
-          !context.isStaleSuppressed
-          && context.sourceHash
+          !layoutContext.isStaleSuppressed
+          && layoutContext.sourceHash
           && typedState.sourceHash
-          && typedState.sourceHash !== context.sourceHash
+          && typedState.sourceHash !== layoutContext.sourceHash
         );
         const fromAuto = typedState.selection?.layoutFamily === AI_LAYOUT_SELECTION_AUTO;
         return {
@@ -1182,8 +1192,13 @@ export const aiLayoutPanelMixin = {
     return `${header}${this.buildAiLayoutErrorDetails({ state, providerLabel, modelLabel, isStale })}`;
   },
 
+  /**
+   * @param {string} markdown
+   * @param {number} [maxLength]
+   * @returns {string}
+   */
   truncateAiPromptMarkdown(markdown, maxLength = 1600) {
-    const normalized = String(markdown || '').trim();
+    const normalized = (markdown || '').trim();
     if (!normalized) return '';
     return normalized.length > maxLength
       ? `${normalized.slice(0, maxLength - 1)}…`
@@ -1334,16 +1349,16 @@ export const aiLayoutPanelMixin = {
     });
 
     if (!payload) {
-      new Notice('当前还没有可用的 AI 编排结果，暂时无法生成 Prompt 上下文');
+      new Notice('当前还没有可用的 AI 编排结果，暂时无法生成提示词上下文');
       return;
     }
 
     try {
       const copied = await this.copyPlainTextSnapshot(payload);
       if (!copied) throw new Error('clipboard unavailable');
-      new Notice('✅ Prompt 上下文已复制');
+      new Notice('✅ 提示词上下文已复制');
     } catch {
-      new Notice('❌ Prompt 上下文复制失败，请检查剪贴板权限');
+      new Notice('❌ 提示词上下文复制失败，请检查剪贴板权限');
     }
   },
 
@@ -1382,7 +1397,7 @@ export const aiLayoutPanelMixin = {
       this.aiDebugPanelBody.setText('');
       if (this.aiCopyPromptBtn) {
         this.aiCopyPromptBtn.setText('复制给 AI');
-        this.aiCopyPromptBtn.title = '复制一份包含文章摘录、布局摘要和调试信息的排查 Prompt';
+        this.aiCopyPromptBtn.title = '复制一份包含文章摘录、布局摘要和调试信息的排查提示词';
       }
       if (this.aiCopyDebugBtn) {
         this.aiCopyDebugBtn.setText('复制当前内容');
@@ -1397,8 +1412,8 @@ export const aiLayoutPanelMixin = {
     if (this.aiCopyPromptBtn) {
       this.aiCopyPromptBtn.setText('复制给 AI');
       this.aiCopyPromptBtn.title = this.aiLayoutDebugMode === 'error'
-        ? '复制一份包含错误详情、文章摘录和布局摘要的排查 Prompt'
-        : '复制一份包含布局 JSON、文章摘录和布局摘要的排查 Prompt';
+        ? '复制一份包含错误详情、文章摘录和布局摘要的排查提示词'
+        : '复制一份包含布局 JSON、文章摘录和布局摘要的排查提示词';
     }
     if (this.aiLayoutDebugMode === 'json') {
       this.aiDebugPanelTitle.setText('布局 JSON');
@@ -1421,7 +1436,7 @@ export const aiLayoutPanelMixin = {
   refreshAiLayoutPanel() {
     if (!this.aiLayoutStatusBadge || !this.aiLayoutSummary || !this.aiBlockList) return;
 
-    const aiSettings = this.plugin.settings.ai || createDefaultAiSettings();
+    const aiSettings = /** @type {AiSettingsLike} */ (this.plugin.settings.ai || createDefaultAiSettings());
     const provider = resolveAiProvider(aiSettings);
     const configuredProviders = Array.isArray(aiSettings.providers) ? aiSettings.providers.length : 0;
     const context = this.getCurrentLayoutContext();
@@ -1443,7 +1458,7 @@ export const aiLayoutPanelMixin = {
       && context.sourcePath
       && (!state || ((state.status === 'error' || state.status === 'schema-error') && !(state.layoutJson?.blocks?.length)))
     ) {
-      this.recoverSourceFirstLayoutState(state, effectiveSelection, context);
+      void this.recoverSourceFirstLayoutState(state, effectiveSelection, context);
     }
     const generationMeta = state?.generationMeta || null;
     const schemaValidation = this.getVisibleAiSchemaValidation(state);
@@ -1753,7 +1768,7 @@ export const aiLayoutPanelMixin = {
             cls: 'apple-ai-layout-block-remove',
             text: '移除',
           });
-          removeBtn.addEventListener('click', () => this.removeAiLayoutBlock(origin.originalIndex, item));
+          removeBtn.addEventListener('click', () => { void this.removeAiLayoutBlock(origin.originalIndex, item); });
         }
       });
     } else {
@@ -1837,7 +1852,7 @@ export const aiLayoutPanelMixin = {
     }
   },
   async generateAiLayoutForCurrentArticle({ applyAfterGenerate = false } = {}) {
-    const aiSettings = this.plugin.settings.ai || createDefaultAiSettings();
+    const aiSettings = /** @type {AiSettingsLike} */ (this.plugin.settings.ai || createDefaultAiSettings());
     const context = await this.ensureCurrentArticleContext();
     if (!context) {
       new Notice('请先打开一篇有内容的 Markdown 文章');
@@ -1859,7 +1874,7 @@ export const aiLayoutPanelMixin = {
       ? { ...baseProvider, model: aiSettings.layoutModel || baseProvider.model }
       : baseProvider;
     if (selection.layoutFamily !== 'source-first' && !provider) {
-      new Notice('请先在插件设置中配置并启用 AI Provider');
+      new Notice('请先在插件设置中配置并启用 AI 服务商');
       return;
     }
     const originalText = this.aiGenerateBtn?.textContent;

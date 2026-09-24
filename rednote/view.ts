@@ -7,6 +7,7 @@
 // (views/settings-panel/rednote-settings-panel.js),通过本类的公开方法调用。
 // 「锁定实时预览」概念一并移除,与公众号侧一致:始终实时渲染(防抖 500ms)。
 import { App, Component, MarkdownRenderer, TFile, Notice } from 'obsidian';
+import type { TAbstractFile } from 'obsidian';
 import { RedConverter } from './converter.ts';
 import { DownloadManager } from './downloadManager.ts';
 import type { ThemeManager } from './themeManager.ts';
@@ -14,6 +15,7 @@ import type { SettingsManager } from './settings/settings.ts';
 import { ClipboardManager } from './clipboardManager.ts';
 import { ImgTemplateManager } from './imgTemplateManager.ts';
 import { BackgroundSettingModal } from './modals/BackgroundSettingModal.ts';
+import type { BackgroundSettings } from './modals/BackgroundSettingModal.ts';
 import { BackgroundManager } from './backgroundManager.ts';
 import { renderMemoHeader } from './memoHeader.ts';
 import { fitCards, overflowLines, listOverflowingPages } from './cardFit.ts';
@@ -65,7 +67,7 @@ export class RedPreviewController {
         this.backgroundManager = new BackgroundManager();
         this.imgTemplateManager = new ImgTemplateManager(
             this.settingsManager,
-            this.updatePreview.bind(this),
+            () => this.updatePreview(),
             this.themeManager
         );
 
@@ -164,39 +166,45 @@ export class RedPreviewController {
 
     private initializeEventListeners() {
         this.hostComponent.registerEvent(
-            this.app.workspace.on('file-open', this.onFileOpen.bind(this))
+            this.app.workspace.on('file-open', (file) => this.onFileOpen(file))
         );
         this.hostComponent.registerEvent(
-            this.app.vault.on('modify', this.onFileModify.bind(this))
+            this.app.vault.on('modify', (file) => this.onFileModify(file))
         );
         this.initializeCopyButtonListener();
     }
 
     private initializeCopyButtonListener() {
-        const copyButtonHandler = async (e: CustomEvent) => {
+        // converter.ts 派发的 copy-button-added 事件:detail 携带刚创建的复制按钮
+        const copyButtonHandler = (e: CustomEvent<{ copyButton?: HTMLButtonElement }>) => {
             const { copyButton } = e.detail;
             if (copyButton) {
-                copyButton.addEventListener('click', async () => {
-                    copyButton.disabled = true;
-                    try {
-                        await ClipboardManager.copyImageToClipboard(this.previewEl);
-                        new Notice('图片已复制到剪贴板');
-                    } catch (error) {
-                        new Notice('复制失败');
-                        console.error('复制图片失败:', error);
-                    } finally {
-                        window.setTimeout(() => {
-                            copyButton.disabled = false;
-                        }, 1000);
-                    }
+                copyButton.addEventListener('click', () => {
+                    void this.copyPreviewToClipboard(copyButton);
                 });
             }
         };
 
-        this.rootEl.addEventListener('copy-button-added', copyButtonHandler as EventListener);
+        this.rootEl.addEventListener('copy-button-added', copyButtonHandler);
         this.hostComponent.register(() => {
-            this.rootEl.removeEventListener('copy-button-added', copyButtonHandler as EventListener);
+            this.rootEl.removeEventListener('copy-button-added', copyButtonHandler);
         });
+    }
+
+    /** 复制按钮点击:把当前预览导出为图片写入剪贴板,期间禁用按钮防连点 */
+    private async copyPreviewToClipboard(copyButton: HTMLButtonElement) {
+        copyButton.disabled = true;
+        try {
+            await ClipboardManager.copyImageToClipboard(this.previewEl);
+            new Notice('图片已复制到剪贴板');
+        } catch (error) {
+            new Notice('复制失败');
+            console.error('复制图片失败:', error);
+        } finally {
+            window.setTimeout(() => {
+                copyButton.disabled = false;
+            }, 1000);
+        }
     }
     // #endregion
 
@@ -296,18 +304,23 @@ export class RedPreviewController {
         const currentSettings = this.settingsManager.getSettings().backgroundSettings;
         new BackgroundSettingModal(
             this.app,
-            async (backgroundSettings) => {
-                await this.settingsManager.updateSettings({ backgroundSettings });
-                const imagePreview = this.previewEl.querySelector('.red-image-preview') as HTMLElement;
-                this.backgroundManager.applyBackgroundStyles(
-                    imagePreview,
-                    backgroundSettings
-                );
+            (backgroundSettings) => {
+                void this.applyBackgroundSettings(backgroundSettings);
             },
             this.previewEl,
             this.backgroundManager,
             currentSettings
         ).open();
+    }
+
+    /** 背景弹窗确认后:持久化设置并把背景样式套到当前预览卡片 */
+    private async applyBackgroundSettings(backgroundSettings: BackgroundSettings) {
+        await this.settingsManager.updateSettings({ backgroundSettings });
+        const imagePreview = this.previewEl.querySelector<HTMLElement>('.red-image-preview');
+        this.backgroundManager.applyBackgroundStyles(
+            imagePreview,
+            backgroundSettings
+        );
     }
 
     /** 导出前提示仍溢出的页（不阻断）；only 给定时只看这些页 */
@@ -403,13 +416,14 @@ export class RedPreviewController {
         await this.updatePreview();
     }
 
-    async onFileModify(file: TFile) {
+    /** vault modify 事件回调:防抖 500ms 后重渲染(事件给的是 TAbstractFile,与当前文件按引用比较) */
+    onFileModify(file: TAbstractFile) {
         if (file === this.currentFile) {
             if (this.updateTimer) {
                 window.clearTimeout(this.updateTimer);
             }
             this.updateTimer = window.setTimeout(() => {
-                this.updatePreview();
+                void this.updatePreview();
             }, 500);
         }
     }

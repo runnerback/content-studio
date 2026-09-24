@@ -14,22 +14,22 @@ export { DownloadManager } from './downloadManager.ts';
 export { ClipboardManager } from './clipboardManager.ts';
 export { ImgTemplateManager } from './imgTemplateManager.ts';
 export { BackgroundManager } from './backgroundManager.ts';
-export { RedSettingTab } from './settings/SettingTab.ts';
+export { RedSettingsPanel } from './settings/RedSettingsPanel.ts';
 export type { RednoteHost } from './host.ts';
 
 /**
  * 宿主 plugin 需满足:settings(含 rednote 命名空间)+ saveSettings()。
  * 返回的 managers 请挂在宿主 plugin 上(settingsManager / themeManager),
- * 供 SettingTab / CreateThemeModal / 预览层复用。
+ * 供 RedSettingsPanel / CreateThemeModal / 预览层复用。
  */
 export async function createRednoteManagers(app: App, hostPlugin: {
     settings: Record<string, unknown>;
-    saveSettings: () => Promise<void>;
+    saveSettings: () => Promise<unknown>;
 }) {
-    const settingsManager = new SettingsManager(hostPlugin as never);
+    const settingsManager = new SettingsManager(hostPlugin);
     await settingsManager.loadSettings();
     const themeManager = new ThemeManager(app, settingsManager);
     // RedConverter 是静态类:初始化一次,渲染 HTML 时按 host(themeManager)取样式
-    RedConverter.initialize(app, { settingsManager, themeManager } as never);
+    RedConverter.initialize(app, { settingsManager, themeManager });
     return { settingsManager, themeManager };
 }

@@ -1,3 +1,5 @@
+import { toText } from './input-utils.js';
+
 /**
  * @typedef {Record<string, unknown>} UnknownRecord
  * @typedef {Record<string, string>} HeaderRecord
@@ -53,7 +55,7 @@ function normalizeHeaders(headers) {
     return result;
   }
   const source = asRecord(headers);
-  return /** @type {HeaderRecord} */ (Object.fromEntries(Object.entries(source).map(([key, value]) => [key, String(value)])));
+  return /** @type {HeaderRecord} */ (Object.fromEntries(Object.entries(source).map(([key, value]) => [key, toText(value)])));
 }
 
 /**
@@ -64,14 +66,14 @@ function normalizeHeaders(headers) {
 function getHeaderValue(headers, name) {
   const normalized = normalizeHeaders(headers);
   if (!normalized) return undefined;
-  const target = String(name || '').toLowerCase();
+  const target = toText(name).toLowerCase();
   const match = Object.keys(normalized).find((key) => key.toLowerCase() === target);
   return match ? String(normalized[match]) : undefined;
 }
 
 /** @param {unknown} text */
 function findFirstJsonContainer(text) {
-  const source = String(text || '');
+  const source = toText(text);
   const objectStart = source.indexOf('{');
   const arrayStart = source.indexOf('[');
   if (objectStart === -1) return arrayStart;
@@ -84,7 +86,7 @@ function findFirstJsonContainer(text) {
  * @param {number} startIndex
  */
 function findJsonContainerEnd(text, startIndex) {
-  const source = String(text || '');
+  const source = toText(text);
   const firstChar = source[startIndex];
   const stack = firstChar === '{' ? ['}'] : firstChar === '[' ? [']'] : [];
   if (!stack.length) return -1;
@@ -133,7 +135,7 @@ function findJsonContainerEnd(text, startIndex) {
 
 /** @param {unknown} text */
 export function parseJsonResponseText(text) {
-  const source = String(text || '');
+  const source = toText(text);
   if (!source.trim()) return null;
 
   try {
@@ -175,7 +177,7 @@ function resolveRequestImplementations(requestSource) {
 export function isJsonParseFailure(error) {
   if (error instanceof SyntaxError) return true;
   const source = asRecord(error);
-  const message = String(source.message || error || '');
+  const message = toText(source.message) || toText(error);
   return /json|unexpected non-whitespace|unexpected token|parse/i.test(message);
 }
 
@@ -236,7 +238,7 @@ export function createObsidianFetchAdapter(requestSource) {
         throw: false,
       };
       /** @param {Promise<unknown>} promise */
-      const withAbort = (promise) => (abortPromise ? Promise.race([promise, abortPromise]) : promise);
+      const withAbort = (promise) => (abortPromise !== null ? Promise.race([promise, abortPromise]) : promise);
       /** @type {ObsidianResponse} */
       let response;
       try {
@@ -253,7 +255,7 @@ export function createObsidianFetchAdapter(requestSource) {
         };
       }
       const responseText = response?.text !== undefined
-        ? String(response.text)
+        ? toText(response.text)
         : (response?.json !== undefined ? JSON.stringify(response.json) : '');
 
       return {
@@ -261,11 +263,12 @@ export function createObsidianFetchAdapter(requestSource) {
         status: response.status,
         statusText: String(response.status || ''),
         headers: response.headers || {},
-        text: async () => responseText,
-        json: async () => {
+        text: () => Promise.resolve(responseText),
+        // 保持 Promise 语义：解析失败时抛出的同步错误转成 rejection
+        json: () => Promise.resolve().then(() => {
           if (response?.json !== undefined) return /** @type {unknown} */ (response.json);
           return parseJsonResponseText(responseText);
-        },
+        }),
       };
     } finally {
       if (signal && abortHandler) {

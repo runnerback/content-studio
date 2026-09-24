@@ -21,6 +21,10 @@ const { loadInputModule } = require('./helpers/input-module.cjs');
 const { AppleStyleSettingTab } = loadInputModule();
 const { MULTI_PLATFORM_TAB_LABEL } = await import('../services/settings-defaults.js');
 
+// 设置项的 action / onDelete 回调是 fire-and-forget（内部 void 一个 async 方法），
+// 测试用一个宏任务等待其 await 链（确认弹窗 → saveSettings → update）跑完
+const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 function makeMinimalSettings(overrides = {}) {
   return {
     theme: 'github',
@@ -251,11 +255,11 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
       .find((button) => button.textContent === '删除');
     expect(deleteButton).toBeDefined();
 
-    const pending = deleteButton.onclick();
+    deleteButton.onclick();
     const modal = globalThis.__obsidianModalRegistry.at(-1);
     expect(modal.titleEl.textContent).toBe('删除 AI Provider');
     modal.contentEl.querySelector('button').click();
-    await pending;
+    await flushPromises();
 
     expect(plugin.settings.ai.providers).toHaveLength(1);
     expect(plugin.saveSettings).not.toHaveBeenCalled();
@@ -286,12 +290,12 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     const deleteButton = Array.from(pageEl(tab, 'AI Provider 与编排').querySelectorAll('button'))
       .find((button) => button.textContent === '删除');
 
-    const pending = deleteButton.onclick();
+    deleteButton.onclick();
     const modal = globalThis.__obsidianModalRegistry.at(-1);
     const confirmButton = Array.from(modal.contentEl.querySelectorAll('button'))
       .find((button) => button.textContent === '删除');
     confirmButton.click();
-    await pending;
+    await flushPromises();
 
     expect(plugin.settings.ai.providers).toEqual([]);
     expect(plugin.settings.ai.defaultProviderId).toBe('');
@@ -325,14 +329,14 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     expect(clearButton).toBeDefined();
     expect(globalThis.__obsidianSettingNamesRegistry).not.toContain('AI 编排缓存');
 
-    const pending = clearButton.clickHandler();
+    clearButton.clickHandler();
     const modal = globalThis.__obsidianModalRegistry.at(-1);
     expect(modal.titleEl.textContent).toBe('清空 AI 编排缓存');
     expect(plugin.saveSettings).not.toHaveBeenCalled();
     const confirmButton = Array.from(modal.contentEl.querySelectorAll('button'))
       .find((button) => button.textContent === '清空');
     confirmButton.click();
-    await pending;
+    await flushPromises();
 
     expect(plugin.settings.ai.articleLayoutsByPath).toEqual({});
     expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
@@ -359,7 +363,8 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     const clearButton = findButton('清除本地头像');
     expect(clearButton).toBeDefined();
 
-    await clearButton.clickHandler();
+    clearButton.clickHandler();
+    await flushPromises();
 
     expect(plugin.settings.avatarBase64).toBe('');
     expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
@@ -739,7 +744,7 @@ describe('multi-platform settings page - license and quota', () => {
     const names = globalThis.__obsidianSettingNamesRegistry;
     // 顺序：先兑换、后密钥（兑换成功自动填入）
     const redeemIdx = names.indexOf('第一步：用爱发电订单号兑换密钥');
-    const keyIdx = names.indexOf('第二步：许可密钥（Pro / Max）');
+    const keyIdx = names.indexOf('第二步：许可密钥（付费档）');
     expect(redeemIdx).toBeGreaterThan(-1);
     expect(keyIdx).toBeGreaterThan(redeemIdx);
     expect(page.containerEl.querySelector('.wechat-multiplatform-quota-status').textContent).toContain('连接浏览器插件后显示');

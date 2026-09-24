@@ -4,21 +4,36 @@
 // (Phase 1 of the input.js split). No coupling to Obsidian API singletons,
 // module globals, or view state — safe to import anywhere.
 
+/** @typedef {{ message: string, isFatal?: boolean, isProxyAuth?: boolean }} ReadableErrorLike */
+/** @typedef {{ status: number, json?: unknown, text: string, arrayBuffer?: () => Promise<ArrayBuffer>, headers: Record<string, string> }} RequestUrlResponseLike */
+
+/**
+ * 任意值转字符串：string 原样；number/boolean/bigint 用 String()；null/undefined/对象/函数/symbol 一律 ''。
+ * 用于替代 `String(value || '')`（对象会变成 '[object Object]'，且触发 no-base-to-string）。
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function toText(value) {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') return String(value);
+  return '';
+}
+
 /**
  * @param {unknown} error
- * @returns {import('./types.js').ReadableErrorLike | Error}
+ * @returns {ReadableErrorLike}
  */
 export function toReadableError(error) {
-  if (error instanceof Error) return /** @type {any} */ (error);
+  if (error instanceof Error) return error;
   if (error && typeof error === 'object') {
     const record = /** @type {{ message?: unknown, isFatal?: unknown, isProxyAuth?: unknown }} */ (error);
     return {
-      message: typeof record.message === 'string' ? record.message : String(error),
+      message: typeof record.message === 'string' ? record.message : toText(record.message),
       isFatal: record.isFatal === true,
       isProxyAuth: record.isProxyAuth === true,
     };
   }
-  return { message: String(error || '') };
+  return { message: toText(error) };
 }
 
 /**
@@ -37,53 +52,59 @@ export function toRecord(value) {
   return isRecord(value) ? value : {};
 }
 
+/** @typedef {import('../input.js').AiLayoutStateLike} AiLayoutStateLike */
+/** @typedef {import('../input.js').AiLayoutJsonLike} AiLayoutJsonLike */
+/** @typedef {import('../input.js').AiLayoutBlockLike} AiLayoutBlockLike */
+/** @typedef {import('../input.js').AiLayoutGenerationMetaLike} AiLayoutGenerationMetaLike */
+/** @typedef {import('../input.js').AiLayoutSelectionLike} AiLayoutSelectionLike */
+
 /**
  * @param {unknown} value
- * @returns {any}
+ * @returns {AiLayoutStateLike | null}
  */
 export function toAiLayoutState(value) {
-  return isRecord(value) ? value : null;
+  return isRecord(value) ? /** @type {AiLayoutStateLike} */ (value) : null;
 }
 
 /**
  * @param {unknown} value
- * @returns {any}
+ * @returns {AiLayoutJsonLike | null}
  */
 export function toAiLayoutJson(value) {
-  return isRecord(value) ? value : null;
+  return isRecord(value) ? /** @type {AiLayoutJsonLike} */ (value) : null;
 }
 
 /**
  * @param {unknown} value
- * @returns {any}
+ * @returns {AiLayoutBlockLike}
  */
 export function toAiLayoutBlock(value) {
-  return isRecord(value) ? value : {};
+  return isRecord(value) ? /** @type {AiLayoutBlockLike} */ (value) : {};
 }
 
 /**
  * @param {unknown} value
- * @returns {any}
+ * @returns {AiLayoutGenerationMetaLike | null}
  */
 export function toAiLayoutGenerationMeta(value) {
-  return isRecord(value) ? value : null;
+  return isRecord(value) ? /** @type {AiLayoutGenerationMetaLike} */ (value) : null;
 }
 
 /**
  * @param {unknown} value
- * @returns {any}
+ * @returns {AiLayoutSelectionLike}
  */
 export function toAiLayoutSelection(value) {
-  return isRecord(value) ? value : {};
+  return isRecord(value) ? /** @type {AiLayoutSelectionLike} */ (value) : {};
 }
 
 /**
  * @param {unknown} value
- * @returns {Record<string, any>}
+ * @returns {Record<string, AiLayoutStateLike>}
  */
 export function toAiLayoutFamilyStates(value) {
   if (!isRecord(value)) return {};
-  return /** @type {Record<string, any>} */ (value);
+  return /** @type {Record<string, AiLayoutStateLike>} */ (value);
 }
 
 /**
@@ -140,7 +161,7 @@ export function parseJsonRecord(value) {
 
 /**
  * @param {unknown} response
- * @returns {import('./types.js').RequestUrlResponseLike}
+ * @returns {RequestUrlResponseLike}
  */
 export function normalizeRequestUrlResponse(response) {
   const record = toRecord(response);
@@ -156,7 +177,7 @@ export function normalizeRequestUrlResponse(response) {
 }
 
 /**
- * @param {import('./types.js').RequestUrlResponseLike} response
+ * @param {RequestUrlResponseLike} response
  * @returns {Record<string, unknown>}
  */
 export function getResponseJsonRecord(response) {
@@ -164,7 +185,7 @@ export function getResponseJsonRecord(response) {
 }
 
 /**
- * @param {import('./types.js').RequestUrlResponseLike} response
+ * @param {RequestUrlResponseLike} response
  * @returns {string}
  */
 export function getProxyErrorMessage(response) {
@@ -194,7 +215,7 @@ export function createProxyError(message, isAuthFailure) {
  */
 export function formatWechatApiError(data) {
   const errmsg = typeof data.errmsg === 'string' ? data.errmsg : JSON.stringify(data);
-  const errcode = data.errcode ?? 'N/A';
+  const errcode = toText(data.errcode) || 'N/A';
   return `${errmsg} (${errcode})`;
 }
 
@@ -287,7 +308,7 @@ export async function pMap(array, mapper, concurrency = 3) {
     // Fix: Ensure cleanup happens regardless of success or failure
     // If error occurs, mark as failed to stop scheduling new tasks
     const e = p.catch(() => { isFailed = true; }).then(() => {
-      executing.splice(executing.indexOf(e), 1);
+      void executing.splice(executing.indexOf(e), 1);
     });
     executing.push(e);
     if (executing.length >= concurrency) {

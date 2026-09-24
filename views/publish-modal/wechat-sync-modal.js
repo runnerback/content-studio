@@ -14,9 +14,11 @@
 /** @typedef {import('../../input.js').SyncModalOptionsLike} SyncModalOptionsLike */
 /** @typedef {import('../../input.js').WechatAccountLike} WechatAccountLike */
 /** @typedef {import('../../input.js').WechatMaterialSelectionLike} WechatMaterialSelectionLike */
+/** @typedef {import('../../input.js').AiSettingsLike} AiSettingsLike */
+/** @typedef {import('./cover-picker.js').ReferencedImageLike} ReferencedImageLike */
 
 import { obsidianApi, getObsidianModalClass, createObsidianModal, isMobileClient, getActiveDocumentCompat, getObsidianRequestUrl } from '../../services/obsidian-adapters.js';
-import { isRecord } from '../../services/input-utils.js';
+import { isRecord, toReadableError } from '../../services/input-utils.js';
 import { resolveSyncAccount } from '../../services/sync-context.js';
 import { htmlToText, getEventTargetValue } from '../../services/dom-utils.js';
 import { MULTI_PLATFORM_TAB_LABEL } from '../../services/settings-defaults.js';
@@ -73,7 +75,7 @@ export const wechatSyncModalMixin = {
     settingsBtn.onclick = () => {
       modal.close();
       if (!this.openPluginSettings()) {
-        new Notice('请在设置中打开 Content Studio并配置公众号账号');
+        new Notice('请在插件设置中配置公众号账号');
       }
     };
 
@@ -140,7 +142,7 @@ export const wechatSyncModalMixin = {
   /**
    * @param {ModalLike} modal
    * @param {string} [activeMode]
-   * @returns {{ wechatTab: ObsidianElementLike, multiPlatformTab: ObsidianElementLike }}
+   * @returns {{ wechatTab: ObsidianElementLike, feishuTab: ObsidianElementLike, multiPlatformTab: ObsidianElementLike }}
    */
   createPublishModeTabs(modal, activeMode = 'wechat') {
     const publishModeTabs = modal.contentEl.createDiv({ cls: 'wechat-publish-mode-tabs' });
@@ -163,6 +165,7 @@ export const wechatSyncModalMixin = {
 
   /**
    * @param {SyncModalOptionsLike} [options]
+   * @returns {void}
    */
   showSyncModal(options = {}) {
     if (!this.currentHtml) {
@@ -187,7 +190,6 @@ export const wechatSyncModalMixin = {
       this.preparePublishModalShell(modal, { mode: 'wechat', mobileSync });
       const { feishuTab, multiPlatformTab } = this.createPublishModeTabs(modal, 'wechat');
       if (feishuTab) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- reason: dynamic tab element click handler
         feishuTab.onclick = () => this.showFeishuSyncModal({ modal });
       }
       multiPlatformTab.onclick = () => this.showMultiPlatformSyncModal({ modal });
@@ -211,7 +213,6 @@ export const wechatSyncModalMixin = {
 
     const { feishuTab, multiPlatformTab } = this.createPublishModeTabs(modal, 'wechat');
     if (feishuTab) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- reason: dynamic tab element click handler
       feishuTab.onclick = () => {
         this.showFeishuSyncModal({ modal });
       };
@@ -344,7 +345,7 @@ export const wechatSyncModalMixin = {
     // 标题 AI 润色：根据正文让 LLM 给 5 个候选标题，点击采用。
     // 设置里关闭「启用标题 AI 润色」时，整块按钮不渲染。
     if (this.plugin.settings.titlePolishEnabled !== false) {
-    const polishBtn = /** @type {any} */ (titleSection.createEl('button', {
+    const polishBtn = /** @type {ObsidianInputLike} */ (titleSection.createEl('button', {
       cls: 'wechat-title-polish-btn',
       text: '✨ AI 润色标题',
     }));
@@ -352,10 +353,10 @@ export const wechatSyncModalMixin = {
 
     polishBtn.onclick = async () => {
       // 复用「默认 AI Provider」的 key/baseUrl；标题润色模型单独取 titlePolishModel
-      const ai = this.plugin.settings.ai || {};
+      const ai = /** @type {Partial<AiSettingsLike>} */ (this.plugin.settings.ai || {});
       const provider = (ai.providers || []).find((p) => p.id === ai.defaultProviderId);
       if (!provider || !provider.apiKey || !provider.baseUrl) {
-        new Notice('请先在插件设置 →「AI 编排」里添加并选中一个默认 AI Provider（填好 API Key）');
+        new Notice('请先在插件设置 →「AI 编排」里添加并选中一个默认 AI 服务商（填好 API 密钥）');
         return;
       }
       const originalText = polishBtn.textContent;
@@ -383,7 +384,7 @@ export const wechatSyncModalMixin = {
         });
         suggestBox.classList.remove('is-hidden');
       } catch (e) {
-        new Notice(`标题润色失败：${e?.message || e}`, 8000);
+        new Notice(`标题润色失败：${toReadableError(e).message}`, 8000);
       } finally {
         polishBtn.disabled = false;
         polishBtn.textContent = originalText;
@@ -608,7 +609,7 @@ export const wechatSyncModalMixin = {
       }
 
       const api = new WechatAPI(account.appId, account.appSecret, this.plugin.settings.proxyUrl, this.plugin.settings.clientId);
-      await this.showMaterialPickerModal(api, (material) => {
+      await this.showMaterialPickerModal(api, /** @param {WechatMaterialSelectionLike} material */ (material) => {
         thumbMediaId = material.mediaId;
         coverBase64 = material.url || '';
         materialCover = {
@@ -632,7 +633,7 @@ export const wechatSyncModalMixin = {
         new Notice('未找到当前笔记，无法读取本篇引用的图片');
         return;
       }
-      await this.showReferencedImagePickerModal(activeFile, (image) => {
+      await this.showReferencedImagePickerModal(activeFile, /** @param {ReferencedImageLike} image */ (image) => {
         coverBase64 = image.src;
         thumbMediaId = '';
         materialCover = null;

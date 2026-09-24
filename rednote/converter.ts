@@ -24,7 +24,7 @@ export class RedConverter {
         
         if (headers.length === 0) {
             element.empty();
-            const tip = element.createDiv({
+            element.createDiv({
                 cls: 'red-empty-message',
                 text: `⚠️ 温馨提示
                         请使用${headingLevel === 'h1' ? '一级标题(#)' : '二级标题(##)'}来分割内容
@@ -109,7 +109,7 @@ export class RedConverter {
         const headingLevel = settings?.headingLevel || 'h1';
         
         // 获取当前标题到下一个标题之间的所有内容
-        let content: Element[] = [];
+        const content: Element[] = [];
         let current = header.nextElementSibling;
         
         while (current && current.tagName !== headingLevel.toUpperCase()) {
@@ -248,7 +248,7 @@ export class RedConverter {
         });
 
         // 处理图片
-        container.querySelectorAll('span.internal-embed[alt][src]').forEach(async el => {
+        container.querySelectorAll('span.internal-embed[alt][src]').forEach(el => {
             const originalSpan = el as HTMLElement;
             const src = originalSpan.getAttribute('src');
             const alt = originalSpan.getAttribute('alt');

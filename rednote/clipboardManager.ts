@@ -1,4 +1,5 @@
 import * as htmlToImage from 'html-to-image';
+import { toReadableError } from '../services/input-utils.js';
 
 export class ClipboardManager {
     private static getExportConfig(imageElement: HTMLElement) {
@@ -15,7 +16,7 @@ export class ClipboardManager {
 
     static async copyImageToClipboard(element: HTMLElement): Promise<boolean> {
         try {
-            const imageElement = element.querySelector('.red-image-preview') as HTMLElement;
+            const imageElement = element.querySelector<HTMLElement>('.red-image-preview');
             if (!imageElement) {
                 throw new Error('找不到预览区域');
             }
@@ -44,20 +45,23 @@ export class ClipboardManager {
                 try {
                     // 尝试直接复制 Canvas
                     await new Promise<void>((resolve, reject) => {
-                        canvas.toBlob(async (blob) => {
+                        canvas.toBlob((blob) => {
                             if (!blob) {
                                 reject(new Error('Canvas 转换为 Blob 失败'));
                                 return;
                             }
-                            try {
-                                const clipboardItem = new ClipboardItem({
-                                    'image/png': blob
-                                });
-                                await navigator.clipboard.write([clipboardItem]);
-                                resolve();
-                            } catch (e) {
-                                reject(e);
-                            }
+                            // toBlob 回调不能是 async:写剪贴板的异步流程用 IIFE 包住,结果通过 resolve/reject 回传
+                            void (async () => {
+                                try {
+                                    const clipboardItem = new ClipboardItem({
+                                        'image/png': blob
+                                    });
+                                    await navigator.clipboard.write([clipboardItem]);
+                                    resolve();
+                                } catch (e) {
+                                    reject(e instanceof Error ? e : new Error(toReadableError(e).message));
+                                }
+                            })();
                         }, 'image/png', 1);
                     });
                     return true;

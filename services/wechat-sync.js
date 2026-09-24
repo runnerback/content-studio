@@ -1,5 +1,6 @@
 // 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
 /** @typedef {import('../input.js').WechatAccountLike} WechatAccountLike */
+/** @typedef {import('../input.js').CleanupResultLike} CleanupResultLike */
 
 import { createHtmlContainer, getActiveDocument } from './dom-utils.js';
 
@@ -31,7 +32,7 @@ import { createHtmlContainer, getActiveDocument } from './dom-utils.js';
  *   processMathFormulas: (html: string, api: WechatDraftApiLike, progressCallback: (current: number, total: number) => void) => Promise<string>,
  *   prepareHtmlForDraft?: (html: string) => Promise<string>,
  *   cleanHtmlForDraft: (html: string) => string,
- *   cleanupConfiguredDirectory: (activeFile?: ActiveFileLike | null) => Promise<unknown>,
+ *   cleanupConfiguredDirectory: (activeFile?: ActiveFileLike | null) => Promise<CleanupResultLike>,
  *   getFirstImageFromArticle: () => string,
  * }} WechatSyncDeps
  * @typedef {{
@@ -156,7 +157,7 @@ export function createWechatSyncService(deps) {
     coverUploadCache = null,
     processAllImages,
     processMathFormulas,
-    prepareHtmlForDraft = async (html) => html,
+    prepareHtmlForDraft = (html) => Promise.resolve(html),
     cleanHtmlForDraft,
     cleanupConfiguredDirectory,
     getFirstImageFromArticle,
@@ -221,7 +222,7 @@ export function createWechatSyncService(deps) {
         }
       }
 
-      let draftHtml = await prepareHtmlForDraft(currentHtml);
+      const draftHtml = await prepareHtmlForDraft(currentHtml);
 
       if (onStatus) onStatus('images');
       let processedHtml = await processAllImages(draftHtml, api, (current, total) => {

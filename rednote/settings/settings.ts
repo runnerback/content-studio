@@ -9,7 +9,7 @@ interface HostPluginLike {
     saveSettings: () => Promise<void>;
 }
 
-interface RedSettings {
+export interface RedSettings {
     themeId: string;
     fontFamily: string;
     fontSize: number;
@@ -107,7 +107,7 @@ export class SettingsManager {
 
     async loadSettings() {
         // 从宿主 settings.rednote 命名空间读取(宿主已完成 data.json 加载)
-        let savedData: Partial<RedSettings> = this.plugin.settings.rednote || {};
+        const savedData: Partial<RedSettings> = this.plugin.settings.rednote || {};
 
         // 预设主题以代码为准:已保存的预设按 id 刷新样式(保留用户的可见性
         // 开关),代码里新增的预设(如 memo)自动补进列表——否则老用户

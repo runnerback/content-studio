@@ -1,3 +1,5 @@
+import { toText } from './input-utils.js';
+
 // 已与本插件打通、可实际发布的平台白名单(单一事实来源,镜像扩展侧 ENABLED_PLATFORM_IDS)。
 // 其余平台仅作为「计划支持」在设置里只读展示。发布弹窗只列这些平台。
 export const ENABLED_PLATFORM_IDS = ['xiaohongshu', 'x'];
@@ -10,7 +12,7 @@ const ENABLED_PLATFORM_ALIASES = new Set(['xiaohongshu', 'xhs', '小红书', 're
  * @returns {boolean}
  */
 export function isEnabledWechatsyncPlatform(id) {
-  return ENABLED_PLATFORM_ALIASES.has(String(id || '').trim().toLowerCase());
+  return ENABLED_PLATFORM_ALIASES.has(toText(id).trim().toLowerCase());
 }
 
 export const FEATURED_WECHATSYNC_PLATFORM_ORDER = [
@@ -109,6 +111,15 @@ function isRecord(value) {
  */
 function asRecord(value) {
   return isRecord(value) ? /** @type {UnknownRecord} */ (value) : {};
+}
+
+/**
+ * 等价于 String(a || b || … || '')：取第一个真值再转字符串（对象/函数一律 ''，避免 '[object Object]'）。
+ * @param {...unknown} values
+ * @returns {string}
+ */
+function firstText(...values) {
+  return toText(values.find((value) => !!value));
 }
 
 /**
@@ -213,11 +224,11 @@ export function normalizeWechatsyncCapabilities(platform = {}) {
  */
 export function normalizeWechatsyncPlatform(platform = {}) {
   const source = asRecord(platform);
-  const id = String(source.id || source.type || source.platform || '').trim();
+  const id = firstText(source.id, source.type, source.platform).trim();
   if (!id || id === 'weixin') return null;
   const nestedAuth = asRecord(source.auth);
   const user = asRecord(source.user);
-  const rawStatus = String(source.status || source.authStatus || source.authState || '').trim();
+  const rawStatus = firstText(source.status, source.authStatus, source.authState).trim();
   const authStatus = ['available', 'login_required', 'unknown', 'bridge_required'].includes(rawStatus)
     ? rawStatus
     : '';
@@ -234,7 +245,7 @@ export function normalizeWechatsyncPlatform(platform = {}) {
       || typeof source.status === 'string');
   return {
     id,
-    name: String(source.name || source.title || source.platformName || id),
+    name: firstText(source.name, source.title, source.platformName, id),
     homepage: stringField(source, 'homepage'),
     icon: stringField(source, 'icon'),
     capabilities: normalizeWechatsyncCapabilities(source),
@@ -268,7 +279,7 @@ export function getWechatsyncPlatformStatus(platform = {}, options = {}) {
   const source = asRecord(platform);
   const opts = asRecord(options);
   if (opts.bridgeConnected === false || source.authStatus === 'bridge_required') return 'bridge_required';
-  const explicitStatus = String(source.authStatus || source.authState || '').trim();
+  const explicitStatus = firstText(source.authStatus, source.authState).trim();
   if (['available', 'login_required', 'unknown', 'bridge_required'].includes(explicitStatus)) return explicitStatus;
   if (!source.authKnown) return 'unknown';
   return source.authenticated ? 'available' : 'login_required';
@@ -299,7 +310,7 @@ export function getWechatsyncPlatformStatusBadge(platform = {}, options = {}) {
 
 function getWechatsyncPlatformIdFromItem(item = {}) {
   const source = asRecord(item);
-  return String(source.id || source.platform || source.type || item || '').trim();
+  return firstText(source.id, source.platform, source.type, item).trim();
 }
 
 function getWechatsyncPlatformSortRank(platformId = '') {
@@ -586,7 +597,7 @@ export function summarizeWechatsyncPlatformResponse(response) {
  */
 export function getWechatSyncResultPlatformId(result = {}) {
   const source = asRecord(result);
-  return String(source.platform || source.id || source.type || '').trim();
+  return firstText(source.platform, source.id, source.type).trim();
 }
 
 /**
@@ -595,7 +606,7 @@ export function getWechatSyncResultPlatformId(result = {}) {
  */
 export function getWechatSyncResultError(result = {}) {
   const source = asRecord(result);
-  return String(source.error || source.message || '').trim();
+  return firstText(source.error, source.message).trim();
 }
 
 /**
@@ -604,7 +615,7 @@ export function getWechatSyncResultError(result = {}) {
  */
 export function getWechatSyncResultUrl(result = {}) {
   const source = asRecord(result);
-  return String(source.postUrl || source.draftUrl || source.editUrl || source.url || source.link || '').trim();
+  return firstText(source.postUrl, source.draftUrl, source.editUrl, source.url, source.link).trim();
 }
 
 export function isWechatSyncAuthFailureMessage(message = '') {
@@ -617,7 +628,7 @@ export function isWechatSyncAuthFailureMessage(message = '') {
  */
 export function isWechatSyncConnectionFailure(error = {}) {
   const source = asRecord(error);
-  return ['AUTH_FAILED', 'EXTENSION_NOT_CONNECTED', 'EXTENSION_NOT_AUTHENTICATED', 'BRIDGE_UNAVAILABLE', 'PLATFORM_LIST_TIMEOUT'].includes(String(source.code || ''));
+  return ['AUTH_FAILED', 'EXTENSION_NOT_CONNECTED', 'EXTENSION_NOT_AUTHENTICATED', 'BRIDGE_UNAVAILABLE', 'PLATFORM_LIST_TIMEOUT'].includes(toText(source.code));
 }
 
 /**

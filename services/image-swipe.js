@@ -8,6 +8,8 @@
 /** @typedef {import('../input.js').AppLike} AppLike */
 /** @typedef {import('../input.js').ImageSwipeCopyLike} ImageSwipeCopyLike */
 
+import { toText } from './input-utils.js';
+
 /** @type {Record<string, ImageSwipeCopyLike>} */
 const IMAGE_SWIPE_COMMAND_COPY = {
   'image-swipe': {
@@ -41,7 +43,7 @@ function getObsidianLocale(app = null) {
     typeof navigator !== 'undefined' ? navigator.language : '',
   ];
 
-  return String(candidates.find((value) => typeof value === 'string' && value.trim()) || '').trim().toLowerCase();
+  return toText(candidates.find((value) => typeof value === 'string' && value.trim())).trim().toLowerCase();
 }
 
 /**
@@ -74,7 +76,7 @@ export function getImageSwipeCommandCopy(app = null, type = 'image-swipe') {
  * @returns {string}
  */
 function quoteLinesForImageSwipeCallout(text) {
-  const lines = String(text || '').split('\n');
+  const lines = toText(text).split('\n');
   return lines.map((line) => (line ? `> ${line}` : '>')).join('\n');
 }
 

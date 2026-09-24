@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- reason: JS file handles dynamic API responses without strict typescript type annotations */
 // views/publish-modal/feishu.js
 //
 // Renders the Feishu tab content inside the publish modal.
@@ -17,12 +16,28 @@ import {
   removeFeishuMermaidPreferenceByPath,
   setFeishuMermaidPreferenceByPath,
 } from '../../services/feishu-settings.js';
+import { isRecord, toReadableError, toRecord } from '../../services/input-utils.js';
 
 /**
- * @param {unknown} Notice
+ * @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance
+ * @typedef {import('../../services/feishu-settings.js').FeishuSyncSettingsLike} FeishuSyncSettingsLike
+ * @typedef {import('../../services/feishu-sync.js').FeishuSyncResultLike} FeishuSyncResultLike
+ * @typedef {import('../../services/feishu-media-sync.js').FeishuImageSummary} FeishuImageSummary
+ * @typedef {import('../../services/feishu-api.js').FeishuRequestUrlLike} FeishuRequestUrlLike
+ * @typedef {{ setPlaceholder: (value: string) => FeishuTextLike, setValue: (value: string) => FeishuTextLike, onChange: (callback: (value: string) => unknown) => FeishuTextLike }} FeishuTextLike
+ * @typedef {{ settingEl: HTMLElement, setName: (value: string) => FeishuSettingLike, setDesc: (value: string) => FeishuSettingLike, addText: (callback: (text: FeishuTextLike) => unknown) => FeishuSettingLike }} FeishuSettingLike
+ * @typedef {new (containerEl: HTMLElement) => FeishuSettingLike} FeishuSettingConstructor
+ * @typedef {{ setMessage: (message: string) => unknown, hide: () => unknown }} FeishuNoticeLike
+ * @typedef {new (message: string, duration?: number) => FeishuNoticeLike} FeishuNoticeConstructor
+ * @typedef {{ Setting: FeishuSettingConstructor, Notice: FeishuNoticeConstructor, requestUrl?: FeishuRequestUrlLike }} FeishuObsidianApiLike
+ * @typedef {{ close: () => void }} FeishuPublishModalLike
+ */
+
+/**
+ * @param {FeishuNoticeConstructor | undefined} Notice
  * @param {string} message
  * @param {number} [duration]
- * @returns {any}
+ * @returns {FeishuNoticeLike | null}
  */
 function showFeishuNotice(Notice, message, duration) {
   if (typeof Notice !== 'function') return null;
@@ -30,7 +45,7 @@ function showFeishuNotice(Notice, message, duration) {
 }
 
 /**
- * @param {any} notice
+ * @param {FeishuNoticeLike | null} notice
  * @param {string} message
  */
 function updateFeishuNotice(notice, message) {
@@ -39,7 +54,7 @@ function updateFeishuNotice(notice, message) {
   }
 }
 
-/** @param {any} notice */
+/** @param {FeishuNoticeLike | null} notice */
 function hideFeishuNotice(notice) {
   if (notice && typeof notice.hide === 'function') {
     notice.hide();
@@ -47,7 +62,7 @@ function hideFeishuNotice(notice) {
 }
 
 /**
- * @param {any} imageSummary
+ * @param {FeishuImageSummary | undefined} imageSummary
  * @returns {string}
  */
 function formatFeishuImageWarning(imageSummary) {
@@ -57,13 +72,14 @@ function formatFeishuImageWarning(imageSummary) {
 }
 
 /**
- * @param {any} result
+ * @param {FeishuSyncResultLike} result
  * @returns {string[]}
  */
 function getFeishuResultWarnings(result) {
+  /** @type {string[]} */
   const warnings = [];
   if (result?.transferOwnerWarning) {
-    warnings.push('文档已同步，但所有权转移未完成。你仍可以照常使用该文档；如需自动转移，请检查飞书 User ID 和应用权限。');
+    warnings.push('文档已同步，但所有权转移未完成。你仍可以照常使用该文档；如需自动转移，请检查飞书用户 ID 和应用权限。');
   }
   const imageWarning = formatFeishuImageWarning(result?.imageSummary);
   if (imageWarning) warnings.push(imageWarning);
@@ -115,21 +131,21 @@ function bindTransientScrollbar(scrollEl) {
 
 /**
  * Renders the Feishu publish tab content.
- * @param {any} view AppleStyleView instance
- * @param {any} modal Obsidian Modal instance
+ * @param {AppleStyleViewInstance} view AppleStyleView instance
+ * @param {FeishuPublishModalLike} modal Obsidian Modal instance
  * @param {HTMLDivElement} containerEl The container to render the tab content inside
- * @param {object} [options={}] Injected options
+ * @param {{ obsidianApi?: FeishuObsidianApiLike }} [options={}] Injected options
  */
 function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic obsidian api resolution
-  const obsidian = options.obsidianApi || view.plugin.obsidianApi || getActiveWindowValue('obsidian') || {};
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic Setting component
+  // 注入的 obsidianApi 优先；否则回落到插件持有的 obsidian 模块或窗口全局
+  const obsidian = options.obsidianApi
+    || /** @type {FeishuObsidianApiLike} */ (toRecord(view.plugin.obsidianApi || getActiveWindowValue('obsidian')));
   const Setting = obsidian.Setting;
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic Notice component
   const Notice = obsidian.Notice;
 
   const { plugin } = view;
-  const settings = plugin.settings.feishuSync;
+  const feishuSyncSettings = plugin.settings.feishuSync;
+  const settings = isRecord(feishuSyncSettings) ? /** @type {FeishuSyncSettingsLike} */ (feishuSyncSettings) : null;
 
   // Clear previous content
   containerEl.empty();
@@ -137,7 +153,7 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
 
   // 1. Re-render the tab headers inside containerEl (so they stay when switching tabs)
   const tabsWrapper = containerEl.createDiv({ cls: 'wechat-publish-mode-tabs' });
-  
+
   const wechatTabBtn = tabsWrapper.createEl('button', {
     text: '微信草稿箱',
     cls: 'wechat-publish-mode-tab',
@@ -156,7 +172,7 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
   });
   multiTabBtn.createEl('span', { text: MULTI_PLATFORM_TAB_LABEL });
   multiTabBtn.onclick = () => {
-    view.showMultiPlatformSyncModal({ modal });
+    void view.showMultiPlatformSyncModal({ modal });
   };
 
   const shell = containerEl.createDiv({ cls: 'wechat-feishu-publish-shell' });
@@ -169,8 +185,8 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
   if (!settings || !settings.enabled || !settings.appId || !settings.appSecret || !settings.folderToken) {
     const emptyState = contentWrapper.createDiv({ cls: 'wechat-sync-empty-state' });
     emptyState.createEl('h3', { text: '尚未完成飞书同步配置' });
-    emptyState.createEl('p', { text: '一键同步至飞书前，需要先在插件设置中开启并填写 App ID、App Secret 和目标文件夹 Token。' });
-    
+    emptyState.createEl('p', { text: '一键同步至飞书前，需要先在插件设置中开启并填写应用 ID、应用密钥和目标文件夹 token。' });
+
     const goSettingsBtn = emptyState.createEl('button', { text: '去设置', cls: 'mod-cta' });
     goSettingsBtn.onclick = () => {
       modal.close();
@@ -227,6 +243,7 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
 
   const mermaidSection = contentWrapper.createDiv({ cls: 'wechat-modal-section wechat-feishu-section wechat-feishu-mermaid-section is-hidden' });
 
+  /** @param {number} count */
   const renderMermaidSection = (count) => {
     mermaidCount = count;
     mermaidSection.empty();
@@ -249,10 +266,10 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
 
     const remoteLabel = optionList.createEl('label', { cls: 'wechat-feishu-mermaid-option' });
     const remoteRadio = createFeishuRadio(remoteLabel, 'feishu-mermaid-mode', 'remote-image', mermaidRenderMode === 'remote-image');
-    remoteLabel.createEl('span', { text: '使用 Kroki 远端渲染成图片' });
+    remoteLabel.createEl('span', { text: '使用远端服务（kroki.io）渲染成图片' });
 
     const privacyHint = mermaidSection.createEl('p', {
-      text: '远端渲染会把 Mermaid 源码发送到 Kroki 渲染服务。请确认这篇笔记中的图表源码不包含敏感信息。',
+      text: '远端渲染会把 Mermaid 源码发送到 kroki.io 渲染服务。请确认这篇笔记中的图表源码不包含敏感信息。',
       cls: 'wechat-feishu-mermaid-privacy',
     });
     privacyHint.toggleClass('is-hidden', mermaidRenderMode !== 'remote-image');
@@ -354,13 +371,13 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
   cancelBtn.onclick = () => modal.close();
 
   const syncBtn = buttonRow.createEl('button', { text: isUpdate ? '更新至飞书' : '同步至飞书', cls: 'mod-cta' });
-  
+
   syncBtn.onclick = async () => {
     // Disable inputs and buttons
     titleSetting.settingEl.addClass('is-disabled');
     syncBtn.disabled = true;
     cancelBtn.disabled = true;
-    
+
     resultCard.addClass('is-hidden');
     const progressNotice = showFeishuNotice(
       Notice,
@@ -382,7 +399,7 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
       } else if (savedMermaidPreference) {
         removeFeishuMermaidPreferenceByPath(settings, activeFile.path);
       }
-      
+
       const result = await syncNoteToFeishu({
         app: view.app,
         settings,
@@ -431,7 +448,7 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
       }
 
       const resultActions = resultCard.createDiv({ cls: 'wechat-feishu-result-actions' });
-      
+
       const openBtn = resultActions.createEl('button', { text: '在浏览器中打开', cls: 'mod-cta' });
       openBtn.onclick = () => {
         if (view.plugin && typeof view.plugin.openExternalUrl === 'function') {
@@ -453,12 +470,12 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
       };
 
       resultCard.removeClass('is-hidden');
-      
+
       // Re-enable cancel button to let them close
       cancelBtn.disabled = false;
       cancelBtn.setText('关闭');
       syncBtn.setCssStyles({ display: 'none' });
-      
+
       showFeishuNotice(
         Notice,
         warnings.length ? '✅ 飞书文档已同步，部分事项需要确认' : '✅ 飞书文档同步成功！',
@@ -467,13 +484,13 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
     } catch (err) {
       console.error('[飞书同步失败]:', err);
       hideFeishuNotice(progressNotice);
-      
+
       // Re-enable
       titleSetting.settingEl.removeClass('is-disabled');
       syncBtn.disabled = false;
       cancelBtn.disabled = false;
-      
-      showFeishuNotice(Notice, `❌ 同步失败: ${err.message || String(err)}`, 8000);
+
+      showFeishuNotice(Notice, `❌ 同步失败: ${toReadableError(err).message}`, 8000);
     }
   };
 }
@@ -481,5 +498,3 @@ function renderFeishuPublishTab(view, modal, containerEl, options = {}) {
 export {
   renderFeishuPublishTab,
 };
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- reason: resume typed linting after Feishu publish modal Obsidian UI boundary */

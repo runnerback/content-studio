@@ -1,17 +1,26 @@
-import { App, PluginSettingTab, Setting, setIcon, Notice } from 'obsidian';
+import { App, Setting, setIcon, Notice } from 'obsidian';
 import type { RednoteHost as RedPlugin } from '../host.ts';
 import { CreateThemeModal } from './CreateThemeModal.ts';
 import { CreateFontModal } from './CreateFontModal.ts';
-import { ConfirmModal } from './ConfirmModal.ts'; // 添加确认模态框导入
-import { ThemePreviewModal } from './ThemePreviewModal.ts'; // 新增导入
+import { ConfirmModal } from './ConfirmModal.ts';
+import { ThemePreviewModal } from './ThemePreviewModal.ts';
 
-export class RedSettingTab extends PluginSettingTab {
-    plugin: RedPlugin; // 修改插件类型以匹配类名
+/**
+ * 「小红书图卡」设置面板。
+ * 不是独立的 PluginSettingTab：由宿主设置页（views/settings/setting-pages.js 的 RednoteSettingPage）
+ * 把子页面容器传进来后命令式渲染；宿主自身走 Obsidian 1.13 声明式 getSettingDefinitions()。
+ */
+export class RedSettingsPanel {
     private expandedSections: Set<string> = new Set();
+    // 不用参数属性：测试经 Node strip-only TS 加载，不支持 constructor(readonly x) 语法
+    readonly app: App;
+    readonly plugin: RedPlugin;
+    readonly containerEl: HTMLElement;
 
-    constructor(app: App, plugin: RedPlugin) { // 修改插件类型以匹配类名
-        super(app, plugin);
+    constructor(app: App, plugin: RedPlugin, containerEl: HTMLElement) {
+        this.app = app;
         this.plugin = plugin;
+        this.containerEl = containerEl;
     }
 
     private createSection(containerEl: HTMLElement, title: string, renderContent: (contentEl: HTMLElement) => void) {
@@ -46,7 +55,7 @@ export class RedSettingTab extends PluginSettingTab {
         return section;
     }
 
-    display(): void {
+    render(): void {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.addClass('red-settings');
@@ -127,7 +136,7 @@ export class RedSettingTab extends PluginSettingTab {
                                     this.app,
                                     async (updatedFont) => {
                                         await this.plugin.settingsManager.updateFont(font.value, updatedFont);
-                                        this.display();
+                                        this.render();
                                         new Notice('请重启 Obsidian 或重新加载以使更改生效');
                                     },
                                     font
@@ -144,7 +153,7 @@ export class RedSettingTab extends PluginSettingTab {
                                     `确定要删除「${font.label}」字体配置吗？`,
                                     async () => {
                                         await this.plugin.settingsManager.removeFont(font.value);
-                                        this.display();
+                                        this.render();
                                         new Notice('请重启 Obsidian 或重新加载以使更改生效');
                                     }
                                 ).open();
@@ -162,7 +171,7 @@ export class RedSettingTab extends PluginSettingTab {
                         this.app,
                         async (newFont) => {
                             await this.plugin.settingsManager.addCustomFont(newFont);
-                            this.display();
+                            this.render();
                             new Notice('请重启 Obsidian 或重新加载以使更改生效');
                         }
                     ).open();
@@ -294,7 +303,7 @@ export class RedSettingTab extends PluginSettingTab {
         renderThemeLists();
         
         // 添加按钮事件
-        addButton.addEventListener('click', async () => {
+        const showSelectedThemes = async () => {
             const selectedItems = Array.from(allThemesList.querySelectorAll('.theme-list-item.selected'));
             if (selectedItems.length === 0) return;
             
@@ -311,10 +320,11 @@ export class RedSettingTab extends PluginSettingTab {
             
             renderThemeLists();
             new Notice('请重启 Obsidian 或重新加载以使更改生效');
-        });
+        };
+        addButton.addEventListener('click', () => { void showSelectedThemes(); });
         
         // 移除按钮事件
-        removeButton.addEventListener('click', async () => {
+        const hideSelectedThemes = async () => {
             const selectedItems = Array.from(visibleThemesList.querySelectorAll('.theme-list-item.selected'));
             if (selectedItems.length === 0) return;
             
@@ -331,7 +341,8 @@ export class RedSettingTab extends PluginSettingTab {
             
             renderThemeLists();
             new Notice('请重启 Obsidian 或重新加载以使更改生效');
-        });
+        };
+        removeButton.addEventListener('click', () => { void hideSelectedThemes(); });
 
         // 主题管理区域
         const themeList = containerEl.createDiv('theme-management');
@@ -357,9 +368,9 @@ export class RedSettingTab extends PluginSettingTab {
                                 new CreateThemeModal(
                                     this.app,
                                     this.plugin,
-                                    (updatedTheme) => {
-                                        this.plugin.settingsManager.updateTheme(theme.id, updatedTheme);
-                                        this.display();
+                                    async (updatedTheme) => {
+                                        await this.plugin.settingsManager.updateTheme(theme.id, updatedTheme);
+                                        this.render();
                                         new Notice('请重启 Obsidian 或重新加载以使更改生效');
                                     },
                                     theme
@@ -376,7 +387,7 @@ export class RedSettingTab extends PluginSettingTab {
                                     `确定要删除「${theme.name}」主题吗？此操作不可恢复。`,
                                     async () => {
                                         await this.plugin.settingsManager.removeTheme(theme.id);
-                                        this.display();
+                                        this.render();
                                         new Notice('请重启 Obsidian 或重新加载以使更改生效');
                                     }
                                 ).open();
@@ -394,7 +405,7 @@ export class RedSettingTab extends PluginSettingTab {
                         this.plugin,
                         async (newTheme) => {
                             await this.plugin.settingsManager.addCustomTheme(newTheme);
-                            this.display();
+                            this.render();
                             new Notice('请重启 Obsidian 或重新加载以使更改生效');
                         }
                     ).open();

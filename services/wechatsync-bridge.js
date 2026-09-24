@@ -15,6 +15,7 @@ import {
   HELLO_ERROR_TOO_MANY_CLIENTS,
   DEFAULT_MAX_CLIENTS,
 } from './wechatsync-constants.js';
+import { toText } from './input-utils.js';
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const BASE64_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 // Cap on the persisted connected-clients registry (distinct from the
@@ -77,7 +78,7 @@ function toBridgeString(value, fallback = '') {
 }
 
 /**
- * @param {TimerHandler} handler
+ * @param {() => void} handler
  * @param {number} ms
  * @returns {number | null}
  */
@@ -100,7 +101,7 @@ function clearBridgeTimeout(timer) {
  * @returns {number[]}
  */
 function utf8Bytes(input) {
-  const text = String(input || '');
+  const text = toText(input);
   if (typeof TextEncoder !== 'undefined') {
     return Array.from(new TextEncoder().encode(text));
   }
@@ -234,7 +235,7 @@ function base64EncodeBytes(bytes) {
  * @returns {string}
  */
 function createWebSocketAcceptKey(key) {
-  return base64EncodeBytes(sha1Bytes(`${key}${WS_GUID}`));
+  return base64EncodeBytes(sha1Bytes(`${toText(key)}${WS_GUID}`));
 }
 
 /**
@@ -244,7 +245,7 @@ function createWebSocketAcceptKey(key) {
 function toBridgeErrorLike(error) {
   if (error instanceof Error) return /** @type {BridgeErrorLike} */ (error);
   if (error && typeof error === 'object') return /** @type {BridgeErrorLike} */ (error);
-  return { message: String(error || '') };
+  return { message: toText(error) };
 }
 
 /**
@@ -253,7 +254,7 @@ function toBridgeErrorLike(error) {
  */
 function isUnsupportedBridgeMethodError(error = {}) {
   const readableError = toBridgeErrorLike(error);
-  const message = String(readableError.message || error || '');
+  const message = readableError.message || toText(error);
   return /unknown method|unknown tool|method not found|not supported|unsupported/i.test(message);
 }
 
@@ -352,7 +353,7 @@ function createEmitter() {
  * @returns {Buffer}
  */
 function encodeWebSocketTextFrame(text) {
-  const payload = Buffer.from(String(text));
+  const payload = Buffer.from(Buffer.isBuffer(text) ? text.toString('utf8') : toText(text));
   const length = payload.length;
   let header;
   if (length < 126) {
@@ -463,7 +464,7 @@ function createSocketWrapper(socket) {
   let buffered = Buffer.alloc(0);
   socket.on('data', (chunk) => {
     try {
-      const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk || ''));
+      const chunkBuffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(toText(chunk));
       buffered = Buffer.concat([buffered, chunkBuffer]);
       const result = parseWebSocketFrames(buffered);
       buffered = result.remaining;
@@ -508,7 +509,7 @@ function createSocketWrapper(socket) {
  */
 function isOriginAllowedForWebSocket(origin = '', { allowlist = null } = {}) {
   if (!allowlist) return true;
-  const trimmed = String(origin || '').trim();
+  const trimmed = toText(origin).trim();
   if (!trimmed) return true; // empty origin = native / node client
   for (const pattern of allowlist) {
     if (typeof pattern === 'string') {
@@ -608,7 +609,7 @@ function getWebSocketOpenState(WebSocketServer) {
  */
 function createReadableBridgeError(error) {
   const readableError = toBridgeErrorLike(error);
-  const message = String(readableError.message || error || '');
+  const message = readableError.message || toText(error);
   if (/EADDRINUSE|Primary|ECONNREFUSED|not reachable|port .*in use/i.test(message)) {
     const friendly = new Error('无法连接本地服务。请确认没有其他同步进程占用端口，或稍后重试。');
     friendly.code = 'BRIDGE_UNAVAILABLE';
@@ -662,7 +663,7 @@ function readRequestBody(req) {
   return new Promise((resolve, reject) => {
     let body = '';
     req.on('data', (chunk) => {
-      body += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : String(chunk || '');
+      body += Buffer.isBuffer(chunk) ? chunk.toString('utf8') : toText(chunk);
     });
     req.on('end', () => resolve(body));
     req.on('error', reject);
@@ -677,13 +678,14 @@ function defaultConnectionIdFactory() {
   return `conn-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
 }
 
-async function loadDefaultHttpModule() {
+/** @returns {Promise<BridgeHttpModuleLike | null>} */
+function loadDefaultHttpModule() {
   // Desktop bridge needs Node's local HTTP server, but the bundle must not
   // resolve it during build. Keep the load narrow and bridge-only.
   const loader = typeof require === 'function' ? require : null;
-  if (!loader) return null;
+  if (!loader) return Promise.resolve(null);
   const loadedHttp = /** @type {unknown} */ (loader(['h', 'ttp'].join('')));
-  return /** @type {BridgeHttpModuleLike} */ (loadedHttp);
+  return Promise.resolve(/** @type {BridgeHttpModuleLike} */ (loadedHttp));
 }
 
 /**
@@ -1133,7 +1135,7 @@ function createWechatSyncBridgeService(options = {}) {
 
     if (record.error) {
       const errorRecord = toRecord(record.error);
-      const errorMessage = toBridgeString(errorRecord.message || errorRecord.error, String(record.error));
+      const errorMessage = toBridgeString(errorRecord.message || errorRecord.error, typeof record.error === 'string' ? record.error : JSON.stringify(record.error));
       debug('Request failed', {
         id: messageId,
         method: pending.method,
@@ -1175,7 +1177,7 @@ function createWechatSyncBridgeService(options = {}) {
     }, helloTimeoutMs);
 
     ws.on('message', (data) => {
-      const raw = data.toString();
+      const raw = Buffer.isBuffer(data) ? data.toString('utf8') : toText(data);
       const stillPending = pendingConnections.get(connectionId);
       if (stillPending) {
         handlePendingMessage(stillPending, raw, origin);
@@ -1345,7 +1347,7 @@ function createWechatSyncBridgeService(options = {}) {
           ? new WebSocketServer({ port, host: bindHost })
           : createMinimalWebSocketServer({ http: activeHttp, port, host: bindHost, originAllowlist, logger });
       } catch (error) {
-        reject(error);
+        reject(error instanceof Error ? error : new Error(toText(error)));
         return;
       }
 
@@ -1697,8 +1699,8 @@ function createWechatSyncBridgeService(options = {}) {
     return send('syncArticle', params);
   }
 
-  async function getStatus() {
-    return {
+  function getStatus() {
+    return Promise.resolve({
       mode: 'primary',
       connected: isAuthenticatedConnected(),
       authenticated: isAuthenticatedConnected(),
@@ -1710,7 +1712,7 @@ function createWechatSyncBridgeService(options = {}) {
       primaryClientId,
       maxClients,
       diagnostics: getDiagnostics(),
-    };
+    });
   }
 
   function getDiagnostics() {

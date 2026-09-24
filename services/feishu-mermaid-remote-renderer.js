@@ -1,10 +1,11 @@
 import { getActiveWindowValue } from './dom-utils.js';
+import { toText } from './input-utils.js';
 
 /**
  * @typedef {(options: Record<string, unknown>) => Promise<unknown> | unknown} RequestUrlLike
  * @typedef {{ from: (bytes: Uint8Array) => { toString: (encoding: string) => string } }} BufferLike
  * @typedef {{ arrayBuffer?: () => Promise<unknown> | unknown, raw?: unknown, buffer?: unknown, status?: unknown, headers?: unknown }} ResponseLike
- * @typedef {{ requestUrl?: RequestUrlLike | null, endpoint?: string, timeoutMs?: number, maxImageBytes?: number }} KrokiRenderOptions
+ * @typedef {{ requestUrl?: RequestUrlLike | null, endpoint?: string, timeoutMs?: number, maxImageBytes?: number, provider?: string }} KrokiRenderOptions
  */
 
 const DEFAULT_KROKI_MERMAID_PNG_ENDPOINT = 'https://kroki.io/mermaid/png';
@@ -93,7 +94,7 @@ function getHeaderValue(headers, name) {
   const target = String(name || '').toLowerCase();
   const source = /** @type {Record<string, unknown>} */ (headers);
   const key = Object.keys(source).find((item) => item.toLowerCase() === target);
-  return key ? String(source[key] || '') : '';
+  return key ? toText(source[key]) : '';
 }
 
 /**
@@ -101,7 +102,7 @@ function getHeaderValue(headers, name) {
  * @returns {string}
  */
 function normalizeKrokiEndpoint(endpoint) {
-  const value = String(endpoint || DEFAULT_KROKI_MERMAID_PNG_ENDPOINT).trim();
+  const value = (toText(endpoint) || DEFAULT_KROKI_MERMAID_PNG_ENDPOINT).trim();
   try {
     const url = new URL(value);
     if (url.protocol !== 'https:') {
@@ -120,7 +121,7 @@ function normalizeKrokiEndpoint(endpoint) {
  * @returns {Promise<string>}
  */
 async function renderMermaidWithKroki(source, options = {}) {
-  const mermaidSource = String(source || '').trim();
+  const mermaidSource = toText(source).trim();
   if (!mermaidSource) return '';
   const requestUrl = options.requestUrl;
   if (typeof requestUrl !== 'function') {

@@ -103,13 +103,13 @@ export class ThemeManager {
     public applyTheme(element: HTMLElement, theme?: Theme): void {
         const styles = theme ? theme.styles : this.currentTheme.styles; // 修改为从参数 theme 获取样式
         // 修改应用基础样式的方式
-        const imagePreview = element.querySelector('.red-image-preview') as HTMLElement;
+        const imagePreview = element.querySelector<HTMLElement>('.red-image-preview');
         if (imagePreview) {
             const styleProperties = styles.imagePreview.split(';');
             styleProperties.forEach(property => {
                 const [key, value] = property.split(':').map(item => item.trim());
                 if (key && value) {
-                    imagePreview.style[key as any] = value; // 使用 as any 绕过 TypeScript 的类型检查
+                    imagePreview.style.setProperty(key, value);
                 }
             });
         }

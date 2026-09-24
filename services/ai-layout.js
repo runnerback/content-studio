@@ -13,6 +13,7 @@ import {
   validateAiLayoutPayload,
 } from './ai-layout-skill-bundle.js';
 import { createHtmlContainer, getActiveDocument } from './dom-utils.js';
+import { toText } from './input-utils.js';
 
 /**
  * @typedef {{ type: string, fields: string[] }} AiLayoutBlockDefinition
@@ -44,7 +45,7 @@ import { createHtmlContainer, getActiveDocument } from './dom-utils.js';
  * @typedef {{ accent?: string, accentDeep?: string, accentSoft?: string, text?: string, muted?: string, border?: string, surface?: string, surfaceSoft?: string, quoteBg?: string }} AiColorTokens
  * @typedef {{ articleType?: string, selection?: AiLayoutSelectionLike, resolved?: AiLayoutResolvedSelectionLike, recommendedLayoutFamily?: string, recommendedColorPalette?: string, title?: string, summary?: string, stylePack?: string, layoutFamily?: string, blocks?: AiLayoutBlockLike[] }} AiLayoutJsonLike
  * @typedef {{ lastLayoutFamily?: string, lastAutoResolvedFamily?: string, familyStates?: Record<string, AiLayoutStateLike>, lastSelectionKey?: string, selectionStates?: Record<string, AiLayoutStateLike>, lastStylePack?: string, stylePackStates?: Record<string, AiLayoutStateLike> }} AiLayoutCacheEntryLike
- * @typedef {{ enabled: boolean, defaultProviderId: string, defaultLayoutFamily: string, defaultColorPalette: string, defaultStylePack?: string, customColor: string, includeImagesInLayout: boolean, requestTimeoutMs: number, providers: ReturnType<typeof normalizeAiProvider>[], articleLayoutsByPath: Record<string, AiLayoutCacheEntryLike> }} AiSettingsLike
+ * @typedef {{ enabled: boolean, defaultProviderId: string, layoutModel?: string, defaultLayoutFamily: string, defaultColorPalette: string, defaultStylePack?: string, customColor: string, includeImagesInLayout: boolean, requestTimeoutMs: number, providers: ReturnType<typeof normalizeAiProvider>[], articleLayoutsByPath: Record<string, AiLayoutCacheEntryLike> }} AiSettingsLike
  * @typedef {{ title?: string, leadHtml?: string, subsections?: RenderedSubsectionFragmentLike[] }} RenderedSectionFragmentLike
  * @typedef {{ title?: string, titleKey?: string, contentHtml?: string }} RenderedSubsectionFragmentLike
  * @typedef {{ ok: boolean, status: number, statusText?: string, text: () => Promise<string>, json: () => Promise<unknown> }} FetchResponseLike
@@ -192,7 +193,7 @@ function getDefaultFetch() {
 }
 
 /**
- * @param {TimerHandler} callback
+ * @param {() => void} callback
  * @param {number} delay
  * @returns {number | null}
  */
@@ -247,7 +248,7 @@ function clampNumber(value, fallback, min, max) {
  * @returns {string}
  */
 function normalizeHexColor(value, fallback = '#7c3aed') {
-  const raw = String(value || '').trim();
+  const raw = toText(value).trim();
   if (/^#[0-9a-f]{6}$/i.test(raw)) return raw.toLowerCase();
   if (/^[0-9a-f]{6}$/i.test(raw)) return `#${raw.toLowerCase()}`;
   return fallback;
@@ -610,7 +611,7 @@ function normalizeAiProvider(raw = {}) {
 /** @param {unknown} baseUrl */
 function isAllowedAiProviderBaseUrl(baseUrl) {
   try {
-    const parsed = new URL(String(baseUrl || ''));
+    const parsed = new URL(toText(baseUrl));
     if (parsed.protocol === 'https:') return true;
     if (parsed.protocol !== 'http:') return false;
 
@@ -2930,7 +2931,7 @@ function buildLayoutMessages({ title, markdown, selection, stylePack, imageRefs 
     {
       role: 'user',
       content: [
-        `文章标题：${title || '未命名文章'}`,
+        `文章标题：${toText(title || '未命名文章')}`,
         `布局选择：${selectedLayoutFamilyInfo.label}`,
         `布局说明：${selectedLayoutFamilyInfo.description}`,
         `颜色选择：${selectedColorPaletteInfo.label}`,
@@ -3065,7 +3066,7 @@ function toPlainPromptFromMessages(messages = []) {
     .map((message) => {
       const record = toRecord(message);
       const roleLabel = record.role === 'system' ? '系统要求' : '用户请求';
-      return `${roleLabel}：\n${String(record.content || '').trim()}`;
+      return `${roleLabel}：\n${toText(record.content).trim()}`;
     })
     .filter(Boolean)
     .join('\n\n');
@@ -3467,7 +3468,7 @@ async function testAiProviderConnection(provider, fetchImpl = getDefaultFetch())
  * @returns {string}
  */
 function normalizeWechatTaskMarkerText(text) {
-  return String(text || '').replace(
+  return toText(text).replace(
     /(^|\n)(\s*)\[([ xX])\]\s+/g,
     (_match, lineStart, indent, state) =>
       `${lineStart}${indent}${String(state || '').trim().toLowerCase() === 'x' ? '☑' : '☐'} `,
@@ -3498,7 +3499,7 @@ function escapeHtml(text) {
  * @returns {string}
  */
 function normalizeAiLayoutDisplayText(text) {
-  return String(text || '')
+  return toText(text)
     .replace(/!\[\[[^[\]\r\n]+]]/g, '')
     .replace(/!\[[^\]\r\n]*]\([^) \r\n]+(?:\s+"[^"]*")?\)/g, '')
     .replace(/[ \t]{2,}/g, ' ')
@@ -3518,7 +3519,7 @@ function escapeAiLayoutText(text) {
  * @returns {string}
  */
 function normalizeInlineFontFamily(fontFamily = '') {
-  return String(fontFamily || '').replace(/"/g, '\'');
+  return toText(fontFamily).replace(/"/g, '\'');
 }
 
 /**
@@ -3631,17 +3632,17 @@ function renderArticleLayoutHtml(layout, { imageRefs = [], mode = 'preview', ren
   const sharedImageRadius = Number(AI_WECHAT_SAFE_STYLE_PRIMITIVES.image?.borderRadius || 14);
   const wrapperPadding = isTutorialCards
     ? tutorialSpacing.wrapperPadding
-    : (renderProfile.wrapperPadding || (isEditorialLite ? '30px 22px 40px' : '20px 16px 28px'));
+    : toText(renderProfile.wrapperPadding || (isEditorialLite ? '30px 22px 40px' : '20px 16px 28px'));
   const cardRadius = Number(renderProfile.cardRadius ?? (isSourceFirst ? 10 : (isEditorialLite ? 0 : 18)));
   const cardPadding = isTutorialCards
     ? tutorialSpacing.cardPadding
-    : (renderProfile.cardPadding ?? (isSourceFirst ? '0' : (isEditorialLite ? '0' : '18px')));
+    : toText(renderProfile.cardPadding ?? (isSourceFirst ? '0' : (isEditorialLite ? '0' : '18px')));
   const cardMargin = isTutorialCards
     ? tutorialSpacing.cardMargin
     : Number(renderProfile.cardMargin ?? (isSourceFirst ? 8 : (isEditorialLite ? 30 : 18)));
   const cardShadow = isDraft
     ? 'none'
-    : (renderProfile.cardShadow ?? (isTutorialCards ? '0 10px 30px -24px rgba(0,0,0,0.18)' : 'none'));
+    : toText(renderProfile.cardShadow ?? (isTutorialCards ? '0 10px 30px -24px rgba(0,0,0,0.18)' : 'none'));
   const heroProfile = toRecord(renderProfile.hero);
   const partNavProfile = toRecord(renderProfile.partNav);
   const leadQuoteProfile = toRecord(renderProfile.leadQuote);
@@ -3652,7 +3653,7 @@ function renderArticleLayoutHtml(layout, { imageRefs = [], mode = 'preview', ren
     `color:${tokens.text}`,
     `font-size:${bodyFontSize}px`,
     `line-height:${bodyLineHeight}`,
-    `letter-spacing:${typography.letterSpacing || '0'}`,
+    `letter-spacing:${toText(typography.letterSpacing || '0')}`,
     `padding:${wrapperPadding}`,
     `background:${tokens.surface}`,
   ].join(';');
@@ -3774,23 +3775,23 @@ function renderArticleLayoutHtml(layout, { imageRefs = [], mode = 'preview', ren
     if (block.type === 'hero') {
       const heroImageStyle = isDraft
         ? (isTutorialCards
-          ? `width:100%;max-width:none;height:100%;object-fit:cover;border-radius:${heroProfile.imageRadius || 12}px;`
-          : `width:100%;max-width:none;border-radius:${heroProfile.imageRadius || (isEditorialLite ? 28 : 18)}px;`)
+          ? `width:100%;max-width:none;height:100%;object-fit:cover;border-radius:${toText(heroProfile.imageRadius || 12)}px;`
+          : `width:100%;max-width:none;border-radius:${toText(heroProfile.imageRadius || (isEditorialLite ? 28 : 18))}px;`)
         : (isEditorialLite
-          ? `width:100%;max-width:none;flex:none;border-radius:${heroProfile.imageRadius || 28}px;`
+          ? `width:100%;max-width:none;flex:none;border-radius:${toText(heroProfile.imageRadius || 28)}px;`
           : (isSourceFirst
-            ? `max-width:none;width:100%;flex:none;border-radius:${heroProfile.imageRadius || 18}px;`
-            : `max-width:116px;flex:0 0 116px;border-radius:${heroProfile.imageRadius || 18}px;`));
+            ? `max-width:none;width:100%;flex:none;border-radius:${toText(heroProfile.imageRadius || 18)}px;`
+            : `max-width:116px;flex:0 0 116px;border-radius:${toText(heroProfile.imageRadius || 18)}px;`));
       const imageHtml = block.coverImageId ? renderImage(block.coverImageId, heroImageStyle) : '';
       const contentHtml = [
-        block.eyebrow ? `<div style="font-size:${heroProfile.eyebrowSize || (isEditorialLite ? 10 : 11)}px;font-weight:700;letter-spacing:${heroProfile.eyebrowLetterSpacing || (isEditorialLite ? 2 : 1.2)}px;color:${tokens.accentDeep};text-transform:uppercase;margin-bottom:${isSourceFirst ? 8 : 10}px;">${escapeHtml(block.eyebrow)}</div>` : '',
+        block.eyebrow ? `<div style="font-size:${toText(heroProfile.eyebrowSize || (isEditorialLite ? 10 : 11))}px;font-weight:700;letter-spacing:${toText(heroProfile.eyebrowLetterSpacing || (isEditorialLite ? 2 : 1.2))}px;color:${tokens.accentDeep};text-transform:uppercase;margin-bottom:${isSourceFirst ? 8 : 10}px;">${escapeHtml(block.eyebrow)}</div>` : '',
         renderStyledText(
           'h1',
           block.title,
-          `margin:0 0 ${isSourceFirst ? 6 : (isEditorialLite ? 14 : 10)}px;font-size:${heroProfile.titleSize || (isSourceFirst ? 26 : (isEditorialLite ? 36 : 28))}px;line-height:${isEditorialLite ? 1.12 : 1.24};color:${tokens.text};font-weight:${isEditorialLite ? 700 : 700};font-family:${isEditorialLite ? editorialDisplayFont : 'inherit'};`,
+          `margin:0 0 ${isSourceFirst ? 6 : (isEditorialLite ? 14 : 10)}px;font-size:${toText(heroProfile.titleSize || (isSourceFirst ? 26 : (isEditorialLite ? 36 : 28)))}px;line-height:${isEditorialLite ? 1.12 : 1.24};color:${tokens.text};font-weight:${isEditorialLite ? 700 : 700};font-family:${isEditorialLite ? editorialDisplayFont : 'inherit'};`,
           { mode }
         ),
-        block.subtitle ? `<p style="margin:0;color:${tokens.muted};font-size:${heroProfile.subtitleSize || (isSourceFirst ? 16 : (isEditorialLite ? 17 : 14))}px;line-height:${heroProfile.subtitleLineHeight || (isSourceFirst ? 1.8 : (isEditorialLite ? 1.88 : 1.7))};letter-spacing:0;">${escapeHtml(block.subtitle)}</p>` : '',
+        block.subtitle ? `<p style="margin:0;color:${tokens.muted};font-size:${toText(heroProfile.subtitleSize || (isSourceFirst ? 16 : (isEditorialLite ? 17 : 14)))}px;line-height:${toText(heroProfile.subtitleLineHeight || (isSourceFirst ? 1.8 : (isEditorialLite ? 1.88 : 1.7)))};letter-spacing:0;">${escapeHtml(block.subtitle)}</p>` : '',
       ].join('');
       const flexDirection = block.variant === 'cover-left' ? 'row-reverse' : 'row';
       const heroFooter = isDraft
@@ -3859,7 +3860,7 @@ function renderArticleLayoutHtml(layout, { imageRefs = [], mode = 'preview', ren
         if (isTutorialCards) {
           const navHintHtml = `<p style="margin:0 2px 6px 0;font-size:11px;line-height:1.5;color:${tokens.muted};text-align:right;">← 左右滑动</p>`;
           const itemsHtml = block.items.map((item, itemIndex) => `
-            <section style="display:inline-block;white-space:normal;vertical-align:top;width:${partNavProfile.cardWidth || 112}px;height:${partNavProfile.cardHeight || 116}px;padding:10px 10px 12px;margin-right:${itemIndex === block.items.length - 1 ? 0 : 8}px;border:1px solid ${tokens.border};border-radius:${partNavProfile.useCard ? 16 : 12}px;background:${partNavProfile.useCard ? tokens.surfaceSoft : tokens.surface};box-sizing:border-box;overflow:hidden;">
+            <section style="display:inline-block;white-space:normal;vertical-align:top;width:${toText(partNavProfile.cardWidth || 112)}px;height:${toText(partNavProfile.cardHeight || 116)}px;padding:10px 10px 12px;margin-right:${itemIndex === block.items.length - 1 ? 0 : 8}px;border:1px solid ${tokens.border};border-radius:${partNavProfile.useCard ? 16 : 12}px;background:${partNavProfile.useCard ? tokens.surfaceSoft : tokens.surface};box-sizing:border-box;overflow:hidden;">
               <p style="margin:0 0 8px;font-size:10px;font-weight:700;color:${tokens.accentDeep};letter-spacing:0.8px;text-transform:uppercase;">${escapeHtml(item.label)}</p>
               <p style="margin:0;height:60px;overflow:hidden;font-size:13px;font-weight:600;color:${tokens.text};line-height:1.55;">${escapeHtml(item.text)}</p>
             </section>
@@ -3901,17 +3902,17 @@ function renderArticleLayoutHtml(layout, { imageRefs = [], mode = 'preview', ren
         </div>
       `).join('');
       return `<section style="margin:${isEditorialLite ? 20 : (isSourceFirst ? 20 : 16)}px 0 ${isSourceFirst ? 18 : 8}px;">
-        <div style="display:flex;gap:${partNavProfile.gap || (isSourceFirst ? 16 : 10)}px;flex-wrap:wrap;${partNavProfile.useDivider && isSourceFirst ? `padding:0 0 10px;border-bottom:1px solid ${tokens.border};` : ''}${partNavProfile.direction === 'column' ? 'flex-direction:column;' : ''}">${itemsHtml}</div>
+        <div style="display:flex;gap:${toText(partNavProfile.gap || (isSourceFirst ? 16 : 10))}px;flex-wrap:wrap;${partNavProfile.useDivider && isSourceFirst ? `padding:0 0 10px;border-bottom:1px solid ${tokens.border};` : ''}${partNavProfile.direction === 'column' ? 'flex-direction:column;' : ''}">${itemsHtml}</div>
       </section>`;
     }
 
     if (block.type === 'lead-quote') {
-      const leadQuoteFontSize = leadQuoteProfile.fontSize || (isSourceFirst ? 16 : (isEditorialLite ? 26 : (isDraft && isTutorialCards ? 20 : 18)));
+      const leadQuoteFontSize = toText(leadQuoteProfile.fontSize || (isSourceFirst ? 16 : (isEditorialLite ? 26 : (isDraft && isTutorialCards ? 20 : 18))));
       const editorialLeadQuoteBorderTop = isEditorialLite && previousBlock?.type !== 'part-nav'
         ? `1px solid ${tokens.border}`
         : 'none';
       return `<section style="margin:${isSourceFirst ? 14 : (isEditorialLite ? 26 : (isTutorialCards ? tutorialSpacing?.leadQuoteMarginY || 14 : 18))}px 0;padding:${isSourceFirst ? '0 0 0 14px' : (isEditorialLite ? '24px 0' : (isTutorialCards ? tutorialSpacing?.leadQuotePadding || '14px' : '18px'))};border-radius:${isTutorialCards ? 16 : 0}px;background:${leadQuoteProfile.background === 'quoteBg' ? tokens.quoteBg : 'transparent'};border:${isTutorialCards ? `1px solid ${tokens.border}` : 'none'};border-left:${leadQuoteProfile.borderLeft ? `3px solid ${tokens.accent}` : 'none'};border-top:${editorialLeadQuoteBorderTop};border-bottom:${isEditorialLite ? `1px solid ${tokens.border}` : 'none'};">
-        <p style="margin:0;font-size:${leadQuoteFontSize}px;font-weight:${leadQuoteProfile.fontWeight || (isSourceFirst ? 600 : (isEditorialLite ? 600 : 700))};line-height:${isEditorialLite ? 1.7 : 1.75};color:${tokens.text};font-family:${isEditorialLite ? editorialDisplayFont : 'inherit'};letter-spacing:0;">${escapeAiLayoutText(block.text)}</p>
+        <p style="margin:0;font-size:${leadQuoteFontSize}px;font-weight:${toText(leadQuoteProfile.fontWeight || (isSourceFirst ? 600 : (isEditorialLite ? 600 : 700)))};line-height:${isEditorialLite ? 1.7 : 1.75};color:${tokens.text};font-family:${isEditorialLite ? editorialDisplayFont : 'inherit'};letter-spacing:0;">${escapeAiLayoutText(block.text)}</p>
         ${block.note ? `<p style="margin:${isTutorialCards ? 8 : 10}px 0 0;font-size:${isTutorialCards ? 13 : 12}px;line-height:1.8;color:${tokens.muted};letter-spacing:0;">${escapeAiLayoutText(block.note)}</p>` : ''}
       </section>`;
     }
@@ -3925,11 +3926,11 @@ function renderArticleLayoutHtml(layout, { imageRefs = [], mode = 'preview', ren
         : '';
       const caseHeaderHtml = isDraft
         ? `<div style="margin-bottom:8px;">
-            <span style="display:inline-block;font-size:${caseBlockProfile.indexSize || (isSourceFirst ? 22 : (isEditorialLite ? 14 : 28))}px;font-weight:${isEditorialLite ? 700 : 800};color:${tokens.accent};line-height:1;letter-spacing:${isEditorialLite ? 1.2 : 0};text-transform:${isEditorialLite ? 'uppercase' : 'none'};">${String(index + 1).padStart(2, '0')}</span>
+            <span style="display:inline-block;font-size:${toText(caseBlockProfile.indexSize || (isSourceFirst ? 22 : (isEditorialLite ? 14 : 28)))}px;font-weight:${isEditorialLite ? 700 : 800};color:${tokens.accent};line-height:1;letter-spacing:${isEditorialLite ? 1.2 : 0};text-transform:${isEditorialLite ? 'uppercase' : 'none'};">${String(index + 1).padStart(2, '0')}</span>
             <span style="display:inline-block;margin-left:8px;font-size:11px;font-weight:700;letter-spacing:1px;color:${tokens.muted};text-transform:uppercase;">${escapeHtml(block.caseLabel)}</span>
           </div>`
         : `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-            <div style="font-size:${caseBlockProfile.indexSize || (isSourceFirst ? 22 : (isEditorialLite ? 14 : 28))}px;font-weight:${isEditorialLite ? 700 : 800};color:${tokens.accent};line-height:1;letter-spacing:${isEditorialLite ? 1.2 : 0};text-transform:${isEditorialLite ? 'uppercase' : 'none'};">${String(index + 1).padStart(2, '0')}</div>
+            <div style="font-size:${toText(caseBlockProfile.indexSize || (isSourceFirst ? 22 : (isEditorialLite ? 14 : 28)))}px;font-weight:${isEditorialLite ? 700 : 800};color:${tokens.accent};line-height:1;letter-spacing:${isEditorialLite ? 1.2 : 0};text-transform:${isEditorialLite ? 'uppercase' : 'none'};">${String(index + 1).padStart(2, '0')}</div>
             <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:${tokens.muted};text-transform:uppercase;">${escapeHtml(block.caseLabel)}</div>
           </div>`;
       return `<section style="margin:${isSourceFirst ? 22 : (isEditorialLite ? 32 : (isTutorialCards ? tutorialSpacing?.sectionMarginY || 18 : 26))}px 0;${caseBlockProfile.useCard ? `padding:${isTutorialCards ? tutorialSpacing?.sectionCardPadding || '14px' : '18px'};border:1px solid ${tokens.border};border-radius:${cardRadius}px;background:${tokens.surfaceSoft};` : ''}">
@@ -3937,7 +3938,7 @@ function renderArticleLayoutHtml(layout, { imageRefs = [], mode = 'preview', ren
         ${renderStyledText(
           'h2',
           block.title,
-          `margin:0 0 ${isEditorialLite ? 10 : 8}px;font-size:${caseBlockProfile.titleSize || (isSourceFirst ? 20 : (isEditorialLite ? 26 : 22))}px;line-height:${isEditorialLite ? 1.28 : 1.4};color:${tokens.text};font-family:${isEditorialLite ? editorialDisplayFont : 'inherit'};`,
+          `margin:0 0 ${isEditorialLite ? 10 : 8}px;font-size:${toText(caseBlockProfile.titleSize || (isSourceFirst ? 20 : (isEditorialLite ? 26 : 22)))}px;line-height:${isEditorialLite ? 1.28 : 1.4};color:${tokens.text};font-family:${isEditorialLite ? editorialDisplayFont : 'inherit'};`,
           { mode }
         )}
         ${block.summary ? `<p style="margin:0 0 ${bodyParagraphGap}px;color:${tokens.muted};font-size:${bodyFontSize}px;line-height:${bodyLineHeight};letter-spacing:0;">${escapeAiLayoutText(block.summary)}</p>` : ''}
@@ -4010,7 +4011,7 @@ function renderArticleLayoutHtml(layout, { imageRefs = [], mode = 'preview', ren
               : `border:1px solid ${tokens.border};border-left:3px solid ${tokens.accent};border-radius:14px;background:${tokens.surfaceSoft};overflow:hidden`)
             : null;
           const subsectionContainerStyle = [
-            `margin-top:${subsectionProfile.spacingTop || (isEditorialLite ? 18 : (isTutorialCards ? tutorialSpacing?.subsectionSpacingTop || 12 : 14))}px`,
+            `margin-top:${toText(subsectionProfile.spacingTop || (isEditorialLite ? 18 : (isTutorialCards ? tutorialSpacing?.subsectionSpacingTop || 12 : 14)))}px`,
             subsectionProfile.useCard
               ? (tutorialSubsectionShellStyle
                 ? tutorialSubsectionShellStyle
@@ -4032,8 +4033,8 @@ function renderArticleLayoutHtml(layout, { imageRefs = [], mode = 'preview', ren
                 </div>`)
             : '';
           const subsectionTitleStyle = isDraft && isTutorialCards
-            ? `margin:0 0 8px;font-size:${subsectionTitleSize}px;line-height:1.5;font-weight:${subsectionProfile.titleWeight || 700};color:${tokens.accentDeep};font-family:inherit;`
-            : `margin:0 0 8px;font-size:${subsectionTitleSize}px;line-height:${isEditorialLite ? 1.45 : 1.5};font-weight:${subsectionProfile.titleWeight || (isEditorialLite ? 600 : 700)};color:${tokens.accentDeep};font-family:${isEditorialLite ? editorialDisplayFont : 'inherit'};`;
+            ? `margin:0 0 8px;font-size:${subsectionTitleSize}px;line-height:1.5;font-weight:${toText(subsectionProfile.titleWeight || 700)};color:${tokens.accentDeep};font-family:inherit;`
+            : `margin:0 0 8px;font-size:${subsectionTitleSize}px;line-height:${isEditorialLite ? 1.45 : 1.5};font-weight:${toText(subsectionProfile.titleWeight || (isEditorialLite ? 600 : 700))};color:${tokens.accentDeep};font-family:${isEditorialLite ? editorialDisplayFont : 'inherit'};`;
           const subsectionInnerHtml = `
             ${subsectionLabelHtml}
             ${renderStyledText(

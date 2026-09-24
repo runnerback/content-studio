@@ -267,7 +267,7 @@ describe('Feishu publish modal UX', () => {
     expect(mermaidSection.classList.contains('is-hidden')).toBe(false);
     expect(mermaidSection.textContent).toContain('检测到 1 个 Mermaid 图表');
     expect(mermaidSection.textContent).toContain('保留源码');
-    expect(mermaidSection.textContent).toContain('Kroki');
+    expect(mermaidSection.textContent).toContain('kroki.io');
     expect(mermaidSection.querySelector('input[value="source"]').checked).toBe(true);
     expect(mermaidSection.querySelector('.wechat-feishu-mermaid-privacy').classList.contains('is-hidden')).toBe(true);
 

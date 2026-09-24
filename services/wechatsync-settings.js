@@ -8,6 +8,7 @@
 // All functions are pure — no DOM, no Obsidian API, no side effects.
 
 import { DEFAULT_WECHATSYNC_PORT } from './wechatsync-constants.js';
+import { toText } from './input-utils.js';
 import {
   buildWechatsyncPlatformCatalog,
   getFallbackWechatsyncPlatforms,
@@ -79,7 +80,7 @@ export function createDefaultMultiPlatformSyncSettings() {
 export function normalizeConnectedClient(value) {
   if (!isRecord(value)) return null;
   const source = asRecord(value);
-  const id = String(source.extensionInstanceId || '').trim();
+  const id = toText(source.extensionInstanceId).trim();
   if (!id) return null;
   const status = source.status === 'connected' ? 'connected' : 'disconnected';
   const now = Date.now();
@@ -184,12 +185,12 @@ export function normalizeWechatSyncRecentTasks(value = []) {
   return tasks
     .map((task) => {
       const source = asRecord(task);
-      const syncId = String(source.syncId || '').trim();
+      const syncId = toText(source.syncId).trim();
       if (!syncId || seen.has(syncId)) return null;
       seen.add(syncId);
       return {
         syncId,
-        title: String(source.title || '无标题文章'),
+        title: toText(source.title) || '无标题文章',
         platforms: parseWechatsyncPlatformIds(source.platforms || []),
         createdAt: Number.isFinite(Number(source.createdAt)) ? Number(source.createdAt) : Date.now(),
       };

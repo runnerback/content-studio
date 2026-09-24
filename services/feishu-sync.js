@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- reason: JS file handles dynamic API responses without strict typescript type annotations */
 // services/feishu-sync.js
 //
 // High-level orchestrator for Feishu cloud documents synchronization.
@@ -23,6 +22,24 @@ import {
   incrementFeishuApiUsage,
   removeFeishuHistoryByPath,
 } from './feishu-settings.js';
+import { isRecord, toReadableError, toRecord, toText } from './input-utils.js';
+
+/**
+ * @typedef {import('./feishu-api.js').FeishuRequestUrlLike} FeishuRequestUrlLike
+ * @typedef {import('./feishu-api.js').FeishuDocBlockLike} FeishuDocBlockLike
+ * @typedef {import('./feishu-settings.js').FeishuSyncSettingsLike} FeishuSyncSettingsLike
+ * @typedef {import('./feishu-media-sync.js').FeishuVaultAppLike} FeishuVaultAppLike
+ * @typedef {import('./feishu-media-sync.js').FeishuImageSummary} FeishuImageSummary
+ * @typedef {import('./feishu-media-sync.js').FeishuMarkdownImageLike} FeishuMarkdownImageLike
+ * @typedef {import('./feishu-mermaid-renderer.js').FeishuMermaidPrepareResult} FeishuMermaidPrepareResult
+ * @typedef {import('./article-image-assets.js').ImageAsset} ArticleImageAssetLike
+ * @typedef {import('./article-image-assets.js').ImageWarning} ArticleImageWarningLike
+ * @typedef {{ path: string, basename: string }} FeishuNoteFileLike
+ * @typedef {{ title: string, url: string, docToken: string, sourcePath: string, uploadTime?: string }} FeishuHistoryRefLike
+ * @typedef {(stage: string, message: string) => void} FeishuProgressNotifyLike
+ * @typedef {{ title: string, url: string, docToken: string, transferOwnerWarning?: string, imageSummary: FeishuImageSummary }} FeishuSyncResultLike
+ * @typedef {{ markdown: string, assets: ArticleImageAssetLike[], warnings: ArticleImageWarningLike[], references: FeishuMarkdownImageLike[] }} FeishuLocalImagePrepareResult
+ */
 
 const FEISHU_LOCAL_IMAGE_PLACEHOLDER_BASE = 'https://obsidian-wechat-converter.invalid/feishu-local-image';
 
@@ -58,7 +75,24 @@ function arrayBufferToBase64(buffer) {
  */
 function getErrorText(error) {
   if (error instanceof Error) return error.message || String(error);
-  return String(error || '');
+  return toText(error);
+}
+
+/**
+ * @param {unknown} value
+ * @returns {unknown[]}
+ */
+function toUnknownArray(value) {
+  return Array.isArray(value) ? /** @type {unknown[]} */ (value) : [];
+}
+
+/**
+ * 飞书块 block_type 的诊断文本：缺失时记 unknown，其余按原值输出。
+ * @param {unknown} blockType
+ * @returns {string}
+ */
+function formatBlockTypeForSummary(blockType) {
+  return blockType === undefined || blockType === null ? 'unknown' : toText(blockType);
 }
 
 /**
@@ -101,9 +135,10 @@ function getFeishuRootBlockId(documentId) {
 }
 
 /**
- * @param {Array<{ block_id?: string, parent_id?: string, block_type?: number }>} blocks
+ * @template {Record<string, unknown>} T
+ * @param {T[]} blocks
  * @param {string} parentId
- * @returns {Array<{ block_id?: string, parent_id?: string, block_type?: number }>}
+ * @returns {T[]}
  */
 function getFeishuDirectChildBlocks(blocks, parentId) {
   if (!Array.isArray(blocks) || !parentId) return [];
@@ -116,7 +151,7 @@ function getFeishuDirectChildBlocks(blocks, parentId) {
  */
 function summarizeFeishuBlock(block) {
   const keys = Object.keys(block || {}).slice(0, 6);
-  const blockType = block?.block_type ?? 'unknown';
+  const blockType = formatBlockTypeForSummary(block?.block_type);
   return `type=${blockType}, keys=${keys.join('|') || 'none'}`;
 }
 
@@ -125,9 +160,10 @@ function summarizeFeishuBlock(block) {
  * @returns {string}
  */
 function summarizeFeishuBlockChunk(blocks) {
+  /** @type {Map<string, number>} */
   const typeCounts = new Map();
   for (const block of blocks || []) {
-    const blockType = String(block?.block_type ?? 'unknown');
+    const blockType = formatBlockTypeForSummary(block?.block_type);
     typeCounts.set(blockType, (typeCounts.get(blockType) || 0) + 1);
   }
   const typeSummary = Array.from(typeCounts.entries())
@@ -142,7 +178,7 @@ function summarizeFeishuBlockChunk(blocks) {
  * @returns {boolean}
  */
 function feishuCreateBlockHasNestedChildren(block) {
-  return Array.isArray(block?.children) && block.children.some((child) => child && typeof child === 'object');
+  return toUnknownArray(block?.children).some((child) => !!child && typeof child === 'object');
 }
 
 /**
@@ -150,7 +186,8 @@ function feishuCreateBlockHasNestedChildren(block) {
  * @returns {Record<string, unknown> | null}
  */
 function createFeishuBlockShell(block) {
-  if (!block || typeof block !== 'object' || Array.isArray(block)) return null;
+  if (!isRecord(block)) return null;
+  /** @type {Record<string, unknown>} */
   const nextBlock = {};
   for (const [key, value] of Object.entries(block)) {
     if (key === 'children') continue;
@@ -166,8 +203,8 @@ function createFeishuBlockShell(block) {
  * @returns {Record<string, unknown> | null}
  */
 function sanitizeFeishuImageForCreate(image) {
-  if (!image || typeof image !== 'object' || Array.isArray(image)) return null;
-  const source = /** @type {Record<string, unknown>} */ (image);
+  if (!isRecord(image)) return null;
+  const source = image;
   const fileToken = typeof source.file_token === 'string' && source.file_token
     ? source.file_token
     : typeof source.token === 'string' && source.token
@@ -175,6 +212,7 @@ function sanitizeFeishuImageForCreate(image) {
       : '';
   if (!fileToken) return null;
 
+  /** @type {Record<string, unknown>} */
   const nextImage = { file_token: fileToken };
   for (const key of ['width', 'height', 'align', 'caption']) {
     if (source[key] !== undefined && source[key] !== null) {
@@ -185,12 +223,13 @@ function sanitizeFeishuImageForCreate(image) {
 }
 
 /**
- * @param {Record<string, unknown>} block
+ * @param {unknown} block
  * @returns {Record<string, unknown> | null}
  */
 function sanitizeFeishuCreateBlock(block) {
-  if (!block || typeof block !== 'object' || Array.isArray(block)) return null;
+  if (!isRecord(block)) return null;
 
+  /** @type {Record<string, unknown>} */
   const nextBlock = {};
   for (const [key, value] of Object.entries(block)) {
     if (key === 'block_id' || key === 'parent_id' || key === 'index') continue;
@@ -203,10 +242,11 @@ function sanitizeFeishuCreateBlock(block) {
     nextBlock[key] = value;
   }
 
-  if (Array.isArray(block.children) && block.children.length > 0) {
-    const nextChildren = block.children
+  const children = toUnknownArray(block.children);
+  if (children.length > 0) {
+    const nextChildren = children
       .map((child) => sanitizeFeishuCreateBlock(child))
-      .filter(Boolean);
+      .filter((child) => child !== null);
     if (nextChildren.length > 0) {
       nextBlock.children = nextChildren;
     }
@@ -227,7 +267,7 @@ function buildFeishuCreatePayloadBlocks(blocks, rootBlockId) {
   if (!Array.isArray(blocks) || !rootBlockId) return [];
 
   const clonedBlocks = blocks
-    .filter((block) => block && typeof block === 'object' && !Array.isArray(block))
+    .filter((block) => isRecord(block))
     .map((block) => ({ ...block }));
 
   /** @type {Map<string, Record<string, unknown>>} */
@@ -238,8 +278,14 @@ function buildFeishuCreatePayloadBlocks(blocks, rootBlockId) {
   }
 
   const rootBlock = blockMap.get(rootBlockId);
-  if (rootBlock && Array.isArray(rootBlock.children) && rootBlock.children.every((childId) => typeof childId === 'string')) {
+  const rootChildIds = rootBlock ? toUnknownArray(rootBlock.children) : [];
+  if (rootBlock && Array.isArray(rootBlock.children) && rootChildIds.every((childId) => typeof childId === 'string')) {
+    /** @type {Set<string>} */
     const visited = new Set();
+    /**
+     * @param {string} blockId
+     * @returns {Record<string, unknown> | null}
+     */
     const buildFromDocumentGraph = (blockId) => {
       if (!blockId || visited.has(blockId)) return null;
       const block = blockMap.get(blockId);
@@ -249,11 +295,11 @@ function buildFeishuCreatePayloadBlocks(blocks, rootBlockId) {
       const nextBlock = sanitizeFeishuCreateBlock(block);
       if (!nextBlock) return null;
 
-      const childIds = Array.isArray(block.children)
-        ? block.children.filter((childId) => typeof childId === 'string')
-        : [];
+      const childIds = toUnknownArray(block.children).filter((childId) => typeof childId === 'string');
       if (childIds.length > 0) {
-        const childBlocks = childIds.map((childId) => buildFromDocumentGraph(childId)).filter(Boolean);
+        const childBlocks = childIds
+          .map((childId) => buildFromDocumentGraph(childId))
+          .filter((child) => child !== null);
         if (childBlocks.length > 0) {
           nextBlock.children = childBlocks;
         }
@@ -262,9 +308,9 @@ function buildFeishuCreatePayloadBlocks(blocks, rootBlockId) {
       return nextBlock;
     };
 
-    return rootBlock.children
+    return rootChildIds
       .map((childId) => buildFromDocumentGraph(childId))
-      .filter(Boolean);
+      .filter((child) => child !== null);
   }
 
   /** @type {Map<string, Array<Record<string, unknown>>>} */
@@ -277,17 +323,21 @@ function buildFeishuCreatePayloadBlocks(blocks, rootBlockId) {
     childMap.set(parentId, siblings);
   }
 
+  /**
+   * @param {Record<string, unknown>} block
+   * @returns {Record<string, unknown>}
+   */
   const attachChildren = (block) => {
     const blockId = typeof block?.block_id === 'string' ? block.block_id : '';
     const attachedChildren = blockId ? childMap.get(blockId) || [] : [];
-    const explicitChildren = Array.isArray(block?.children) ? block.children : [];
+    const explicitChildren = toUnknownArray(block?.children);
     /** @type {Record<string, unknown>[]} */
     const mergedChildren = [];
     /** @type {Set<string>} */
     const seenChildIds = new Set();
 
     for (const child of explicitChildren) {
-      if (!child || typeof child !== 'object' || Array.isArray(child)) continue;
+      if (!isRecord(child)) continue;
       const childId = typeof child.block_id === 'string' ? child.block_id : '';
       const resolvedChild = childId && blockMap.has(childId)
         ? blockMap.get(childId)
@@ -314,7 +364,7 @@ function buildFeishuCreatePayloadBlocks(blocks, rootBlockId) {
 
   const rootChildren = getFeishuDirectChildBlocks(clonedBlocks, rootBlockId)
     .map((block) => sanitizeFeishuCreateBlock(attachChildren(block)))
-    .filter(Boolean);
+    .filter((block) => block !== null);
 
   if (rootChildren.length > 0) {
     return rootChildren;
@@ -326,7 +376,7 @@ function buildFeishuCreatePayloadBlocks(blocks, rootBlockId) {
       return !parentId || !blockMap.has(parentId);
     })
     .map((block) => sanitizeFeishuCreateBlock(attachChildren(block)))
-    .filter(Boolean);
+    .filter((block) => block !== null);
 }
 
 /**
@@ -346,7 +396,7 @@ function waitForFeishuBlockThrottle(delayMs) {
  * @param {string} params.parentId
  * @param {number} params.startIndex
  * @param {Array<Record<string, unknown>>} params.blocks
- * @param {(stage: string, msg: string) => void} params.notify
+ * @param {FeishuProgressNotifyLike} params.notify
  * @param {number} [params.chunkSize]
  * @returns {Promise<void>}
  */
@@ -354,6 +404,7 @@ async function insertFeishuBlocksInChunks({ client, docToken, parentId, startInd
   if (!Array.isArray(blocks) || blocks.length === 0) return;
 
   let currentIndex = startIndex;
+  /** @type {Record<string, unknown>[]} */
   let flatBuffer = [];
 
   const flushFlatBuffer = async () => {
@@ -363,7 +414,7 @@ async function insertFeishuBlocksInChunks({ client, docToken, parentId, startInd
       notify('importing', `正在写入内容块 (${currentIndex + i + 1}/${startIndex + blocks.length})...`);
       try {
         await client.createDocumentBlocks(docToken, parentId, currentIndex + i, chunk);
-      } catch (err) {
+      } catch (/** @type {unknown} */ err) {
         const chunkIndex = Math.floor((currentIndex + i - startIndex) / chunkSize) + 1;
         const chunkSummary = summarizeFeishuBlockChunk(chunk);
         console.warn('[飞书同步] 插入内容块失败:', {
@@ -385,6 +436,12 @@ async function insertFeishuBlocksInChunks({ client, docToken, parentId, startInd
     flatBuffer = [];
   };
 
+  /**
+   * @param {string} targetParentId
+   * @param {number} index
+   * @param {Record<string, unknown>} block
+   * @returns {Promise<void>}
+   */
   const insertNestedBlock = async (targetParentId, index, block) => {
     const shellBlock = createFeishuBlockShell(block);
     if (!shellBlock) return;
@@ -394,9 +451,9 @@ async function insertFeishuBlocksInChunks({ client, docToken, parentId, startInd
       throw new Error('飞书未返回新创建块的 block_id，无法继续写入嵌套内容');
     }
 
-    const nestedChildren = Array.isArray(block?.children)
-      ? block.children.filter((child) => child && typeof child === 'object')
-      : [];
+    const nestedChildren = /** @type {Record<string, unknown>[]} */ (
+      toUnknownArray(block?.children).filter((child) => !!child && typeof child === 'object')
+    );
     if (nestedChildren.length > 0) {
       await insertFeishuBlocksInChunks({
         client,
@@ -416,7 +473,7 @@ async function insertFeishuBlocksInChunks({ client, docToken, parentId, startInd
       notify('importing', `正在写入内容块 (${currentIndex + 1}/${startIndex + blocks.length})...`);
       try {
         await insertNestedBlock(parentId, currentIndex, block);
-      } catch (err) {
+      } catch (/** @type {unknown} */ err) {
         const chunkSummary = summarizeFeishuBlockChunk([block]);
         console.warn('[飞书同步] 插入嵌套内容块失败:', {
           docToken,
@@ -460,7 +517,7 @@ async function deleteFeishuChildRange({ client, docToken, parentId, startIndex, 
  * @param {string} params.title
  * @param {string} params.markdown
  * @param {string} params.folderToken
- * @param {(stage: string, msg: string) => void} params.notify
+ * @param {FeishuProgressNotifyLike} params.notify
  * @returns {Promise<{ tempDocToken: string, tempDocUrl: string, cleanup: () => Promise<void> }>}
  */
 async function importTemporaryFeishuDocument({ client, title, markdown, folderToken, notify }) {
@@ -528,10 +585,10 @@ async function findFeishuDocumentInFolder(client, folderToken, candidateTitles) 
 /**
  * Resolves local Obsidian image references for Feishu block replacement while
  * keeping the Markdown import source readable for Feishu's converter.
- * @param {any} app Obsidian App instance
- * @param {any} activeFile TFile
+ * @param {FeishuVaultAppLike | null | undefined} app Obsidian App instance
+ * @param {FeishuNoteFileLike} activeFile TFile
  * @param {string} markdown
- * @returns {Promise<{ markdown: string, assets: Array<{ id: string, filename: string, mimeType: string, base64: string }>, warnings: Array<{ message?: string, src?: string, filename?: string }>, references: Array<{ originalSrc: string, path: string, fileName: string, isRemote: boolean, sizeHint?: { width: number, height: number | null } | null }> }>}
+ * @returns {Promise<FeishuLocalImagePrepareResult>}
  */
 async function prepareLocalImagesForFeishu(app, activeFile, markdown) {
   const result = await resolveArticleImages(markdown, activeFile, {
@@ -561,16 +618,16 @@ async function prepareLocalImagesForFeishu(app, activeFile, markdown) {
 /**
  * Orchestrates the sync flow.
  * @param {object} params
- * @param {any} params.app Obsidian App
- * @param {object} params.settings Feishu settings object
- * @param {any} params.activeFile TFile
+ * @param {FeishuVaultAppLike | null | undefined} params.app Obsidian App
+ * @param {FeishuSyncSettingsLike} params.settings Feishu settings object
+ * @param {FeishuNoteFileLike} params.activeFile TFile
  * @param {string} params.markdown Note content
- * @param {function} [params.onProgress] progress callback (stage, message)
- * @param {any} [params.requestUrl] requestUrl implementation
+ * @param {FeishuProgressNotifyLike} [params.onProgress] progress callback (stage, message)
+ * @param {FeishuRequestUrlLike | null} [params.requestUrl] requestUrl implementation
  * @param {'source' | 'remote-image'} [params.mermaidRenderMode] Mermaid handling mode for this sync
  * @param {'kroki'} [params.mermaidRenderProvider] Remote Mermaid renderer provider
- * @param {Function} [params.renderMermaidFenceToDataUrl] Injected remote renderer for tests/custom providers
- * @returns {Promise<{ title: string, url: string, docToken: string, transferOwnerWarning?: string, imageSummary: { uploaded: number, skipped: number, failed: number, details: Array<{ filename: string, status: string, reason: string }> } }>}
+ * @param {(source: string, options?: Record<string, unknown>) => Promise<string> | string} [params.renderMermaidFenceToDataUrl] Injected remote renderer for tests/custom providers
+ * @returns {Promise<FeishuSyncResultLike>}
  */
 async function syncNoteToFeishu({
   app,
@@ -583,16 +640,17 @@ async function syncNoteToFeishu({
   mermaidRenderProvider = 'kroki',
   renderMermaidFenceToDataUrl,
 }) {
+  /** @type {FeishuProgressNotifyLike} */
   const notify = (stage, msg) => {
     if (typeof onProgress === 'function') {
       onProgress(stage, msg);
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic requestUrl extraction
-  const obsidianApi = getActiveWindowValue('obsidian');
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- reason: dynamic requestUrl extraction
-  const requestUrlImpl = requestUrl || (obsidianApi && typeof obsidianApi.requestUrl === 'function' ? obsidianApi.requestUrl : null);
+  const windowRequestUrl = toRecord(getActiveWindowValue('obsidian')).requestUrl;
+  const requestUrlImpl = requestUrl || (typeof windowRequestUrl === 'function'
+    ? /** @type {FeishuRequestUrlLike} */ (windowRequestUrl)
+    : null);
 
   // 1. Resolve document title
   let title = parseYamlTitle(markdown);
@@ -607,6 +665,7 @@ async function syncNoteToFeishu({
   });
 
   // 3. Fallback Folder Search for lost history
+  /** @type {FeishuHistoryRefLike | null} */
   let historyItem = findFeishuHistoryByPath(settings, activeFile.path);
   if (!historyItem) {
     notify('searching_folder', '正在检索飞书目标文件夹中是否存在同名文档...');
@@ -631,12 +690,13 @@ async function syncNoteToFeishu({
   let processedMd = stripYamlFrontmatter(markdown);
   processedMd = convertWikilinks(processedMd, settings.uploadHistory);
   const imageSummary = createImageSummary();
+  /** @type {FeishuMermaidPrepareResult} */
   let mermaidImageResult = { markdown: processedMd, assets: [], warnings: [] };
   if (mermaidRenderMode === 'remote-image') {
     notify('processing_mermaid', '正在远端渲染 Mermaid 图表...');
     const renderMermaid = typeof renderMermaidFenceToDataUrl === 'function'
       ? renderMermaidFenceToDataUrl
-      : (source) => renderMermaidWithKroki(source, {
+      : /** @param {string} source */ (source) => renderMermaidWithKroki(source, {
           requestUrl: requestUrlImpl,
           provider: mermaidRenderProvider,
         });
@@ -672,12 +732,12 @@ async function syncNoteToFeishu({
     notify('uploading_temp', '正在生成临时 Markdown 上传文件...');
     const textEncoder = new TextEncoder();
     const mdBase64 = arrayBufferToBase64(textEncoder.encode(processedMd).buffer);
-    
+
     const tempFileToken = await client.uploadFile(title + '.md', mdBase64, settings.folderToken);
-    
+
     notify('importing', '正在导入为飞书云文档...');
     const ticket = await client.createImportTask(title, tempFileToken, settings.folderToken);
-    
+
     const result = await client.waitForImportTask(ticket);
     docToken = result.token;
     docUrl = result.url;
@@ -696,6 +756,10 @@ async function syncNoteToFeishu({
     shouldTransferOwnership = true;
   };
 
+  /**
+   * @param {string[]} [candidateTitles]
+   * @returns {Promise<FeishuHistoryRefLike | null>}
+   */
   const relinkExistingDocumentFromFolder = async (candidateTitles = []) => {
     notify('searching_folder', '历史同步记录已失效，正在目标文件夹中重新定位文档...');
     const matched = await findFeishuDocumentInFolder(client, settings.folderToken, candidateTitles);
@@ -718,6 +782,7 @@ async function syncNoteToFeishu({
     docToken = historyItem.docToken;
     docUrl = historyItem.url;
     const rootBlockId = getFeishuRootBlockId(docToken);
+    /** @type {() => Promise<void>} */
     let cleanupTempDocument = async () => {};
 
     try {
@@ -851,7 +916,7 @@ async function syncNoteToFeishu({
       imageSummary.details.push({
         filename: '文档图片结构',
         status: 'failed',
-        reason: err?.message || String(err || 'image_post_process_failed'),
+        reason: toReadableError(err).message || 'image_post_process_failed',
       });
     }
   }
@@ -864,7 +929,7 @@ async function syncNoteToFeishu({
       await client.transferDocumentOwnership(docToken, settings.userId);
     } catch (err) {
       console.warn('[飞书同步] 文档所有权转移失败:', err);
-      transferOwnerWarning = err instanceof Error ? err.message : String(err || 'unknown_error');
+      transferOwnerWarning = toReadableError(err).message || 'unknown_error';
     }
   }
 
@@ -890,5 +955,3 @@ export {
   deleteFeishuChildRange,
   syncNoteToFeishu,
 };
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-unsafe-return -- reason: resume typed linting after Feishu sync orchestration boundary */

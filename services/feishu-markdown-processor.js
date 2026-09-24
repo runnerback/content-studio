@@ -4,6 +4,8 @@
 // Handles YAML parsing & stripping, Wikilinks lookup conversion, and image extraction.
 // No DOM, no Obsidian API, no side effects.
 
+import { toText } from './input-utils.js';
+
 /**
  * @typedef {{ title: string, url: string }} FeishuHistoryLinkLike
  * @typedef {{ originalSrc: string, path: string, fileName: string, isRemote: boolean, sizeHint?: { width: number, height: number | null } | null }} FeishuMarkdownImageLike
@@ -127,7 +129,7 @@ function convertObsidianImageSyntax(markdown) {
  * @returns {string}
  */
 function getWikiImageAltText(rawAltText, fallback) {
-  const raw = String(rawAltText || '').trim();
+  const raw = toText(rawAltText).trim();
   if (!raw) return fallback;
   let parts = raw.split('|').map((part) => part.trim()).filter(Boolean);
   if (parts.length > 1 && isLikelyWikiImageSizeHint(parts[parts.length - 1])) {
@@ -141,7 +143,7 @@ function getWikiImageAltText(rawAltText, fallback) {
  * @returns {boolean}
  */
 function isLikelyWikiImageSizeHint(value) {
-  return /^\d+(?:\s*x\s*\d+)?$/i.test(String(value || '').trim());
+  return /^\d+(?:\s*x\s*\d+)?$/i.test(toText(value).trim());
 }
 
 /**
@@ -149,7 +151,7 @@ function isLikelyWikiImageSizeHint(value) {
  * @returns {{ width: number, height: number | null } | null}
  */
 function parseImageSizeHint(value) {
-  const match = String(value || '').trim().match(/^(\d+)(?:\s*x\s*(\d+))?$/i);
+  const match = toText(value).trim().match(/^(\d+)(?:\s*x\s*(\d+))?$/i);
   if (!match) return null;
   const width = Number(match[1] || 0);
   const height = match[2] ? Number(match[2]) : null;
@@ -163,7 +165,7 @@ function parseImageSizeHint(value) {
  * @returns {{ width: number, height: number | null } | null}
  */
 function extractSizeHintFromAltText(altText) {
-  const raw = String(altText || '').trim();
+  const raw = toText(altText).trim();
   if (!raw) return null;
   if (!raw.includes('|')) return parseImageSizeHint(raw);
   const parts = raw.split('|').map((part) => part.trim()).filter(Boolean);
@@ -190,7 +192,7 @@ function getImageFileNameFromSrc(src) {
  * @returns {string}
  */
 function stripMarkdownDestination(rawDestination) {
-  const raw = String(rawDestination || '').trim();
+  const raw = toText(rawDestination).trim();
   if (raw.startsWith('<')) {
     const end = raw.indexOf('>');
     if (end > 0) return raw.slice(1, end).trim();

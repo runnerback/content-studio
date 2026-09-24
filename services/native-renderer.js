@@ -1,4 +1,5 @@
 import { createHtmlContainer } from './dom-utils.js';
+import { toText } from './input-utils.js';
 
 /**
  * @typedef {{ convert: (markdown: string) => Promise<string> | string, updateSourcePath?: (sourcePath: string) => void }} NativeConverterLike
@@ -30,7 +31,7 @@ export function isSafeRawImageSrc(src) {
  * @returns {string}
  */
 export function normalizeWechatUnsafeTaskListMarkersForNative(markdown) {
-  const source = String(markdown || '');
+  const source = toText(markdown);
   if (!source) return source;
 
   const lines = source.split('\n');
@@ -79,7 +80,7 @@ export function normalizeWechatUnsafeTaskListMarkersForNative(markdown) {
  * @returns {string}
  */
 export function normalizeAdjacentMarkdownBlockHeadings(markdown) {
-  const source = String(markdown || '');
+  const source = toText(markdown);
   if (!source) return source;
 
   const lines = source.split('\n');
@@ -125,8 +126,8 @@ export function normalizeAdjacentMarkdownBlockHeadings(markdown) {
  * @returns {boolean}
  */
 function shouldSeparateFollowingHeading(line, nextLine) {
-  const current = String(line || '').trim();
-  const next = String(nextLine || '');
+  const current = toText(line).trim();
+  const next = toText(nextLine);
   if (!current || !/^#{1,6}\s+\S/.test(next)) return false;
 
   if (/<\/(?:figure|blockquote|section|div)>\s*$/i.test(current)) return true;
@@ -199,7 +200,7 @@ export function cleanupNativeRenderedHtml(html) {
  * @returns {string[]}
  */
 function extractInlineImageTargets(markdown) {
-  const source = String(markdown || '');
+  const source = toText(markdown);
   /** @type {string[]} */
   const targets = [];
   if (!source || !source.includes('![')) return targets;
@@ -223,7 +224,7 @@ function extractInlineImageTargets(markdown) {
  * @returns {boolean}
  */
 export function canUseNativePreviewFastPath(markdown) {
-  const source = String(markdown || '');
+  const source = toText(markdown);
   if (!source.trim()) return false;
 
   if (/^\s{0,3}>\s?\[!\s*(?:image-swipe|image-sensitive)\s*](?:[+-])?/im.test(source)) return false;

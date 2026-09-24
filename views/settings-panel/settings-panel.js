@@ -9,7 +9,6 @@
 
 // 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
 /** @typedef {import('../../input.js').ObsidianElementLike} ObsidianElementLike */
-/** @typedef {import('../../input.js').ObsidianInputLike} ObsidianInputLike */
 
 import { getObsidianSetIcon, getAppleThemeApi, isMobileClient } from '../../services/obsidian-adapters.js';
 import { getEventTargetValue } from '../../services/dom-utils.js';
@@ -53,7 +52,7 @@ export const settingsPanelMixin = {
     platformSelect.createEl('option', { value: 'x', text: 'X' });
     platformWrap.createEl('span', { cls: 'apple-toolbar-platform-arrow', text: '▾' });
     platformSelect.addEventListener('change', () => {
-      this.setPreviewMode?.(platformSelect.value);
+      void this.setPreviewMode?.(platformSelect.value);
     });
     this.platformSelectEl = platformSelect;
 
@@ -72,7 +71,7 @@ export const settingsPanelMixin = {
     /**
      * @param {string} icon
      * @param {string} title
-     * @param {() => unknown} onClick
+     * @param {(event: MouseEvent) => unknown} onClick
      * @returns {ObsidianElementLike}
      */
     const createIconBtn = (icon, title, onClick) => {
@@ -121,9 +120,9 @@ export const settingsPanelMixin = {
     this.sendBtn = createIconBtn('send', '发布与分发', () => {
       const mode = this._previewMode || 'wechat';
       if (mode === 'rednote') {
-        this.showMultiPlatformSyncModal({ preferredPlatform: 'xiaohongshu' });
+        void this.showMultiPlatformSyncModal({ preferredPlatform: 'xiaohongshu' });
       } else if (mode === 'x') {
-        this.showMultiPlatformSyncModal({ preferredPlatform: 'x' });
+        void this.showMultiPlatformSyncModal({ preferredPlatform: 'x' });
       } else {
         this.showSyncModal();
       }
@@ -135,7 +134,7 @@ export const settingsPanelMixin = {
     this.settingsArea = settingsArea;
 
     // === 主题选择 ===
-    this.createSection(settingsArea, '主题', (section) => {
+    this.createSection(settingsArea, '主题', /** @param {ObsidianElementLike} section */ (section) => {
       const grid = section.createEl('div', { cls: 'apple-btn-grid' });
       const themes = getAppleThemeApi().getThemeList();
       themes.forEach(t => {
@@ -145,26 +144,28 @@ export const settingsPanelMixin = {
           attr: { title: t.label },
         });
         btn.dataset.value = t.value;
-        btn.addEventListener('click', () => this.onThemeChange(t.value, grid));
+        btn.addEventListener('click', () => { void this.onThemeChange(t.value, grid); });
       });
     });
 
     // === 字体选择 ===
-    this.createSection(settingsArea, '字体', (section) => {
-      const select = /** @type {ObsidianInputLike} */ (section.createEl('select', { cls: 'apple-select' }));
+    this.createSection(settingsArea, '字体', /** @param {ObsidianElementLike} section */ (section) => {
+      const select = section.createEl('select', { cls: 'apple-select' });
       [
         { value: 'sans-serif', label: '无衬线' },
         { value: 'serif', label: '衬线' },
         { value: 'monospace', label: '等宽' },
       ].forEach(opt => {
-        const option = /** @type {ObsidianInputLike} */ (select.createEl('option', { value: opt.value, text: opt.label }));
+        const option = select.createEl('option', { value: opt.value, text: opt.label });
         if (this.plugin.settings.fontFamily === opt.value) option.selected = true;
       });
-      select.addEventListener('change', (e) => this.onFontFamilyChange(getEventTargetValue(e, this.plugin.settings.fontFamily)));
+      select.addEventListener('change', (e) => {
+        void this.onFontFamilyChange(getEventTargetValue(e, this.plugin.settings.fontFamily));
+      });
     });
 
     // === 字号选择 ===
-    this.createSection(settingsArea, '字号', (section) => {
+    this.createSection(settingsArea, '字号', /** @param {ObsidianElementLike} section */ (section) => {
       const grid = section.createEl('div', { cls: 'apple-btn-row' });
       const sizeOpts = [
         { value: 1, label: '小' },
@@ -179,13 +180,13 @@ export const settingsPanelMixin = {
           cls: `apple-btn-size ${this.plugin.settings.fontSize === s.value ? 'active' : ''}`,
           text: s.label,
         });
-        btn.dataset.value = s.value;
-        btn.addEventListener('click', () => this.onFontSizeChange(s.value, grid));
+        btn.dataset.value = String(s.value);
+        btn.addEventListener('click', () => { void this.onFontSizeChange(s.value, grid); });
       });
     });
 
     // === 主题色 (移到标题样式上方) ===
-    this.createSection(settingsArea, '主题色', (section) => {
+    this.createSection(settingsArea, '主题色', /** @param {ObsidianElementLike} section */ (section) => {
       const grid = section.createEl('div', { cls: 'apple-color-grid' });
       const colors = getAppleThemeApi().getColorList();
 
@@ -196,7 +197,7 @@ export const settingsPanelMixin = {
         });
         btn.dataset.value = c.value;
         btn.style.setProperty('--btn-color', c.color);
-        btn.addEventListener('click', () => this.onColorChange(c.value, grid));
+        btn.addEventListener('click', () => { void this.onColorChange(c.value, grid); });
       });
 
       // 自定义颜色
@@ -208,10 +209,10 @@ export const settingsPanelMixin = {
       customBtn.dataset.value = 'custom';
 
       // 隐藏的颜色选择器
-      const colorInput = /** @type {ObsidianInputLike} */ (grid.createEl('input', {
+      const colorInput = grid.createEl('input', {
         type: 'color',
         cls: 'apple-color-picker-hidden'
-      }));
+      });
       colorInput.value = this.plugin.settings.customColor || '#000000';
       colorInput.setCssStyles({
         visibility: 'hidden',
@@ -231,31 +232,31 @@ export const settingsPanelMixin = {
       });
 
       // 颜色确认后保存
-      colorInput.addEventListener('change', async (e) => {
+      colorInput.addEventListener('change', (e) => {
         const newColor = getEventTargetValue(e, this.plugin.settings.customColor);
         customBtn.style.setProperty('--btn-color', newColor);
 
         // 更新设置
         this.plugin.settings.customColor = newColor;
         this.theme.update({ customColor: newColor });
-        await this.onColorChange('custom', grid);
+        void this.onColorChange('custom', grid);
       });
     });
 
     // === 页面两侧留白 ===
-    this.createSection(settingsArea, '页面两侧留白', (section) => {
+    this.createSection(settingsArea, '页面两侧留白', /** @param {ObsidianElementLike} section */ (section) => {
       const mobile = isMobileClient(this.app);
       const container = section.createEl('div', {
         cls: 'apple-slider-container',
         style: 'width: 100%; display: flex; align-items: center; gap: 10px;'
       });
 
-      const slider = /** @type {ObsidianInputLike} */ (container.createEl('input', {
+      const slider = container.createEl('input', {
         type: 'range',
         cls: 'apple-slider',
         attr: { min: 0, max: mobile ? 36 : 40, step: 1 }
-      }));
-      slider.value = this.plugin.settings.sidePadding;
+      });
+      slider.value = String(this.plugin.settings.sidePadding);
       slider.setCssStyles({ flex: '1' });
 
       const valueLabel = container.createEl('span', {
@@ -271,13 +272,18 @@ export const settingsPanelMixin = {
         this.theme.update({ sidePadding: val });
 
         if (this.saveTimeout) window.clearTimeout(this.saveTimeout);
-        this.saveTimeout = window.setTimeout(async () => {
-          await this.plugin.saveSettings();
+        this.saveTimeout = window.setTimeout(() => {
+          void this.plugin.saveSettings();
         }, 500);
         this.scheduleSidePaddingPreview(mobile ? 220 : 120);
       });
 
-      slider.addEventListener('change', async (e) => {
+      // 松手后落盘并整体重渲染（顺序：先保存再渲染）
+      const commitSidePadding = async () => {
+        await this.plugin.saveSettings();
+        await this.convertCurrent(true);
+      };
+      slider.addEventListener('change', (e) => {
         const val = parseInt(getEventTargetValue(e, String(this.plugin.settings.sidePadding)), 10);
         valueLabel.setText(`${val}px`);
         this.plugin.settings.sidePadding = val;
@@ -286,8 +292,7 @@ export const settingsPanelMixin = {
           window.clearTimeout(this.sidePaddingPreviewTimer);
           this.sidePaddingPreviewTimer = null;
         }
-        await this.plugin.saveSettings();
-        await this.convertCurrent(true);
+        void commitSidePadding();
       });
     });
 
@@ -301,16 +306,18 @@ export const settingsPanelMixin = {
     this.settingsAdvancedArea = advancedArea;
 
     // === 引用样式 ===
-    const quoteStyleSection = this.createSection(advancedArea, '引用样式', (section) => {
-      const select = /** @type {ObsidianInputLike} */ (section.createEl('select', { cls: 'apple-select' }));
+    const quoteStyleSection = this.createSection(advancedArea, '引用样式', /** @param {ObsidianElementLike} section */ (section) => {
+      const select = section.createEl('select', { cls: 'apple-select' });
       [
         { value: 'theme', label: '经典主题色' },
         { value: 'neutral', label: '中性灰（推荐）' },
       ].forEach((opt) => {
-        const option = /** @type {ObsidianInputLike} */ (select.createEl('option', { value: opt.value, text: opt.label }));
+        const option = select.createEl('option', { value: opt.value, text: opt.label });
         if (this.plugin.settings.quoteCalloutStyleMode === opt.value) option.selected = true;
       });
-      select.addEventListener('change', (e) => this.onQuoteCalloutStyleModeChange(getEventTargetValue(e, this.plugin.settings.quoteCalloutStyleMode)));
+      select.addEventListener('change', (e) => {
+        void this.onQuoteCalloutStyleModeChange(getEventTargetValue(e, this.plugin.settings.quoteCalloutStyleMode));
+      });
 
       section.createEl('span', {
         text: '中性灰更适合长文阅读；经典主题色兼容现有风格。',
@@ -322,11 +329,11 @@ export const settingsPanelMixin = {
     quoteStyleSection.classList.add('apple-settings-featured');
 
     // === 标题样式 (移到主题色下方) ===
-    const headingStyleSection = this.createSection(advancedArea, '标题样式', (section) => {
+    const headingStyleSection = this.createSection(advancedArea, '标题样式', /** @param {ObsidianElementLike} section */ (section) => {
       const row = section.createEl('div', { cls: 'apple-settings-inline-row' });
 
       const toggle = row.createEl('label', { cls: 'apple-toggle' });
-      const checkbox = /** @type {ObsidianInputLike} */ (toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' }));
+      const checkbox = toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
       checkbox.checked = this.plugin.settings.coloredHeader;
       toggle.createEl('span', { cls: 'apple-toggle-slider' });
 
@@ -337,7 +344,7 @@ export const settingsPanelMixin = {
         }
       });
 
-      checkbox.addEventListener('change', async () => {
+      const onColoredHeaderChange = async () => {
         this.plugin.settings.coloredHeader = checkbox.checked;
         await this.plugin.saveSettings();
 
@@ -345,15 +352,16 @@ export const settingsPanelMixin = {
         this.theme.update({ coloredHeader: checkbox.checked });
         // 强制刷新
         await this.convertCurrent(true);
-      });
+      };
+      checkbox.addEventListener('change', () => { void onColoredHeaderChange(); });
     });
     headingStyleSection.classList.add('apple-settings-inline-toggle');
 
     // === 正文标点标准化 ===
-    const punctuationSection = this.createSection(advancedArea, '正文标点标准化', (section) => {
+    const punctuationSection = this.createSection(advancedArea, '正文标点标准化', /** @param {ObsidianElementLike} section */ (section) => {
       const row = section.createEl('div', { cls: 'apple-settings-inline-row' });
       const toggle = row.createEl('label', { cls: 'apple-toggle' });
-      const checkbox = /** @type {ObsidianInputLike} */ (toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' }));
+      const checkbox = toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
       checkbox.checked = this.plugin.settings.normalizeChinesePunctuation === true;
       toggle.createEl('span', { cls: 'apple-toggle-slider' });
 
@@ -364,41 +372,42 @@ export const settingsPanelMixin = {
         }
       });
 
-      checkbox.addEventListener('change', async () => {
+      const onPunctuationChange = async () => {
         this.plugin.settings.normalizeChinesePunctuation = checkbox.checked;
         await this.plugin.saveSettings();
         await this.convertCurrent(true);
-      });
+      };
+      checkbox.addEventListener('change', () => { void onPunctuationChange(); });
     });
     punctuationSection.classList.add('apple-settings-inline-toggle');
 
     // === Mac 代码块开关 ===
-    const macCodeSection = this.createSection(advancedArea, 'Mac 风格代码块', (section) => {
+    const macCodeSection = this.createSection(advancedArea, 'Mac 风格代码块', /** @param {ObsidianElementLike} section */ (section) => {
       const row = section.createEl('div', { cls: 'apple-settings-inline-row' });
       const toggle = row.createEl('label', { cls: 'apple-toggle' });
-      const checkbox = /** @type {ObsidianInputLike} */ (toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' }));
+      const checkbox = toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
       checkbox.checked = this.plugin.settings.macCodeBlock;
       toggle.createEl('span', { cls: 'apple-toggle-slider' });
-      checkbox.addEventListener('change', () => this.onMacCodeBlockChange(checkbox.checked));
+      checkbox.addEventListener('change', () => { void this.onMacCodeBlockChange(checkbox.checked); });
     });
     macCodeSection.classList.add('apple-settings-inline-toggle');
 
     // === 代码块行号开关 ===
-    const codeLineNumberSection = this.createSection(advancedArea, '显示代码行号', (section) => {
+    const codeLineNumberSection = this.createSection(advancedArea, '显示代码行号', /** @param {ObsidianElementLike} section */ (section) => {
       const row = section.createEl('div', { cls: 'apple-settings-inline-row' });
       const toggle = row.createEl('label', { cls: 'apple-toggle' });
-      const checkbox = /** @type {ObsidianInputLike} */ (toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' }));
+      const checkbox = toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
       checkbox.checked = this.plugin.settings.codeLineNumber;
       toggle.createEl('span', { cls: 'apple-toggle-slider' });
-      checkbox.addEventListener('change', () => this.onCodeLineNumberChange(checkbox.checked));
+      checkbox.addEventListener('change', () => { void this.onCodeLineNumberChange(checkbox.checked); });
     });
     codeLineNumberSection.classList.add('apple-settings-inline-toggle');
 
     // === 显示图片说明文字 ===
-    const captionSection = this.createSection(advancedArea, '显示图片说明文字', (section) => {
+    const captionSection = this.createSection(advancedArea, '显示图片说明文字', /** @param {ObsidianElementLike} section */ (section) => {
       const row = section.createEl('div', { cls: 'apple-settings-inline-row' });
       const toggle = row.createEl('label', { cls: 'apple-toggle' });
-      const checkbox = /** @type {ObsidianInputLike} */ (toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' }));
+      const checkbox = toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
       checkbox.checked = this.plugin.settings.showImageCaption;
       toggle.createEl('span', { cls: 'apple-toggle-slider' });
 
@@ -409,7 +418,7 @@ export const settingsPanelMixin = {
         }
       });
 
-      checkbox.addEventListener('change', async () => {
+      const onShowImageCaptionChange = async () => {
         this.plugin.settings.showImageCaption = checkbox.checked;
         await this.plugin.saveSettings();
 
@@ -417,14 +426,15 @@ export const settingsPanelMixin = {
           this.converter.updateConfig({ showImageCaption: checkbox.checked });
           await this.convertCurrent(true);
         }
-      });
+      };
+      checkbox.addEventListener('change', () => { void onShowImageCaptionChange(); });
 
       this.captionToggleState = { checkbox, toggle };
     });
     captionSection.classList.add('apple-settings-inline-toggle');
 
     // === 横滑图片块提示 ===
-    this.createSection(advancedArea, '横滑图片块', (section) => {
+    this.createSection(advancedArea, '横滑图片块', /** @param {ObsidianElementLike} section */ (section) => {
       const imageBlockCommand = getImageSwipeCommandCopy(this.app, 'image-swipe').name;
       const sensitiveImageBlockCommand = getImageSwipeCommandCopy(this.app, 'image-sensitive').name;
       section.createEl('span', {
@@ -456,7 +466,7 @@ export const settingsPanelMixin = {
     }
 
     // === 使用指南(面板底部常驻说明,与小红书设置面板同款样式) ===
-    this.createSection(settingsArea, '使用指南', (section) => {
+    this.createSection(settingsArea, '使用指南', /** @param {ObsidianElementLike} section */ (section) => {
       section.createEl('span', {
         text: `1. 实时预览：编辑文档时预览区实时渲染公众号排版效果，双向同步滚动
 2. 样式设置：本面板调整主题/字体/字号/主题色，「高级选项」含引用/标题/代码块等细节

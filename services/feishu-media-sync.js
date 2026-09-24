@@ -1,15 +1,23 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument -- reason: JS module integrates dynamic Feishu block responses and Obsidian file objects */
 // services/feishu-media-sync.js
 //
 // Feishu docx image replacement adapter. It consumes prepared local image
 // assets and leaves remote images to Feishu's import pipeline.
 
 import { getActiveWindow, getActiveWindowValue } from './dom-utils.js';
+import { toReadableError, toRecord, toText } from './input-utils.js';
 
 /**
  * @typedef {{ originalSrc: string, path: string, fileName: string, isRemote: boolean, sizeHint?: { width: number, height: number | null } | null }} FeishuMarkdownImageLike
  * @typedef {{ id: string, filename: string, mimeType: string, base64?: string, source?: { vaultRelativePath?: string, originalSrc?: string, placeholderSrc?: string } }} FeishuLocalImageAssetLike
  * @typedef {{ uploaded: number, skipped: number, failed: number, details: Array<{ filename: string, status: string, reason: string }> }} FeishuImageSummary
+ * @typedef {import('./feishu-api.js').FeishuRequestUrlLike} FeishuRequestUrlLike
+ * @typedef {import('./feishu-api.js').FeishuDocBlockLike} FeishuDocBlockLike
+ * @typedef {{ vault?: { getAbstractFileByPath?: (path: string) => unknown, readBinary: (file: unknown) => Promise<unknown> } }} FeishuVaultAppLike
+ * @typedef {{
+ *   getDocumentBlocks: (documentId: string) => Promise<FeishuDocBlockLike[]>,
+ *   uploadImageMaterialBytes: (fileName: string, bytes: Uint8Array, documentId: string, blockId: string, mimeType?: string) => Promise<string>,
+ *   updateBlock: (documentId: string, blockId: string, blockData: Record<string, unknown>) => Promise<unknown>,
+ * }} FeishuMediaClientLike
  */
 
 /**
@@ -205,14 +213,12 @@ function decodeBase64ImageBytes(base64) {
 }
 
 /**
- * @returns {(((options: Record<string, unknown>) => Promise<unknown>) | null)}
+ * @returns {FeishuRequestUrlLike | null}
  */
 function getRequestUrlImplementation() {
-  const obsidianApi = getActiveWindowValue('obsidian');
-  const requestUrl = obsidianApi && typeof obsidianApi.requestUrl === 'function'
-    ? obsidianApi.requestUrl
-    : null;
-  if (typeof requestUrl !== 'function') return null;
+  const windowRequestUrl = toRecord(getActiveWindowValue('obsidian')).requestUrl;
+  if (typeof windowRequestUrl !== 'function') return null;
+  const requestUrl = /** @type {FeishuRequestUrlLike} */ (windowRequestUrl);
   return (options) => Promise.resolve(requestUrl(options));
 }
 
@@ -244,7 +250,7 @@ function readDataUrlImageBytes(dataUrl) {
 
 /**
  * @param {FeishuMarkdownImageLike} image
- * @param {((options: Record<string, unknown>) => Promise<unknown>) | null | undefined} requestUrl
+ * @param {FeishuRequestUrlLike | null | undefined} requestUrl
  * @returns {Promise<{ bytes: Uint8Array, mimeType: string }>}
  */
 async function readRemoteImageBytes(image, requestUrl) {
@@ -259,26 +265,27 @@ async function readRemoteImageBytes(image, requestUrl) {
 
   const requestUrlImpl = typeof requestUrl === 'function' ? requestUrl : getRequestUrlImplementation();
   if (requestUrlImpl) {
-    const response = await requestUrlImpl({
+    const response = toRecord(await requestUrlImpl({
       url: src,
       method: 'GET',
       throw: false,
-    });
-    const status = Number(response?.status || 0);
+    }));
+    const status = Number(response.status || 0);
     if (status >= 400) {
       throw new Error(`下载远程图片失败 (${status})`);
     }
-    const binary = response?.arrayBuffer
-      || response?.raw
-      || response?.buffer
+    const binary = response.arrayBuffer
+      || response.raw
+      || response.buffer
       || new Uint8Array(0);
     const bytes = toUint8Array(binary);
     if (!bytes.byteLength) {
       throw new Error('下载远程图片失败 (empty body)');
     }
+    const headers = toRecord(response.headers);
     return {
       bytes,
-      mimeType: normalizeRemoteImageMimeType(response?.headers?.['content-type'] || response?.headers?.['Content-Type'] || '', image?.fileName || 'image'),
+      mimeType: normalizeRemoteImageMimeType(toText(headers['content-type'] || headers['Content-Type']), image?.fileName || 'image'),
     };
   }
 
@@ -317,21 +324,22 @@ function addImageDetail(summary, filename, status, reason) {
  * @returns {string}
  */
 function getErrorMessage(error) {
-  return error instanceof Error ? error.message : String(error || 'unknown_error');
+  return toReadableError(error).message || 'unknown_error';
 }
 
 /**
- * @param {unknown} app
+ * @param {FeishuVaultAppLike | null | undefined} app
  * @param {FeishuLocalImageAssetLike} asset
  * @returns {Promise<Uint8Array>}
  */
 async function readAssetBytes(app, asset) {
   const vaultRelativePath = asset?.source?.vaultRelativePath || '';
-  const file = vaultRelativePath && app?.vault?.getAbstractFileByPath
-    ? app.vault.getAbstractFileByPath(vaultRelativePath)
+  const vault = app?.vault;
+  const file = vaultRelativePath && vault?.getAbstractFileByPath
+    ? vault.getAbstractFileByPath(vaultRelativePath)
     : null;
-  if (file) {
-    return toUint8Array(await app.vault.readBinary(file));
+  if (file && vault) {
+    return toUint8Array(await vault.readBinary(file));
   }
 
   if (asset?.base64) {
@@ -360,14 +368,14 @@ function findLocalAssetForImage(image, assets) {
 
 /**
  * @param {{
- *   app: unknown,
- *   client: { getDocumentBlocks: Function, uploadImageMaterialBytes: Function, updateBlock: Function },
+ *   app: FeishuVaultAppLike | null | undefined,
+ *   client: FeishuMediaClientLike,
  *   docToken: string,
  *   images: FeishuMarkdownImageLike[],
  *   assets: FeishuLocalImageAssetLike[],
- *   requestUrl?: ((options: Record<string, unknown>) => Promise<unknown>) | null,
+ *   requestUrl?: FeishuRequestUrlLike | null,
  *   includeRemoteImages?: boolean,
- *   onProgress?: Function,
+ *   onProgress?: (stage: string, message: string) => void,
  * }} params
  * @returns {Promise<FeishuImageSummary>}
  */
@@ -436,5 +444,3 @@ export {
   createImageSummary,
   replaceFeishuImageBlocks,
 };
-
-/* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-argument -- reason: resume typed linting after Feishu media adapter boundary */

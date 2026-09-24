@@ -15,6 +15,24 @@ import {
 
 const { Notice } = obsidianApi;
 
+/** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
+/**
+ * 图卡发布只用到 app 的这几个能力；共享的 AppLike 没有声明 cachedRead / extension / parent，
+ * 这里按实际使用面单独声明，进入时做一次断言。
+ * @typedef {{ path: string, basename: string, extension: string, parent?: { path?: string } | null }} CardNoteFileLike
+ * @typedef {{
+ *   workspace: { getActiveFile: () => CardNoteFileLike | null },
+ *   vault: {
+ *     cachedRead: (file: CardNoteFileLike) => Promise<string>,
+ *     createFolder: (path: string) => Promise<unknown>,
+ *     createBinary: (path: string, data: ArrayBuffer) => Promise<unknown>,
+ *     getAbstractFileByPath: (path: string) => unknown,
+ *     delete: (file: unknown) => Promise<void>,
+ *   },
+ * }} CardPublishAppLike
+ * @typedef {{ article: Record<string, unknown>, dirPath: string, cardCount: number }} CardArticlePrepLike
+ */
+
 /**
  * @param {Blob} blob
  * @returns {Promise<{ base64: string, buffer: ArrayBuffer }>}
@@ -32,18 +50,19 @@ async function blobToBase64AndBuffer(blob) {
 
 /**
  * 图卡发布准备通用流程。任何一步不满足直接抛错(调用方决定跳过/报错),不兜底。
- * @param {any} view AppleStyleView 实例
+ * @param {AppleStyleViewInstance} view AppleStyleView 实例
  * @param {{ prefix: string, label: string, sourceKind: string, maxCards?: number }} config maxCards：平台单帖图片上限（X 为 4），超出直接抛错
- * @returns {Promise<{ article: Record<string, unknown>, dirPath: string, cardCount: number }>}
+ * @returns {Promise<CardArticlePrepLike>}
  */
 export async function prepareCardArticle(view, config) {
-  const activeFile = view.app.workspace.getActiveFile();
+  const app = /** @type {CardPublishAppLike} */ (/** @type {unknown} */ (view.app));
+  const activeFile = app.workspace.getActiveFile();
   if (!activeFile || activeFile.extension !== 'md') {
     throw new Error('请先打开要发布的 markdown 笔记');
   }
 
   // 1. 截取正文(复用「> 发布正文：」标记块;缺失=格式不符,直接暴露)
-  const markdownSource = await view.app.vault.cachedRead(activeFile);
+  const markdownSource = await app.vault.cachedRead(activeFile);
   const body = extractCardBody(markdownSource);
   if (!body) {
     throw new Error('未找到正文标记「> 发布时复制下面这段作为笔记正文：」,请检查笔记格式');
@@ -73,7 +92,9 @@ export async function prepareCardArticle(view, config) {
     }
 
     notice.setMessage(`正在处理 ${blobs.length} 张图卡...`);
+    /** @type {{ base64: string, size: number }[]} */
     const cards = [];
+    /** @type {ArrayBuffer[]} */
     const buffers = [];
     for (const blob of blobs) {
       const { base64, buffer } = await blobToBase64AndBuffer(blob);
@@ -83,7 +104,7 @@ export async function prepareCardArticle(view, config) {
 
     // 4. 落盘 sync-to-<prefix>/(先清空,发布后保留)
     notice.setMessage(`正在写入 sync-to-${config.prefix} 目录...`);
-    const dirPath = await syncCardsToPlatformFolder(view.app, activeFile, buffers, config.prefix);
+    const dirPath = await syncCardsToPlatformFolder(app, activeFile, buffers, config.prefix);
 
     const article = buildCardArticle({
       title, body, cards, notePath: activeFile.path,

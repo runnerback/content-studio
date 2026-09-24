@@ -11,6 +11,7 @@
 /** @typedef {import('../../input.js').RenderPipelineLike} RenderPipelineLike */
 
 import { obsidianApi } from '../../services/obsidian-adapters.js';
+import { APPLE_STYLE_VIEW_TITLE } from '../../services/settings-defaults.js';
 
 const { MarkdownView } = obsidianApi;
 
@@ -69,7 +70,8 @@ export const renderPipelineMixin = {
     const placeholder = this.previewContainer.createEl('div', { cls: 'apple-placeholder' });
     const iconDiv = placeholder.createEl('div', { cls: 'apple-placeholder-icon' });
     this.renderPlaceholderIcon(iconDiv);
-    placeholder.createEl('h2', { text: 'Content Studio' });
+    // 占位标题就是插件显示名，与顶栏共用同一常量
+    placeholder.createEl('h2', { text: APPLE_STYLE_VIEW_TITLE });
     const content = placeholder.createDiv({ cls: 'apple-placeholder-content' });
     content.createEl('p', {
       text: '当前面板用于预览微信公众号排版。请在左侧编辑器中打开或激活任意 Markdown 笔记以自动加载预览。',
@@ -88,7 +90,6 @@ export const renderPipelineMixin = {
 
   /**
    * @param {ObsidianElementLike} iconDiv
-   * @returns {Promise<void>}
    */
   renderPlaceholderIcon(iconDiv) {
     iconDiv.empty();

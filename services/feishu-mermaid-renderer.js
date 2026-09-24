@@ -1,6 +1,12 @@
+import { toReadableError, toText } from './input-utils.js';
+
 /**
  * @typedef {{ start: number, end: number, raw: string, source: string }} MermaidFence
- * @typedef {{ id: string, filename: string, mimeType: string, size: number, base64: string, source: Record<string, unknown> }} FeishuMermaidAsset
+ * @typedef {{ kind: string, originalSrc: string, notePath: string, vaultRelativePath: string, placeholderSrc?: string }} FeishuMermaidAssetSource
+ * @typedef {{ id: string, filename: string, mimeType: string, size: number, base64: string, source: FeishuMermaidAssetSource }} FeishuMermaidAsset
+ * @typedef {{ code: string, message: string, severity: string, src: string, filename: string, size: number }} FeishuMermaidWarning
+ * @typedef {{ markdown: string, assets: FeishuMermaidAsset[], warnings: FeishuMermaidWarning[] }} FeishuMermaidPrepareResult
+ * @typedef {{ start: number, end: number, value: string }} MermaidReplacement
  */
 
 const FEISHU_MERMAID_MAX_SOURCE_CHARS = 20000;
@@ -11,7 +17,7 @@ const FEISHU_MERMAID_MAX_DIAGRAMS = 8;
  * @returns {string}
  */
 function getErrorMessage(error) {
-  return error instanceof Error ? error.message : String(error || 'unknown_error');
+  return toReadableError(error).message || 'unknown_error';
 }
 
 /**
@@ -19,7 +25,7 @@ function getErrorMessage(error) {
  * @returns {string}
  */
 function escapeMarkdownAlt(value) {
-  return String(value || 'Mermaid diagram').replace(/\]/g, '\\]');
+  return (toText(value) || 'Mermaid diagram').replace(/\]/g, '\\]');
 }
 
 /**
@@ -27,7 +33,7 @@ function escapeMarkdownAlt(value) {
  * @returns {MermaidFence[]}
  */
 function collectMermaidFences(markdown) {
-  const source = String(markdown || '');
+  const source = toText(markdown);
   /** @type {MermaidFence[]} */
   const fences = [];
   const openerPattern = /^( {0,3})(`{3,}|~{3,})[ \t]*mermaid\b[^\n]*(?:\n|$)/gim;
@@ -61,7 +67,7 @@ function collectMermaidFences(markdown) {
  * @returns {{ mimeType: string, base64: string, size: number } | null}
  */
 function parseImageDataUrl(dataUrl) {
-  const match = String(dataUrl || '').match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i);
+  const match = toText(dataUrl).match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i);
   if (!match) return null;
   const base64 = String(match[2] || '').replace(/\s+/g, '');
   if (!base64) return null;
@@ -114,10 +120,10 @@ async function renderMermaidFenceToDataUrl(source, options = {}) {
  * @param {(asset: FeishuMermaidAsset) => string} [options.localImageSrcFactory]
  * @param {(source: string, options: object) => Promise<string> | string} [options.renderMermaidFenceToDataUrl]
  * @param {unknown} [options.notePath]
- * @returns {Promise<{ markdown: string, assets: FeishuMermaidAsset[], warnings: Array<{ code: string, message: string, severity: string, src: string, filename: string, size: number }> }>}
+ * @returns {Promise<FeishuMermaidPrepareResult>}
  */
 async function prepareMermaidDiagramsForFeishu(markdown, options = {}) {
-  const source = String(markdown || '');
+  const source = toText(markdown);
   const fences = collectMermaidFences(source).slice(0, FEISHU_MERMAID_MAX_DIAGRAMS);
   if (!fences.length) {
     return { markdown: source, assets: [], warnings: [] };
@@ -125,7 +131,9 @@ async function prepareMermaidDiagramsForFeishu(markdown, options = {}) {
 
   /** @type {FeishuMermaidAsset[]} */
   const assets = [];
+  /** @type {FeishuMermaidWarning[]} */
   const warnings = [];
+  /** @type {MermaidReplacement[]} */
   const replacements = [];
 
   for (let index = 0; index < fences.length; index += 1) {
@@ -149,6 +157,7 @@ async function prepareMermaidDiagramsForFeishu(markdown, options = {}) {
       }
 
       const extension = extensionFromMimeType(image.mimeType);
+      /** @type {FeishuMermaidAsset} */
       const asset = {
         id: `feishu-mermaid-${ordinal}`,
         filename: `mermaid-diagram-${ordinal}.${extension}`,
@@ -158,7 +167,7 @@ async function prepareMermaidDiagramsForFeishu(markdown, options = {}) {
         source: {
           kind: 'feishu-mermaid',
           originalSrc: `mermaid:${ordinal}`,
-          notePath: String(options.notePath || ''),
+          notePath: toText(options.notePath),
           vaultRelativePath: '',
         },
       };

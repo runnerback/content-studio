@@ -4,6 +4,8 @@
 // Handles defaults creation, settings normalization, and upload history management.
 // No DOM, no Obsidian API, no side effects.
 
+import { toText } from './input-utils.js';
+
 /**
  * @typedef {{ title: string, url: string, uploadTime: string, docToken: string, sourcePath: string }} FeishuUploadHistoryItemLike
  * @typedef {{ mode: 'source' | 'remote-image', provider: 'kroki', updatedAt: number }} FeishuMermaidPreferenceLike
@@ -335,7 +337,7 @@ function rebindFeishuHistoryByPath(settings, sourcePath, value) {
 function findFeishuHistoryByPath(settings, path) {
   const source = toRecord(settings);
   if (!Array.isArray(source.uploadHistory)) return null;
-  const targetPath = String(path || '').trim();
+  const targetPath = toText(path).trim();
   if (!targetPath) return null;
   return /** @type {FeishuUploadHistoryItemLike[]} */ (source.uploadHistory).find((x) => x.sourcePath === targetPath) || null;
 }
@@ -348,7 +350,7 @@ function findFeishuHistoryByPath(settings, path) {
 function removeFeishuHistoryByPath(settings, path) {
   const source = toRecord(settings);
   if (!Array.isArray(source.uploadHistory)) return false;
-  const targetPath = String(path || '').trim();
+  const targetPath = toText(path).trim();
   if (!targetPath) return false;
 
   const history = /** @type {FeishuUploadHistoryItemLike[]} */ (source.uploadHistory);
@@ -368,8 +370,8 @@ function removeFeishuHistoryByPath(settings, path) {
 function updateFeishuHistoryPath(settings, oldPath, newPath) {
   const source = toRecord(settings);
   if (!Array.isArray(source.uploadHistory)) return false;
-  const targetOld = String(oldPath || '').trim();
-  const targetNew = String(newPath || '').trim();
+  const targetOld = toText(oldPath).trim();
+  const targetNew = toText(newPath).trim();
   if (!targetOld || !targetNew) return false;
 
   let changed = false;
