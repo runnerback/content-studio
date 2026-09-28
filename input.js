@@ -65,7 +65,7 @@
  * @typedef {{ showLoading?: boolean, loadingText?: string, loadingDelay?: number, sourceOverride?: { markdown?: string, sourcePath?: string } | null }} ConvertCurrentOptionsLike
  * @typedef {{ sourcePath?: string, settings?: PluginSettingsLike | Record<string, unknown> }} RenderCandidateContextLike
  * @typedef {{ id: string, name: string, kind: string, baseUrl: string, apiKey: string, model: string, enabled?: boolean }} AiProviderLike
- * @typedef {{ enabled: boolean, defaultLayoutFamily: string, defaultColorPalette: string, defaultProviderId: string, customColor?: string, includeImagesInLayout?: boolean, requestTimeoutMs?: number, layoutModel?: string, defaultStylePack?: string, providers: AiProviderLike[], articleLayoutsByPath: Record<string, unknown> }} AiSettingsLike
+ * @typedef {{ enabled: boolean, defaultLayoutFamily: string, defaultColorPalette: string, defaultProviderId: string, customColor?: string, includeImagesInLayout?: boolean, requestTimeoutMs?: number, layoutModel?: string, defaultStylePack?: string, providers: AiProviderLike[], articleLayoutsByPath: Record<string, unknown> , usageTotals?: import('./services/ai-layout.js').AiUsageTotalsLike, usagePricePerMillion?: { input: number, output: number } }} AiSettingsLike
  * @typedef {{ blockKey: string, relativeTop: number, fallbackScrollTop: number }} AiLayoutPendingAnchorLike
  * @typedef {{ theme: string, themeColor: string, customColor: string, quoteCalloutStyleMode: string, fontFamily: string, fontSize: number, macCodeBlock: boolean, codeLineNumber: boolean, avatarUrl: string, avatarBase64: string, enableWatermark: boolean, showImageCaption: boolean, normalizeChinesePunctuation: boolean, wechatAccounts: WechatAccountLike[], defaultAccountId: string, proxyUrl: string, clientId: string, draftCache: unknown, usePhoneFrame: boolean, autoSwitchPlatformByProperty: boolean, sidePadding: number, coloredHeader: boolean, cleanupAfterSync: boolean, cleanupUseSystemTrash: boolean, cleanupDirTemplate: string, multiPlatformSync: unknown, ai: AiSettingsLike, [key: string]: unknown }} PluginSettingsLike
  * @typedef {{ update: (values: Record<string, unknown>) => void }} ThemeRuntimeLike
@@ -116,9 +116,7 @@ import { resolveMarkdownSource } from './services/markdown-source.js';
 import { normalizeVaultPath } from './services/path-utils.js';
 import { renderObsidianTripletMarkdown } from './services/obsidian-triplet-renderer.js';
 import { canUseNativePreviewFastPath, renderNativeMarkdown } from './services/native-renderer.js';
-import { convertRenderedMermaidDiagramsToImages } from './services/rendered-mermaid.js';
 import { finishMathRender } from './services/math-renderer.js';
-import { convertMathContainersToImages } from './services/math-export.js';
 import {
   AI_LAYOUT_SELECTION_AUTO,
   createDefaultAiSettings,
@@ -148,15 +146,13 @@ import { mediaAssetsMixin } from './views/publish-modal/media-assets.js';
 import { renderPipelineMixin } from './views/preview/render-pipeline.js';
 import { settingsPanelMixin } from './views/settings-panel/settings-panel.js';
 import { rednoteSettingsPanelMixin } from './views/settings-panel/rednote-settings-panel.js';
+import { publishMetaMixin } from './views/frontmatter/publish-meta.js';
+import { clipboardExportMixin } from './views/clipboard/clipboard-export.js';
 import { initAiLayoutState } from './views/ai-layout/ai-layout-state.js';
-import {
-  normalizeDraftCache,
-} from './services/wechat-draft-cache.js';
 import { stripMarkdownFrontmatter } from './services/markdown-utils.js';
 import {
   createHtmlContainer,
   getActiveWindowValue,
-  htmlToText,
   setElementHtml,
 } from './services/dom-utils.js';
 
@@ -168,7 +164,6 @@ import {
   refreshSettingTabCompat,
   getObsidianModalClass,
   createObsidianModal,
-  getObsidianSetIcon,
   isMobileClient,
 } from './services/obsidian-adapters.js';
 
@@ -201,7 +196,6 @@ import {
 } from './views/connection-status-bar.js';
 
 import {
-  normalizeFeishuSyncSettings,
   updateFeishuHistoryPath,
 } from './services/feishu-settings.js';
 import { getImageSwipeCommandCopy, createImageSwipeCalloutMarkdown } from './services/image-swipe.js';
@@ -212,6 +206,7 @@ import {
   DEFAULT_SETTINGS,
   APPLE_STYLE_VIEW_TITLE,
 } from './services/settings-defaults.js';
+import { migrateLoadedSettings } from './services/settings-migration.js';
 
 /**
  * 🚀 微信公众号 API 对接模块
@@ -924,297 +919,6 @@ class AppleStyleView extends ItemView {
   }
 
   /**
-   * 获取当前发布上下文文件：
-   * 1) 优先当前活动文件
-   * 2) 回退到最近一次活动文件（侧边栏切换 tab 后常见）
-   */
-  getPublishContextFile() {
-    const activeFile = this.app?.workspace?.getActiveFile?.();
-    if (activeFile) return activeFile;
-    if (this.lastActiveFile) return this.lastActiveFile;
-    return null;
-  }
-
-  /**
-   * 读取当前文档 frontmatter 中的发布元数据
-   * @returns {{ excerpt: string, cover: string, cover_dir: string, coverSrc: string|null, title: string }}
-   */
-  /**
-   * @param {TFileLike | unknown | null | undefined} activeFile
-   * @returns {{ excerpt: string, cover: string, cover_dir: string, coverSrc: string|null, title: string }}
-   */
-  getFrontmatterPublishMeta(activeFile) {
-    if (!activeFile) {
-      return { excerpt: '', cover: '', cover_dir: '', coverSrc: null, title: '' };
-    }
-
-    const frontmatter = this.app?.metadataCache?.getFileCache?.(activeFile)?.frontmatter;
-    const excerpt = this.getFrontmatterString(frontmatter, ['excerpt']);
-    const cover = this.getFrontmatterString(frontmatter, ['cover']);
-    const cover_dir = this.getFrontmatterString(frontmatter, ['cover_dir', 'coverDir', 'cover-dir', 'coverdir', 'CoverDIR']);
-    const title = this.getFrontmatterString(frontmatter, ['title']);
-
-    // 解析失败时静默回退：返回 null，不中断流程
-    const coverSrc = cover ? this.resolveVaultPathToResourceSrc(cover) : null;
-
-    return { excerpt, cover, cover_dir, coverSrc, title };
-  }
-
-  /**
-   * @param {Record<string, unknown> | null | undefined} frontmatter
-   * @param {string[]} keys
-   * @returns {string}
-   */
-  getFrontmatterString(frontmatter, keys) {
-    const frontmatterRecord = toRecord(frontmatter);
-    if (!frontmatterRecord) return '';
-    if (!Array.isArray(keys) || keys.length === 0) return '';
-
-    const normalizedTargets = new Set(keys.map(key => this.normalizeFrontmatterKey(key)));
-    for (const key of keys) {
-      const value = frontmatterRecord[key];
-      if (typeof value === 'string' && value.trim()) return value.trim();
-    }
-
-    for (const [key, value] of Object.entries(frontmatterRecord)) {
-      if (!normalizedTargets.has(this.normalizeFrontmatterKey(key))) continue;
-      if (typeof value === 'string' && value.trim()) return value.trim();
-    }
-
-    return '';
-  }
-
-  /**
-   * @param {unknown} key
-   * @returns {string}
-   */
-  normalizeFrontmatterKey(key) {
-    return toText(key).toLowerCase().replace(/[_-]/g, '');
-  }
-
-  /**
-   * @param {Record<string, unknown> | null | undefined} frontmatter
-   * @param {string[]} keys
-   * @returns {Record<string, string>}
-   */
-  getFrontmatterKeyMap(frontmatter, keys) {
-    /** @type {Record<string, string>} */
-    const result = {};
-    const frontmatterRecord = toRecord(frontmatter);
-    if (!frontmatterRecord) return result;
-    if (!Array.isArray(keys) || keys.length === 0) return result;
-
-    const normalizedTargets = new Set(keys.map(key => this.normalizeFrontmatterKey(key)));
-    for (const [key, value] of Object.entries(frontmatterRecord)) {
-      if (!normalizedTargets.has(this.normalizeFrontmatterKey(key))) continue;
-      if (typeof value !== 'string') continue;
-      const normalizedValue = this.normalizeVaultPath(value);
-      if (!normalizedValue) continue;
-      result[key] = normalizedValue;
-    }
-    return result;
-  }
-
-  isPathInsideDirectory(filePath, dirPath) {
-    const file = this.normalizeVaultPath(filePath);
-    const dir = this.normalizeVaultPath(dirPath);
-    if (!file || !dir) return false;
-    if (file === dir) return true;
-    return file.startsWith(`${dir}/`);
-  }
-
-  isPathInsideDirectoryByTail(filePath, dirPath) {
-    const file = this.normalizeVaultPath(filePath);
-    const dir = this.normalizeVaultPath(dirPath);
-    if (!file || !dir) return false;
-
-    const dirSegments = dir.split('/').filter(Boolean);
-    if (dirSegments.length < 2) return false;
-
-    // 允许清理目录与 frontmatter 路径存在“根前缀差异”
-    // 例如 cleanedDir: Wechat/published/img
-    //      cover:     published/img/post-cover.jpg
-    for (let i = 1; i <= dirSegments.length - 2; i++) {
-      const tailDir = dirSegments.slice(i).join('/');
-      if (this.isPathInsideDirectory(file, tailDir)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  shouldClearFrontmatterPathAfterCleanup(pathValue, cleanedDir) {
-    const normalized = this.normalizeVaultPath(pathValue);
-    if (!normalized) return false;
-    if (this.isPathInsideDirectory(normalized, cleanedDir)) return true;
-    return this.isPathInsideDirectoryByTail(normalized, cleanedDir);
-  }
-
-  /**
-   * @param {Record<string, unknown> | null | undefined} frontmatter
-   * @param {string} cleanedDir
-   * @returns {boolean}
-   */
-  clearInvalidPublishMetaInFrontmatter(frontmatter, cleanedDir) {
-    const frontmatterRecord = toRecord(frontmatter);
-    if (!frontmatterRecord) return false;
-
-    let changed = false;
-    const coverMap = this.getFrontmatterKeyMap(frontmatter, ['cover']);
-    const coverDirMap = this.getFrontmatterKeyMap(frontmatter, ['cover_dir', 'coverDir', 'cover-dir', 'coverdir', 'CoverDIR']);
-
-    for (const [key, value] of Object.entries(coverMap)) {
-      if (this.shouldClearFrontmatterPathAfterCleanup(value, cleanedDir)) {
-        frontmatterRecord[key] = '';
-        changed = true;
-      }
-    }
-
-    for (const [key, value] of Object.entries(coverDirMap)) {
-      if (this.shouldClearFrontmatterPathAfterCleanup(value, cleanedDir)) {
-        frontmatterRecord[key] = '';
-        changed = true;
-      }
-    }
-
-    return changed;
-  }
-
-  async clearInvalidPublishMetaByTextFallback(activeFile, cleanedDir) {
-    const vault = this.app?.vault;
-    if (!vault || typeof vault.read !== 'function' || typeof vault.modify !== 'function') {
-      return false;
-    }
-
-    const source = await vault.read(activeFile);
-    if (typeof source !== 'string' || !source.startsWith('---')) return false;
-
-    const match = source.match(/^(---[ \t]*\r?\n)([\s\S]*?)(\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$))/);
-    if (!match) return false;
-
-    let changed = false;
-    const body = match[2].replace(/^([ \t]*)(cover|cover_dir|coverDir|cover-dir|coverdir|CoverDIR)([ \t]*:[ \t]*)(.*)$/gmi, (line, indent, key, separator, rawValue) => {
-      const value = String(rawValue || '').trim().replace(/^['"]|['"]$/g, '');
-      if (!this.shouldClearFrontmatterPathAfterCleanup(value, cleanedDir)) {
-        return line;
-      }
-      changed = true;
-      return `${indent}${key}${separator}''`;
-    });
-
-    if (!changed) return false;
-    await vault.modify(activeFile, `${match[1]}${body}${match[3]}${source.slice(match[0].length)}`);
-    return true;
-  }
-
-  async clearInvalidPublishMetaAfterCleanup(activeFile, cleanedDirPath) {
-    if (!activeFile || !cleanedDirPath) return null;
-
-    const cleanedDir = this.normalizeVaultPath(cleanedDirPath);
-    if (!cleanedDir) return null;
-
-    try {
-      const processFrontMatter = this.app?.fileManager?.['processFrontMatter'];
-      if (typeof processFrontMatter === 'function') {
-        await processFrontMatter.call(this.app.fileManager, activeFile, (frontmatter) => {
-          this.clearInvalidPublishMetaInFrontmatter(toRecord(frontmatter), cleanedDir);
-        });
-      } else {
-        await this.clearInvalidPublishMetaByTextFallback(activeFile, cleanedDir);
-      }
-    } catch (error) {
-      return `资源已删除，但清理 frontmatter 中失效的 cover/cover_dir 失败: ${toReadableError(error).message}`;
-    }
-
-    return null;
-  }
-
-  /**
-   * 将 vault 相对路径解析为可预览/上传的资源 src（通常是 app://）
-   */
-  resolveVaultPathToResourceSrc(vaultPath) {
-    if (typeof vaultPath !== 'string') return null;
-    const normalized = vaultPath.trim().replace(/\\/g, '/').replace(/^\/+/, '');
-    if (!normalized) return null;
-
-    try {
-      const file = this.app.vault.getAbstractFileByPath(normalized);
-      if (!file) return null;
-      if (typeof file.extension !== 'string') return null; // 仅接受文件，不接受目录
-      return this.app.vault.getResourcePath(file);
-    } catch {
-      // frontmatter 路径失效或不是文件时，静默回退
-      return null;
-    }
-  }
-
-  normalizeVaultPath(vaultPath) {
-    return normalizeVaultPath(vaultPath);
-  }
-
-  getVaultConfigDir() {
-    const configDir = this.app?.vault?.configDir;
-    return typeof configDir === 'string' ? this.normalizeVaultPath(configDir) : '';
-  }
-
-  getCleanupDirTemplate() {
-    const raw = typeof this.plugin?.settings?.cleanupDirTemplate === 'string'
-      ? this.plugin.settings.cleanupDirTemplate
-      : '';
-    return this.normalizeVaultPath(raw);
-  }
-
-  /**
-   * @param {TFileLike | null | undefined} activeFile
-   * @returns {{ path: string, warning?: string }}
-   */
-  resolveCleanupDirPath(activeFile) {
-    const template = this.getCleanupDirTemplate();
-    if (!template) {
-      return { path: '', warning: '未配置清理目录，请在插件设置中先填写目录后再启用自动清理' };
-    }
-
-    const hasNotePlaceholder = /\{\{\s*note\s*\}\}/i.test(template);
-    if (hasNotePlaceholder && !activeFile) {
-      return { path: '', warning: '当前没有活动文档，无法解析清理目录中的 {{note}}' };
-    }
-
-    const noteName = typeof activeFile?.basename === 'string' ? activeFile.basename.trim() : '';
-    const resolved = template.replace(/\{\{\s*note\s*\}\}/gi, noteName);
-    const normalized = this.normalizeVaultPath(resolved);
-    if (!normalized) {
-      return { path: '', warning: '清理目录为空，请检查设置值' };
-    }
-
-    return { path: normalized };
-  }
-
-  /**
-   * 清理目录安全校验：禁止空路径、上跳路径、系统配置目录等危险路径
-   */
-  isSafeCleanupDirPath(vaultPath) {
-    const normalized = this.normalizeVaultPath(vaultPath);
-    if (!normalized) return false;
-    if (normalized === '.') return false;
-    if (normalized.includes('..')) return false;
-    const configDir = this.getVaultConfigDir();
-    if (configDir && (normalized === configDir || normalized.startsWith(`${configDir}/`))) return false;
-    return true;
-  }
-
-  /**
-   * 在同步成功后按配置清理目录
-   * 失败返回 warning，不抛错（避免影响同步成功状态）
-   * @param {TFileLike | null | undefined} activeFile
-   * @returns {Promise<CleanupResultLike>}
-   */
-  cleanupConfiguredDirectory(_activeFile) {
-    // 「发送成功后自动清理资源」功能已移除：无条件跳过，老配置(data.json 里的
-    // cleanupAfterSync) 也不再触发，避免删了设置项后无法关闭。
-    return Promise.resolve({ attempted: false });
-  }
-
-  /**
    * @param {ObsidianElementLike | null} overlay
    * @param {ObsidianElementLike | null} button
    * @param {(() => unknown) | undefined} onOpen
@@ -1653,372 +1357,6 @@ class AppleStyleView extends ItemView {
     }, 300);
   }
 
-  /**
-   * @param {string} htmlContent
-   * @returns {Promise<boolean>}
-   */
-  async copyRichHTMLByClipboard(htmlContent) {
-    if (
-      !navigator.clipboard ||
-      typeof navigator.clipboard.write !== 'function' ||
-      typeof ClipboardItem === 'undefined'
-    ) {
-      return false;
-    }
-
-    const item = new ClipboardItem({
-      'text/html': new Blob([htmlContent], { type: 'text/html' }),
-    });
-    await navigator.clipboard.write([item]);
-    return true;
-  }
-
-  /**
-   * @param {unknown} text
-   * @returns {string}
-   */
-  normalizeClipboardText(text) {
-    return toText(text).replace(/\s+/g, ' ').trim();
-  }
-
-  /**
-   * @param {string} icon
-   */
-  setCopyButtonIcon(icon) {
-    if (!this.copyBtn) return;
-    this.copyBtn.replaceChildren();
-    const setIcon = getObsidianSetIcon();
-    if (typeof setIcon === 'function') {
-      setIcon(this.copyBtn, icon);
-    }
-  }
-
-  setCopyButtonSpinner() {
-    if (!this.copyBtn) return;
-    this.copyBtn.replaceChildren();
-    const activeDocument = getActiveDocumentCompat();
-    if (!activeDocument) return;
-    const spinner = activeDocument.createElement('span');
-    spinner.className = 'apple-copy-spinner';
-    spinner.setAttribute('aria-hidden', 'true');
-    this.copyBtn.appendChild(spinner);
-  }
-
-  /**
-   * @param {HTMLElement | null} root
-   */
-  async enhanceHtmlForWechatPublishing(root) {
-    if (!root) return;
-    const activeDocument = getActiveDocumentCompat();
-    /** @type {HTMLElement | null} */
-    let mount = null;
-    try {
-      if (activeDocument?.body && !root.isConnected) {
-        mount = activeDocument.createElement('div');
-        mount.setCssStyles({
-          position: 'fixed',
-          left: '-99999px',
-          top: '0',
-          width: '760px',
-          opacity: '0',
-          pointerEvents: 'none',
-          overflow: 'hidden',
-        });
-        activeDocument.body.appendChild(mount);
-        mount.appendChild(root);
-      }
-      await convertRenderedMermaidDiagramsToImages(root, {
-        simpleHash: (value) => this.simpleHash(String(value || '')),
-        mermaidImageCache: this.mermaidImageCache,
-      });
-      // 3.12.0：Obsidian 自带 MathJax 的 CHTML 公式，公众号编辑器不认 mjx-* 元素，复制前栅格化成图片
-      await convertMathContainersToImages(root, {
-        cache: this.mathImageCache,
-        simpleHash: (value) => this.simpleHash(String(value || '')),
-      });
-      this.transformCodeBlocksForClipboard(root);
-    } finally {
-      if (mount) {
-        mount.remove();
-      }
-    }
-  }
-
-  /**
-   * @param {Element | null | undefined} block
-   * @returns {string}
-   */
-  extractCodeTextForWechatsync(block) {
-    const codePre = block?.querySelector?.('pre');
-    if (!codePre) return '';
-
-    const sectionNodes = /** @type {HTMLElement[]} */ (Array.from(codePre.querySelectorAll('section')));
-    const codeLinesNode = sectionNodes
-      .filter((node) => {
-        const style = (node.getAttribute('style') || '').toLowerCase();
-        return style.includes('white-space:nowrap') || style.includes('white-space: nowrap');
-      })
-      .sort((a, b) => {
-        /** @param {HTMLElement} node */
-        const score = (node) => {
-          const html = node.innerHTML || '';
-          return (html.includes('<br') ? 10000 : 0) + (node.textContent || '').length;
-        };
-        return score(b) - score(a);
-      })[0];
-
-    if (codeLinesNode) {
-      return (codeLinesNode.innerHTML || '')
-        .split(/<br\s*\/?>/i)
-        .map((lineHtml) => {
-          return htmlToText(lineHtml || '').replace(/\u00a0/g, ' ');
-        })
-        .join('\n');
-    }
-
-    const codeEl = codePre.querySelector('code');
-    return ((codeEl ? codeEl.textContent : codePre.textContent) || '').replace(/\u00a0/g, ' ');
-  }
-
-  /**
-   * @param {Element | null} root
-   */
-  transformCodeBlocksForWechatsync(root) {
-    if (!root) return;
-
-    const codeBlocks = /** @type {HTMLElement[]} */ (Array.from(root.querySelectorAll('.code-snippet__fix')));
-    codeBlocks.forEach((block) => {
-      const codeText = this.extractCodeTextForWechatsync(block);
-
-      const activeDocument = getActiveDocumentCompat();
-      if (!activeDocument) return;
-      const pre = activeDocument.createElement('pre');
-      pre.setAttribute('style', [
-        'display:block !important',
-        'width:100% !important',
-        'max-width:100% !important',
-        'margin:14px 0 !important',
-        'padding:12px 14px !important',
-        'box-sizing:border-box !important',
-        'background:#f6f8fa !important',
-        'border:1px solid #e5e7eb !important',
-        'border-radius:8px !important',
-        'overflow-x:auto !important',
-        'overflow-y:hidden !important',
-        '-webkit-overflow-scrolling:touch !important',
-        "font-family:'SF Mono',Consolas,Monaco,monospace !important",
-        'font-size:13px !important',
-        'line-height:1.65 !important',
-        'color:#24292f !important',
-        'text-indent:0 !important',
-        'white-space:pre !important',
-      ].join(';'));
-
-      const code = activeDocument.createElement('code');
-      code.setAttribute('style', [
-        'display:block !important',
-        'margin:0 !important',
-        'padding:0 !important',
-        'background:transparent !important',
-        'color:#24292f !important',
-        'font:inherit !important',
-        'line-height:inherit !important',
-        'white-space:pre !important',
-        'text-indent:0 !important',
-      ].join(';'));
-      code.textContent = codeText;
-      pre.appendChild(code);
-      block.replaceWith(pre);
-    });
-  }
-
-  /**
-   * @param {Element | null} root
-   */
-  transformCodeBlocksForClipboard(root) {
-    if (!root) return;
-
-    const codeBlocks = /** @type {HTMLElement[]} */ (Array.from(root.querySelectorAll('.code-snippet__fix')));
-    codeBlocks.forEach((block) => {
-      const codePre = block.querySelector('pre');
-      if (!codePre) return;
-
-      const codeHtml = codePre.innerHTML || '';
-      const styleText = block.getAttribute('style') || '';
-      const backgroundMatch = styleText.match(/background:([^;!]+)(?:\s*!important)?/i);
-      const borderMatch = styleText.match(/border:([^;!]+)(?:\s*!important)?/i);
-      const radiusMatch = styleText.match(/border-radius:([^;!]+)(?:\s*!important)?/i);
-      const background = backgroundMatch ? backgroundMatch[1].trim() : '#0d1117';
-      const border = borderMatch ? borderMatch[1].trim() : '1px solid #30363d';
-      const borderRadius = radiusMatch ? radiusMatch[1].trim() : '8px';
-      const sectionNodes = /** @type {HTMLElement[]} */ (Array.from(codePre.querySelectorAll('section')));
-      const lineNumberColumn = sectionNodes.find((node) => {
-        const style = (node.getAttribute('style') || '').toLowerCase();
-        return style.includes('border-right') && style.includes('user-select');
-      });
-      const codeLinesNode = sectionNodes
-        .filter((node) => {
-          const style = (node.getAttribute('style') || '').toLowerCase();
-          return style.includes('white-space:nowrap') || style.includes('white-space: nowrap');
-        })
-        .sort((a, b) => {
-          /** @param {HTMLElement} node */
-          const score = (node) => {
-            const html = node.innerHTML || '';
-            return (html.includes('<br') ? 10000 : 0) + (node.textContent || '').length;
-          };
-          return score(b) - score(a);
-        })[0];
-      const codeLinesHtml = codeLinesNode ? codeLinesNode.innerHTML : codeHtml;
-      const directMacHeader = Array.from(block.children).find((child) =>
-        child !== codePre &&
-        !child.querySelector('pre') &&
-        child.querySelector('span') &&
-        !(child.textContent || '').trim()
-      );
-      const hasMacHeader = !!directMacHeader;
-      const codeLineParts = codeLinesNode
-        ? codeLinesHtml.split(/<br\s*\/?>/i)
-        : [codeLinesHtml];
-      const lineNumberLabels = lineNumberColumn
-        ? Array.from(lineNumberColumn.children).map((node) => (node.textContent || '').trim()).filter(Boolean)
-        : [];
-      const shouldKeepFixedLineNumbers = lineNumberLabels.length > 0 && codeLineParts.length > 0;
-
-      const activeDocument = getActiveDocumentCompat();
-      if (!activeDocument) return;
-      const pre = activeDocument.createElement('pre');
-      pre.setAttribute('class', 'hljs code__pre');
-      pre.setAttribute('style', `width:100% !important;max-width:100% !important;margin:12px 0 !important;background:${background} !important;border:${border} !important;border-radius:${borderRadius} !important;box-shadow:0 4px 12px rgba(0,0,0,0.3) !important;overflow-x:auto !important;overflow-y:hidden !important;-webkit-overflow-scrolling:touch !important;box-sizing:border-box !important;font-family:'SF Mono',Consolas,Monaco,monospace !important;font-size:13px !important;line-height:1.75 !important;color:#f0f6fc !important;white-space:normal !important;`);
-
-      if (hasMacHeader) {
-        const toolbar = activeDocument.createElement('section');
-        const toolbarStyle = 'display:block !important;background:#161b22 !important;padding:6px 10px 6px 10px !important;border:none !important;border-bottom:1px solid #30363d !important;border-radius:8px 8px 0 0 !important;line-height:1 !important;box-sizing:border-box !important;width:100% !important;';
-        toolbar.setAttribute('style', toolbarStyle);
-        setElementHtml(toolbar, [
-        '<span style="display:inline-block !important;width:9px !important;height:9px !important;border-radius:50% !important;background:#ff5f57 !important;margin-right:7px !important;font-size:0 !important;line-height:0 !important;color:transparent !important;vertical-align:top !important;">&nbsp;</span>',
-        '<span style="display:inline-block !important;width:9px !important;height:9px !important;border-radius:50% !important;background:#ffbd2e !important;margin-right:7px !important;font-size:0 !important;line-height:0 !important;color:transparent !important;vertical-align:top !important;">&nbsp;</span>',
-        '<span style="display:inline-block !important;width:9px !important;height:9px !important;border-radius:50% !important;background:#28c840 !important;font-size:0 !important;line-height:0 !important;color:transparent !important;vertical-align:top !important;">&nbsp;</span>',
-      ].join(''));
-        pre.appendChild(toolbar);
-      }
-
-      const code = activeDocument.createElement('code');
-      if (shouldKeepFixedLineNumbers) {
-        const lineNumbersHtml = codeLineParts.map((_, index) => {
-          const lineNumber = lineNumberLabels[index] || String(index + 1);
-          return `<section style="padding:0 10px 0 0 !important;line-height:1.75 !important;color:#95989C !important;">${lineNumber}</section>`;
-        }).join('');
-        const codeInnerHtml = codeLineParts.map((lineHtml) => lineHtml || '&nbsp;').join('<br/>');
-        const codeWithLineNumbersStyle = 'display:block !important;width:100% !important;min-width:100% !important;max-width:100% !important;padding:0 !important;box-sizing:border-box !important;background:transparent !important;color:#f0f6fc !important;font-family:inherit !important;font-size:13px !important;line-height:1.75 !important;white-space:normal !important;overflow:visible !important;text-indent:0 !important;margin:0 !important;';
-        code.setAttribute('style', codeWithLineNumbersStyle);
-        setElementHtml(code, `<section style="display:flex !important;align-items:flex-start !important;overflow-x:hidden !important;overflow-y:visible !important;width:100% !important;max-width:100% !important;padding:0 !important;box-sizing:border-box !important;margin:0 !important;">
-          <section class="line-numbers" style="text-align:right !important;padding:12px 0 !important;border-right:1px solid rgba(255,255,255,0.1) !important;user-select:none !important;background:transparent !important;flex:0 0 auto !important;min-width:3.5em !important;box-sizing:border-box !important;margin:0 !important;">${lineNumbersHtml}</section>
-          <section class="code-scroll" style="flex:1 1 auto !important;overflow-x:auto !important;overflow-y:visible !important;-webkit-overflow-scrolling:touch !important;padding:12px 12px 12px 16px !important;min-width:0 !important;box-sizing:border-box !important;margin:0 !important;">
-            <section style="white-space:pre !important;min-width:max-content !important;line-height:1.75 !important;font-size:13px !important;margin:0 !important;">${codeInnerHtml}</section>
-          </section>
-        </section>`);
-      } else {
-        const codeScrollableStyle = 'display:block !important;width:max-content !important;min-width:100% !important;max-width:none !important;padding:12px !important;box-sizing:border-box !important;background:transparent !important;color:#f0f6fc !important;font-family:inherit !important;font-size:13px !important;line-height:1.75 !important;white-space:nowrap !important;overflow:visible !important;text-indent:0 !important;margin:0 !important;';
-        code.setAttribute('style', codeScrollableStyle);
-        setElementHtml(code, codeLinesHtml);
-      }
-      pre.appendChild(code);
-
-      block.replaceWith(pre);
-    });
-  }
-
-  async readClipboardTextSnapshot() {
-    if (!navigator.clipboard || typeof navigator.clipboard.readText !== 'function') {
-      return { supported: false, text: '' };
-    }
-    try {
-      const text = await navigator.clipboard.readText();
-      return { supported: true, text: this.normalizeClipboardText(text) };
-    } catch {
-      return { supported: false, text: '' };
-    }
-  }
-
-
-  /**
-   * 复制 HTML
-   */
-  async copyHTML() {
-    if (this.isCopying) return;
-
-    if (!this.currentHtml) {
-      new Notice(this.getMissingRenderNotice());
-      return;
-    }
-
-    this.isCopying = true;
-    if (this.copyBtn) {
-      this.copyBtn.classList.add('is-copying');
-      this.setCopyButtonSpinner();
-    }
-
-    try {
-      const exportHtml = this.getCurrentExportHtml() || this.currentHtml;
-      // 创建临时的 DOM 容器来解析和处理图片
-      const tempDiv = createHtmlContainer('div', exportHtml);
-
-      // 处理本地图片：转换为 JPEG Base64
-      // 返回 true 表示有图片被处理了
-      await this.processImagesToDataURL(tempDiv);
-
-      await this.enhanceHtmlForWechatPublishing(tempDiv);
-
-      // 清理 HTML 以适配微信编辑器（处理嵌套列表等）
-      const cleanedHtml = this.cleanHtmlForDraft(tempDiv.innerHTML);
-
-      const htmlContent = cleanedHtml;
-      window.__OWC_LAST_CLIPBOARD_HTML = htmlContent;
-      window.__OWC_LAST_CLIPBOARD_TEXT = htmlToText(cleanedHtml);
-      const expectedPlainText = this.normalizeClipboardText(window.__OWC_LAST_CLIPBOARD_TEXT);
-
-      const mobile = isMobileClient(this.app);
-      let copied = false;
-      try {
-        copied = await this.copyRichHTMLByClipboard(htmlContent);
-      } catch {
-        copied = false;
-      }
-      if (mobile && copied) {
-        const snapshot = await this.readClipboardTextSnapshot();
-        copied = snapshot.supported && snapshot.text === expectedPlainText;
-      }
-
-      if (!copied) {
-        throw new Error('rich copy unavailable');
-      }
-
-      // Success Feedback
-      new Notice('✅ 已复制公众号格式，请直接粘贴到公众号编辑器');
-      if (this.copyBtn) {
-         this.copyBtn.classList.remove('is-copying');
-         this.setCopyButtonIcon('check'); // 变成对勾图标
-         window.setTimeout(() => {
-           if (this.copyBtn) {
-             this.setCopyButtonIcon('copy'); // 恢复复制图标
-           }
-         }, 2000);
-      }
-      return;
-
-    } catch (error) {
-      console.error('复制失败:', error);
-      new Notice('❌ 复制失败，请使用「发布与分发」发送文章');
-      if (this.copyBtn) {
-        this.copyBtn.classList.remove('is-copying');
-        this.setCopyButtonIcon('copy');
-      }
-    } finally {
-      this.isCopying = false;
-    }
-  }
-
   /** @returns {Promise<void>} ItemView.onClose 约定返回 Promise，这里没有异步步骤 */
   onClose() {
     if (this.rednoteController) {
@@ -2119,6 +1457,8 @@ Object.assign(AppleStyleView.prototype, mediaAssetsMixin);
 Object.assign(AppleStyleView.prototype, renderPipelineMixin);
 Object.assign(AppleStyleView.prototype, settingsPanelMixin);
 Object.assign(AppleStyleView.prototype, rednoteSettingsPanelMixin);
+Object.assign(AppleStyleView.prototype, publishMetaMixin);
+Object.assign(AppleStyleView.prototype, clipboardExportMixin);
 
 /**
  * 视图实例的完整类型 = 类本体 + 各 mixin 的方法面（types/view-mixins.d.ts，手工维护，避免 typeof mixin 自引用）。
@@ -2448,112 +1788,11 @@ class AppleStylePlugin extends Plugin {
 
   async loadSettings() {
     const loadedData = toRecord(await this.loadData());
-    const settings = setPluginSettings(this, Object.assign({}, DEFAULT_SETTINGS, loadedData));
-    let didMigrate = false;
-
-    if (!settings['clientId']) {
-      settings['clientId'] = 'wp_dev_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
-      didMigrate = true;
-    }
-
-    settings['multiPlatformSync'] = normalizeMultiPlatformSyncSettings(settings['multiPlatformSync']);
-    settings['feishuSync'] = normalizeFeishuSyncSettings(settings['feishuSync']);
-
-    const normalizedDraftCache = normalizeDraftCache(settings['draftCache']);
-    settings['draftCache'] = normalizedDraftCache.cache;
-    if (normalizedDraftCache.changed) {
-      didMigrate = true;
-    }
-
-    const rawAiSettings = loadedData.ai;
-    settings['ai'] = normalizeAiSettings(rawAiSettings || settings['ai'] || {});
-    if (rawAiSettings !== undefined) {
-      const normalizedRawAi = normalizeAiSettings(toRecord(rawAiSettings));
-      if (JSON.stringify(normalizedRawAi) !== JSON.stringify(rawAiSettings)) {
-        didMigrate = true;
-      }
-    }
-
-    // 数据迁移：将旧的单账号格式迁移到新的多账号格式（3.12.0：迁移后把旧字段整个删掉，不再留空串）
-    if (settings['wechatAppId'] && settings['wechatAccounts'].length === 0) {
-      const migratedAccount = {
-        id: generateId(),
-        name: '我的公众号',
-        appId: toText(settings['wechatAppId']),
-        appSecret: toText(settings['wechatAppSecret']),
-      };
-      /** @type {WechatAccountLike[]} */ (settings['wechatAccounts']).push(migratedAccount);
-      settings['defaultAccountId'] = migratedAccount.id;
-      didMigrate = true;
-    }
-    for (const legacyKey of ['wechatAppId', 'wechatAppSecret']) {
-      if (Object.prototype.hasOwnProperty.call(settings, legacyKey)) {
-        delete settings[legacyKey];
-        didMigrate = true;
-      }
-    }
-
-    if (Array.isArray(settings['wechatAccounts'])) {
-      settings['wechatAccounts'] = /** @type {WechatAccountLike[]} */ (settings['wechatAccounts'].map((account) => {
-        if (!isRecord(account)) return /** @type {WechatAccountLike} */ ({ id: '', name: '', appId: '', appSecret: '' });
-        const nextAccount = { ...account };
-        let changed = false;
-
-        if (Object.prototype.hasOwnProperty.call(nextAccount, 'enableOriginal')) {
-          delete nextAccount.enableOriginal;
-          changed = true;
-        }
-        if (Object.prototype.hasOwnProperty.call(nextAccount, 'allowReprint')) {
-          delete nextAccount.allowReprint;
-          changed = true;
-        }
-
-        if (changed) {
-          didMigrate = true;
-        }
-        return /** @type {WechatAccountLike} */ (nextAccount);
-      }));
-    }
-
-    // 数据迁移：旧清理配置 -> cleanupDirTemplate
-    const currentTemplate = normalizeVaultPath(settings['cleanupDirTemplate'] || '');
-    const legacyRootDir = normalizeVaultPath(settings['cleanupRootDir'] || '');
-    const legacyTarget = settings['cleanupTarget'];
-
-    // 仅迁移旧的 folder 模式，避免把 file 模式误迁移成“删目录”
-    if (!currentTemplate && legacyRootDir && legacyTarget === 'folder') {
-      settings['cleanupDirTemplate'] = `${legacyRootDir}/{{note}}_img`;
-      didMigrate = true;
-    }
-
-    // 清理弃用字段，避免后续歧义
-    if (Object.prototype.hasOwnProperty.call(settings, 'cleanupRootDir')) {
-      delete settings['cleanupRootDir'];
-      didMigrate = true;
-    }
-    if (Object.prototype.hasOwnProperty.call(settings, 'cleanupTarget')) {
-      delete settings['cleanupTarget'];
-      didMigrate = true;
-    }
-
-    // native-only: 清理已弃用的 legacy/parity 渲染开关
-    const deprecatedRenderKeys = [
-      'useTripletPipeline',
-      'tripletFallbackToPhase2',
-      'enforceTripletParity',
-      'tripletParityMaxLengthDelta',
-      'tripletParityMaxSegmentCount',
-      'tripletParityVerboseLog',
-      'useNativePipeline',
-      'enableLegacyFallback',
-      'enforceNativeParity',
-    ];
-    for (const key of deprecatedRenderKeys) {
-      if (Object.prototype.hasOwnProperty.call(settings, key)) {
-        delete settings[key];
-        didMigrate = true;
-      }
-    }
+    const { settings, didMigrate } = migrateLoadedSettings(loadedData, {
+      defaults: DEFAULT_SETTINGS,
+      generateId,
+    });
+    setPluginSettings(this, settings);
 
     if (didMigrate) {
       await this.saveSettings();

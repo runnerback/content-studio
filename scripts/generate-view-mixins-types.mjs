@@ -12,6 +12,7 @@ const MIXINS = [
   "views/publish-modal/wechat-sync-modal.js", "views/ai-layout/ai-layout-panel.js", "views/settings-panel/settings-panel.js",
   "views/publish-modal/rednote-publish.js", "views/publish-modal/cover-picker.js", "views/publish-modal/multi-platform-result-modals.js",
   "views/publish-modal/wechat-sync-actions.js", "views/publish-modal/x-publish.js",
+  "views/frontmatter/publish-meta.js", "views/clipboard/clipboard-export.js",
 ];
 const OUT = path.join(ROOT, "types/view-mixins.d.ts");
 

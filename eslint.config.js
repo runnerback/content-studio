@@ -83,6 +83,7 @@ export default [
       "services/image-swipe.js",
       "services/title-polish.js",
       "services/ai-layout.js",
+      "services/ai-layout/**/*.js",
       "services/ai-layout-runtime/generated-skills.js",
       "services/ai-layout-runtime/registry.js",
       "services/ai-layout-skill-bundle.js",
@@ -155,6 +156,9 @@ export default [
       "services/card-publish.js",
       "services/x-publish.js",
       "views/ai-layout/ai-layout-state.js",
+      "views/frontmatter/publish-meta.js",
+      "views/clipboard/clipboard-export.js",
+      "services/settings-migration.js",
     ],
     languageOptions: {
       ecmaVersion: 2022,

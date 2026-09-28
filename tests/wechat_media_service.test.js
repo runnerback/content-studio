@@ -1,3 +1,6 @@
+// 3.12.0：wechat-media 经 math-export → obsidian-adapters 取 'obsidian'，测试里靠 window.require 拿 mock（同 input-module.cjs）
+if (typeof window.require !== 'function') window.require = require;
+
 import { describe, it, expect, vi } from 'vitest';
 const { processAllImages, processMathFormulas } = require('../services/wechat-media');
 

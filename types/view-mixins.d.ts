@@ -135,4 +135,34 @@ export interface ViewMixinsLike {
   onSyncToWechat(...args: unknown[]): Promise<unknown>;
   // ---- views/publish-modal/x-publish.js ----
   prepareXCardArticle(...args: unknown[]): Promise<{ article: Record<string, unknown>, dirPath: string, cardCount: number }>;
+  // ---- views/frontmatter/publish-meta.js ----
+  getPublishContextFile(...args: unknown[]): import('../input.js').TFileLike | null;
+  getFrontmatterPublishMeta(...args: unknown[]): { excerpt: string, cover: string, cover_dir: string, coverSrc: string|null, title: string };
+  getFrontmatterString(...args: unknown[]): string;
+  normalizeFrontmatterKey(...args: unknown[]): string;
+  getFrontmatterKeyMap(...args: unknown[]): Record<string, string>;
+  isPathInsideDirectory(...args: unknown[]): boolean;
+  isPathInsideDirectoryByTail(...args: unknown[]): boolean;
+  shouldClearFrontmatterPathAfterCleanup(...args: unknown[]): boolean;
+  clearInvalidPublishMetaInFrontmatter(...args: unknown[]): boolean;
+  clearInvalidPublishMetaByTextFallback(...args: unknown[]): Promise<boolean>;
+  clearInvalidPublishMetaAfterCleanup(...args: unknown[]): Promise<string | null>;
+  resolveVaultPathToResourceSrc(...args: unknown[]): string | null;
+  normalizeVaultPath(...args: unknown[]): string;
+  getVaultConfigDir(...args: unknown[]): string;
+  getCleanupDirTemplate(...args: unknown[]): string;
+  resolveCleanupDirPath(...args: unknown[]): { path: string, warning?: string };
+  isSafeCleanupDirPath(...args: unknown[]): boolean;
+  cleanupConfiguredDirectory(...args: unknown[]): Promise<import('../input.js').CleanupResultLike>;
+  // ---- views/clipboard/clipboard-export.js ----
+  copyRichHTMLByClipboard(...args: unknown[]): Promise<boolean>;
+  normalizeClipboardText(...args: unknown[]): string;
+  setCopyButtonIcon(...args: unknown[]): void;
+  setCopyButtonSpinner(...args: unknown[]): void;
+  enhanceHtmlForWechatPublishing(...args: unknown[]): Promise<void>;
+  extractCodeTextForWechatsync(...args: unknown[]): string;
+  transformCodeBlocksForWechatsync(...args: unknown[]): void;
+  transformCodeBlocksForClipboard(...args: unknown[]): void;
+  readClipboardTextSnapshot(...args: unknown[]): Promise<{ supported: boolean, text: string }>;
+  copyHTML(...args: unknown[]): Promise<void>;
 }

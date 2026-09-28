@@ -44,6 +44,10 @@ describe('Native Corpus Regression Gate', () => {
 
       const rawHtml = await nativePipeline.renderForPreview(markdown, context);
       const cleaned = cleanHtmlForDraft(rawHtml);
+      // 基线刷新：UPDATE_PARITY_BASELINE=1 npx vitest run tests/parity_corpus.test.js（改渲染管线后有意更新时用；刷新后 git diff 逐条核对）
+      if (process.env.UPDATE_PARITY_BASELINE === '1') {
+        fs.writeFileSync(path.resolve(fixtureRoot, sample.expectedCleanHtml), cleaned, 'utf8');
+      }
       const expected = readFixture(sample.expectedCleanHtml);
 
       expect(cleaned).toBe(expected);

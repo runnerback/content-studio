@@ -43,7 +43,8 @@ export function renderMathHtml(tex, display) {
     throw new Error('当前 Obsidian 不提供 renderMath()，无法渲染公式');
   }
   const element = render(String(tex ?? ''), Boolean(display));
-  return element && typeof element.outerHTML === 'string' ? element.outerHTML : '';
+  const html = element ? element.outerHTML : '';
+  return typeof html === 'string' ? html : '';
 }
 
 /**

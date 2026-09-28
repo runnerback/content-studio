@@ -67,7 +67,7 @@ const MAX_MATERIAL_COVER_ASSET_CACHE_ENTRIES = 3;
 /**
  * @typedef {{ id?: string, filename: string, mimeType: string, size: number, base64: string, source?: Record<string, unknown> }} BridgeAssetLike
  * @typedef {{ cachedAt: number, asset: BridgeAssetLike }} MaterialCoverCacheEntryLike
- * @typedef {{ requestUrl?: (options: Record<string, unknown>) => Promise<unknown>, obsidianApi?: Partial<ObsidianApiLike>, modal?: PublishModalLike, preferredPlatform?: string }} PublishModalOptionsLike
+ * @typedef {{ requestUrl?: (options: Record<string, unknown>) => Promise<unknown>, obsidianApi?: Partial<ObsidianApiLike>, modal?: PublishModalLike, preferredPlatform?: string, preferredPlatforms?: string[] }} PublishModalOptionsLike
  * @typedef {{ isMobile?: boolean }} PlatformLike
  * @typedef {{ Modal: new (app: unknown) => PublishModalLike, Notice: new (message: string, timeout?: number) => NoticeLike, Platform?: PlatformLike, requestUrl?: (options: Record<string, unknown>) => Promise<unknown> }} ObsidianApiLike
  * @typedef {{ hide: () => void, setMessage?: (message: string) => void }} NoticeLike

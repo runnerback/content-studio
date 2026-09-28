@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { migrateLoadedSettings } from '../services/settings-migration.js';
+import { createEmptyDraftCache } from '../services/wechat-draft-cache.js';
 
 const { loadInputModule } = require('./helpers/input-module.cjs');
 describe('AppleStylePlugin - Settings Migration', () => {
@@ -330,5 +332,98 @@ describe('AppleStylePlugin - Settings Migration', () => {
     expect(plugin.settings.clientId).toBeTruthy();
     expect(plugin.settings.clientId.startsWith('wp_dev_')).toBe(true);
     expect(plugin.saveData).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('migrateLoadedSettings - 纯函数迁移路径', () => {
+  const createDefaults = () => ({
+    wechatAccounts: [],
+    defaultAccountId: '',
+    clientId: 'client-default',
+    cleanupDirTemplate: '',
+    draftCache: createEmptyDraftCache(),
+    multiPlatformSync: {},
+    feishuSync: {},
+    ai: {},
+  });
+  const generateId = () => 'generated-account-id';
+
+  it('旧单账号 wechatAppId/wechatAppSecret 迁移为 wechatAccounts，并删除旧字段', () => {
+    const { settings, didMigrate } = migrateLoadedSettings({
+      clientId: 'client-1',
+      wechatAppId: 'wx-legacy',
+      wechatAppSecret: 'secret-legacy',
+    }, { defaults: createDefaults(), generateId });
+
+    expect(didMigrate).toBe(true);
+    expect(settings.wechatAccounts).toEqual([{
+      id: 'generated-account-id',
+      name: '我的公众号',
+      appId: 'wx-legacy',
+      appSecret: 'secret-legacy',
+    }]);
+    expect(settings.defaultAccountId).toBe('generated-account-id');
+    expect(settings).not.toHaveProperty('wechatAppId');
+    expect(settings).not.toHaveProperty('wechatAppSecret');
+  });
+
+  it('cleanupRootDir + cleanupTarget=folder 迁移为 cleanupDirTemplate，并删除旧字段', () => {
+    const { settings, didMigrate } = migrateLoadedSettings({
+      clientId: 'client-1',
+      cleanupRootDir: 'published',
+      cleanupTarget: 'folder',
+      cleanupDirTemplate: '',
+    }, { defaults: createDefaults(), generateId });
+
+    expect(didMigrate).toBe(true);
+    expect(settings.cleanupDirTemplate).toBe('published/{{note}}_img');
+    expect(settings).not.toHaveProperty('cleanupRootDir');
+    expect(settings).not.toHaveProperty('cleanupTarget');
+  });
+
+  it('删除已弃用的 legacy/parity 渲染开关', () => {
+    const { settings, didMigrate } = migrateLoadedSettings({
+      clientId: 'client-1',
+      useTripletPipeline: false,
+      tripletFallbackToPhase2: false,
+      enforceTripletParity: false,
+      tripletParityMaxLengthDelta: 8,
+      tripletParityMaxSegmentCount: 2,
+      tripletParityVerboseLog: true,
+      useNativePipeline: true,
+      enableLegacyFallback: false,
+      enforceNativeParity: false,
+    }, { defaults: createDefaults(), generateId });
+
+    expect(didMigrate).toBe(true);
+    for (const key of [
+      'useTripletPipeline',
+      'tripletFallbackToPhase2',
+      'enforceTripletParity',
+      'tripletParityMaxLengthDelta',
+      'tripletParityMaxSegmentCount',
+      'tripletParityVerboseLog',
+      'useNativePipeline',
+      'enableLegacyFallback',
+      'enforceNativeParity',
+    ]) {
+      expect(settings).not.toHaveProperty(key);
+    }
+  });
+
+  it('无需迁移时 didMigrate=false 且原值保留', () => {
+    const loadedData = {
+      clientId: 'client-1',
+      cleanupDirTemplate: 'articles/{{note}}_img',
+      wechatAccounts: [{ id: 'acc-1', name: '公众号 A', appId: 'wx123', appSecret: 'sec' }],
+      defaultAccountId: 'acc-1',
+    };
+    const { settings, didMigrate } = migrateLoadedSettings(loadedData, { defaults: createDefaults(), generateId });
+
+    expect(didMigrate).toBe(false);
+    expect(settings.clientId).toBe('client-1');
+    expect(settings.cleanupDirTemplate).toBe('articles/{{note}}_img');
+    expect(settings.wechatAccounts).toEqual(loadedData.wechatAccounts);
+    expect(settings.defaultAccountId).toBe('acc-1');
   });
 });
