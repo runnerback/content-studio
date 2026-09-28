@@ -22,6 +22,7 @@
 import { obsidianApi, getObsidianRequestUrl, getObsidianRequest } from '../../services/obsidian-adapters.js';
 import { normalizeVaultPath } from '../../services/path-utils.js';
 import { getEventTargetValue, setElementHtml } from '../../services/dom-utils.js';
+import { finishMathRender } from '../../services/math-renderer.js';
 import { createObsidianFetchAdapter } from '../../services/obsidian-fetch-adapter.js';
 import {
   AI_LAYOUT_SCHEMA_VERSION,
@@ -36,6 +37,7 @@ import {
   normalizeLayoutSelection,
   resolveAiProvider,
   normalizeArticleLayoutCacheEntry,
+  isLayoutStateSkillOutdated,
   extractImageRefsFromHtml,
   extractRenderedSectionFragments,
   generateArticleLayout,
@@ -777,6 +779,7 @@ export const aiLayoutPanelMixin = {
         generationMeta: toAiLayoutGenerationMeta(result.generationMeta),
         layoutJson,
       }, layoutJson.selection);
+      await this.plugin.recordAiUsage(toAiLayoutGenerationMeta(result.generationMeta)?.usage);
       this.pendingAiLayoutFamily = layoutJson.selection?.layoutFamily || requestedSelection.layoutFamily;
       this.pendingAiColorPalette = layoutJson.selection?.colorPalette || requestedSelection.colorPalette;
       this.pendingAiStylePack = this.pendingAiColorPalette;
@@ -927,7 +930,7 @@ export const aiLayoutPanelMixin = {
 
   /**
    * @param {AiLayoutContextLike} [context]
-   * @returns {{ layoutFamily: string, state: AiLayoutStateLike, label: string, isCurrentContent: boolean, isStaleContent: boolean, fromAuto: boolean, updatedAt: number }[]}
+   * @returns {{ layoutFamily: string, state: AiLayoutStateLike, label: string, isCurrentContent: boolean, isStaleContent: boolean, isSkillOutdated: boolean, usageTokens: number, fromAuto: boolean, updatedAt: number }[]}
    */
   getCachedAiLayoutFamilyItems(context) {
     const layoutContext = context || this.getCurrentLayoutContext();
@@ -951,6 +954,9 @@ export const aiLayoutPanelMixin = {
           label: this.getAiLayoutFamilyLabel(layoutFamily),
           isCurrentContent,
           isStaleContent,
+          // 3.12.0：技能版本与本次 token 用量（费用可见性）
+          isSkillOutdated: isLayoutStateSkillOutdated(typedState),
+          usageTokens: Number(typedState.generationMeta?.usage?.totalTokens || 0),
           fromAuto,
           updatedAt: Number(typedState.updatedAt || 0),
         };
@@ -987,6 +993,7 @@ export const aiLayoutPanelMixin = {
           text: '基于旧内容',
         });
       }
+      this.renderAiCacheItemExtras(inline, activeItem);
       return;
     }
 
@@ -1003,6 +1010,7 @@ export const aiLayoutPanelMixin = {
         text: '基于旧内容',
       });
     }
+    if (activeItem) this.renderAiCacheItemExtras(activeRow, activeItem);
 
     const switchRow = this.aiCachedLayoutList.createDiv({ cls: 'apple-ai-layout-cache-switch-row' });
     switchRow.createEl('span', { cls: 'apple-ai-layout-cache-caption', text: '切换到' });
@@ -1019,8 +1027,25 @@ export const aiLayoutPanelMixin = {
         if (item.isStaleContent) {
           button.createEl('span', { cls: 'apple-ai-layout-cache-state is-stale', text: '基于旧内容' });
         }
+        this.renderAiCacheItemExtras(button, item);
         button.addEventListener('click', () => this.previewCachedAiLayoutFamily(item.layoutFamily));
       });
+  },
+
+  /**
+   * 缓存条目的附加标记（3.12.0）：技能已更新 → 建议重新生成；本次消耗的 token 数。
+   * @param {ObsidianElementLike} host
+   * @param {{ isSkillOutdated: boolean, usageTokens: number }} item
+   */
+  renderAiCacheItemExtras(host, item) {
+    if (item.isSkillOutdated) {
+      host.createEl('span', { cls: 'apple-ai-layout-cache-separator', text: '·' });
+      host.createEl('span', { cls: 'apple-ai-layout-cache-state is-stale', text: '技能已更新' });
+    }
+    if (item.usageTokens > 0) {
+      host.createEl('span', { cls: 'apple-ai-layout-cache-separator', text: '·' });
+      host.createEl('span', { cls: 'apple-ai-layout-cache-usage', text: `${item.usageTokens.toLocaleString('zh-CN')} tokens` });
+    }
   },
 
   /**
@@ -1309,7 +1334,8 @@ export const aiLayoutPanelMixin = {
     const context = this.getCurrentLayoutContext();
     const providerLabel = this.getArticleLayoutProviderLabel(state, aiSettings);
     const modelLabel = this.getArticleLayoutModelLabel(state, aiSettings);
-    const isStale = !!(state && context.sourceHash && state.sourceHash && state.sourceHash !== context.sourceHash);
+    // 3.12.0：技能版本更新后的旧缓存也算过期（建议重新生成）
+    const isStale = !!(state && context.sourceHash && state.sourceHash && state.sourceHash !== context.sourceHash) || isLayoutStateSkillOutdated(state);
     const payload = this.buildAiLayoutDebugSnapshot({
       mode: this.aiLayoutDebugMode,
       state,
@@ -1339,7 +1365,8 @@ export const aiLayoutPanelMixin = {
     const context = this.getCurrentLayoutContext();
     const providerLabel = this.getArticleLayoutProviderLabel(state, aiSettings);
     const modelLabel = this.getArticleLayoutModelLabel(state, aiSettings);
-    const isStale = !!(state && context.sourceHash && state.sourceHash && state.sourceHash !== context.sourceHash);
+    // 3.12.0：技能版本更新后的旧缓存也算过期（建议重新生成）
+    const isStale = !!(state && context.sourceHash && state.sourceHash && state.sourceHash !== context.sourceHash) || isLayoutStateSkillOutdated(state);
     const payload = this.buildAiLayoutPromptContext({
       state,
       context,
@@ -1921,15 +1948,18 @@ export const aiLayoutPanelMixin = {
         generationMeta: toAiLayoutGenerationMeta(result.generationMeta),
         layoutJson,
       }, layoutJson.selection);
+      await this.plugin.recordAiUsage(toAiLayoutGenerationMeta(result.generationMeta)?.usage);
       this.pendingAiLayoutFamily = layoutJson.selection?.layoutFamily || selection.layoutFamily;
       this.pendingAiColorPalette = layoutJson.selection?.colorPalette || selection.colorPalette;
       this.pendingAiStylePack = this.pendingAiColorPalette;
       if (applyAfterGenerate) {
         this.applyAiLayoutToPreview();
+        const usedTokens = Number(toAiLayoutGenerationMeta(result.generationMeta)?.usage?.totalTokens || 0);
+        const usageSuffix = usedTokens > 0 ? `（本次 ${usedTokens.toLocaleString('zh-CN')} tokens）` : '';
         new Notice(
           toAiLayoutGenerationMeta(result.generationMeta)?.executionMode === 'local-fallback'
-            ? '✅ 已生成并应用原文增强结果'
-            : '✅ 已生成并应用新的编排结果'
+            ? `✅ 已生成并应用原文增强结果${usageSuffix}`
+            : `✅ 已生成并应用新的编排结果${usageSuffix}`
         );
       } else {
         new Notice(
@@ -2038,6 +2068,7 @@ export const aiLayoutPanelMixin = {
       setElementHtml(this.previewContainer, html);
       this.previewContainer.scrollTop = scrollTop;
       this.previewContainer.addClass('apple-has-content');
+      if (html.includes('<mjx-container')) void finishMathRender();
     }
     this.syncPreviewPresentationMode();
     this.refreshAiLayoutPanel();

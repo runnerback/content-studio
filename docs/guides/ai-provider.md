@@ -1,6 +1,6 @@
 # AI Provider 设置
 
-> **适用插件版本**：v3.10.0 ｜ **最后更新**：2026-09-04 ｜ 编码：UTF-8
+> **适用插件版本**：v3.12.0 ｜ **最后更新**：2026-09-28（Provider 类型三选一：OpenAI 兼容 / Gemini / Anthropic；新增本机累计用量与单价估算）｜ 编码：UTF-8
 
 ## 1. 设计思路：一份凭证，两个能力
 
@@ -22,7 +22,7 @@ AI Provider（共享凭证，当前 DeepSeek）
 | 字段 | 填什么 |
 |------|--------|
 | 名称 | 随意，如 `DeepSeek` |
-| 类型 | **OpenAI 兼容接口** |
+| 类型 | **OpenAI 兼容接口**（DeepSeek 等）／ Gemini 兼容格式 ／ Anthropic 兼容格式，三种都已实现 |
 | Base URL | `https://api.deepseek.com/v1`（新建时已默认填好） |
 | API Key | 你的 DeepSeek API Key（[开放平台](https://platform.deepseek.com/)获取） |
 | 模型 | **DeepSeek V4**（唯一项，具体 Pro/Lite 在下面各能力里选） |
@@ -30,7 +30,11 @@ AI Provider（共享凭证，当前 DeepSeek）
 
 保存后，在 **默认 AI Provider** 下拉里把它**选为默认**。两个 AI 能力都会复用这个默认 Provider 的 Key / Base URL。
 
-> 当前只支持 DeepSeek。后续接入其他模型再扩展类型/模型列表。
+> 模型下拉当前只列 DeepSeek V4（Pro / Lite 在各能力里选）；Gemini / Anthropic 类型走各自的官方接口，模型名按 Base URL 对应服务填写。
+
+### 用量与费用（3.12.0）
+
+每次 AI 编排都会把模型返回的 token 数记到 设置 → AI → 「本机累计用量」；在「输入单价 / 输出单价（元 / 百万 tokens）」里填上所用模型的定价，就会按 输入 tokens × 输入单价 + 输出 tokens × 输出单价 估算费用。单价留 0 只显示 token 数。预览面板的缓存条目也会标出每次编排消耗的 tokens；技能随插件更新后，旧缓存会标「技能已更新」并建议重新生成。
 
 ## 3. AI 编排（排版）
 

@@ -21,7 +21,7 @@ import { obsidianApi, getObsidianModalClass, createObsidianModal, isMobileClient
 import { isRecord, toReadableError } from '../../services/input-utils.js';
 import { resolveSyncAccount } from '../../services/sync-context.js';
 import { htmlToText, getEventTargetValue } from '../../services/dom-utils.js';
-import { MULTI_PLATFORM_TAB_LABEL } from '../../services/settings-defaults.js';
+import { getMultiPlatformTabLabel } from '../../services/settings-defaults.js';
 import { polishTitleWithLlm, stripTitleTimecode } from '../../services/title-polish.js';
 import { WechatAPI } from '../../services/wechat-api.js';
 import { getDraftAssociation, clearDraftAssociation } from '../../services/wechat-draft-cache.js';
@@ -159,7 +159,7 @@ export const wechatSyncModalMixin = {
     const multiPlatformTab = publishModeTabs.createEl('button', {
       cls: `wechat-publish-mode-tab${activeMode === 'multi' ? ' is-active' : ''}`,
     });
-    multiPlatformTab.createEl('span', { text: MULTI_PLATFORM_TAB_LABEL });
+    multiPlatformTab.createEl('span', { text: getMultiPlatformTabLabel() });
     return { wechatTab, feishuTab, multiPlatformTab };
   },
 

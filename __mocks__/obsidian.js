@@ -548,5 +548,24 @@ module.exports = {
   requestUrl: async () => ({ json: {}, status: 200, headers: {} }),
   request: async () => '',
   setIcon: () => {},
+  // MathJax（3.12.0 起公式走 Obsidian 自带引擎）：mock 产出与真机同形的 CHTML 容器，
+  // <mjx-container class="MathJax" jax="CHTML" [display="true"]><mjx-math><mjx-mtext>TeX 源</mjx-mtext></mjx-math></mjx-container>
+  // 界面语言（3.12.0 i18n）：默认中文，测试可改 mock.getLanguage 再 resetLocaleCache()
+  getLanguage: () => 'zh',
+  loadMathJax: async () => {},
+  finishRenderMath: async () => {},
+  renderMath(source, display) {
+    const container = document.createElement('mjx-container');
+    container.className = 'MathJax';
+    container.setAttribute('jax', 'CHTML');
+    if (display) container.setAttribute('display', 'true');
+    const math = document.createElement('mjx-math');
+    math.className = 'MJX-TEX';
+    const text = document.createElement('mjx-mtext');
+    text.textContent = String(source ?? '');
+    math.appendChild(text);
+    container.appendChild(math);
+    return container;
+  },
   __applyExtensions: applyExtensions,
 };

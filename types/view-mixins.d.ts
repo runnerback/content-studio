@@ -71,8 +71,9 @@ export interface ViewMixinsLike {
   getVisibleAiSchemaValidation(...args: unknown[]): import('../input.js').AiSchemaValidationLike | null;
   renderAiLayoutMetaChips(...args: unknown[]): void;
   getCurrentArticleLayoutCacheEntry(...args: unknown[]): { familyStates?: Record<string, import('../input.js').AiLayoutStateLike>, lastLayoutFamily?: string } | null;
-  getCachedAiLayoutFamilyItems(...args: unknown[]): { layoutFamily: string, state: import('../input.js').AiLayoutStateLike, label: string, isCurrentContent: boolean, isStaleContent: boolean, fromAuto: boolean, updatedAt: number }[];
+  getCachedAiLayoutFamilyItems(...args: unknown[]): { layoutFamily: string, state: import('../input.js').AiLayoutStateLike, label: string, isCurrentContent: boolean, isStaleContent: boolean, isSkillOutdated: boolean, usageTokens: number, fromAuto: boolean, updatedAt: number }[];
   renderAiCachedLayoutFamilies(...args: unknown[]): void;
+  renderAiCacheItemExtras(...args: unknown[]): void;
   previewCachedAiLayoutFamily(...args: unknown[]): void;
   getAiPrimaryActionConfig(...args: unknown[]): { mode: string, label: string, disabled: boolean };
   refreshAiSchemaIssuePanel(...args: unknown[]): void;
@@ -98,6 +99,13 @@ export interface ViewMixinsLike {
   createSettingsPanel(...args: unknown[]): unknown;
   createSection(...args: unknown[]): import('../input.js').ObsidianElementLike;
   resetSettingsPanelViewState(...args: unknown[]): void;
+  syncCaptionToggleWithWatermark(...args: unknown[]): void;
+  onUsePhoneFrameChange(...args: unknown[]): Promise<unknown>;
+  applyWatermarkSetting(...args: unknown[]): Promise<unknown>;
+  onEnableWatermarkChange(...args: unknown[]): Promise<unknown>;
+  onPickLocalAvatar(...args: unknown[]): Promise<unknown>;
+  onClearLocalAvatar(...args: unknown[]): Promise<unknown>;
+  onAvatarUrlChange(...args: unknown[]): Promise<unknown>;
   onThemeChange(...args: unknown[]): Promise<unknown>;
   onFontFamilyChange(...args: unknown[]): Promise<unknown>;
   onFontSizeChange(...args: unknown[]): Promise<unknown>;

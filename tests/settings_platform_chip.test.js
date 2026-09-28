@@ -18,7 +18,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { createObsidianLikeElement } = require('./helpers/obsidian-dom.js');
 const { loadInputModule } = require('./helpers/input-module.cjs');
 const { AppleStyleSettingTab } = loadInputModule();
-const { MULTI_PLATFORM_TAB_LABEL } = await import('../services/settings-defaults.js');
+const { getMultiPlatformTabLabel } = await import('../services/settings-defaults.js');
 
 function makePlugin({ connection = null } = {}) {
   const defaultConnection = {
@@ -80,7 +80,7 @@ function renderPlatformPage(plugin) {
   const tab = new AppleStyleSettingTab(plugin.app, plugin);
   tab.containerEl = createObsidianLikeElement('div');
   tab.update();
-  return tab.renderPage(MULTI_PLATFORM_TAB_LABEL);
+  return tab.renderPage(getMultiPlatformTabLabel());
 }
 
 function findChipByName(page, name) {

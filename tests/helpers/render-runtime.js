@@ -7,7 +7,7 @@ function ensureDomGlobals() {
   }
 }
 
-function bootstrapLegacyRuntime() {
+async function bootstrapLegacyRuntime() {
   ensureDomGlobals();
 
   if (typeof global.markdownit === 'undefined') {
@@ -23,7 +23,7 @@ function bootstrapLegacyRuntime() {
     window.hljs = global.hljs;
   }
 
-  require('../../lib/mathjax-plugin.js');
+  await require('./math-runtime.js').installTestMathPlugin();
 
   if (!window.AppleTheme) {
     const themeCode = fs.readFileSync(path.resolve(__dirname, '../../themes/apple-theme.js'), 'utf8');
@@ -39,7 +39,7 @@ async function createLegacyConverter({
   sourcePath = '',
   themeOptions = {},
 } = {}) {
-  bootstrapLegacyRuntime();
+  await bootstrapLegacyRuntime();
 
   const theme = new window.AppleTheme({
     theme: 'wechat',

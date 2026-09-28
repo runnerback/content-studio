@@ -986,9 +986,12 @@ ${macHeader}
 
     // Replace <mjx-container> with <section> (block) or <span> (inline)
     // WeChat strips custom tags like mjx-container but keeps SVG content
+    // 3.12.0：只处理旧 SVG 引擎的容器；Obsidian 自带 MathJax 输出的 CHTML 容器（无 <svg>）原样保留给预览，
+    // 导出时由 services/math-export.js 栅格化成 <img>。
     return html.replace(/<mjx-container([^>]*)>(.*?)<\/mjx-container>/gs, (_match, attrs, content) => {
       const containerAttrs = String(attrs || '');
       let mathContent = String(content || '');
+      if (!/<svg[\s>]/i.test(mathContent)) return _match;
       // Check for block display mode
       // MathJax 3 usually adds display="true" or class="MathJax CtxtMenu_Attached_0" with separate style
       const isBlock = containerAttrs.includes('display="true"') || containerAttrs.includes('display: true');

@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
+// 3.12.0：dependency-loader 引入 math-renderer → obsidian-adapters，测试里靠 window.require 拿 mock（同 input-module.cjs）
+if (typeof window.require !== 'function') window.require = require;
+
 const {
   getAvatarSrc,
   toThemeOptions,
@@ -101,13 +104,12 @@ describe('Dependency Loader Service', () => {
     const read = vi.fn(async (path) => {
       if (path.endsWith('/lib/markdown-it.min.js')) return '__MD__';
       if (path.endsWith('/lib/highlight.min.js')) return '__HLJS__';
-      if (path.endsWith('/lib/mathjax-plugin.js')) return '__MATH__';
       if (path.endsWith('/themes/apple-theme.js')) return '__THEME__';
       if (path.endsWith('/converter.js')) return '__CONVERTER__';
       throw new Error(`Unexpected read path: ${path}`);
     });
 
-    const exists = vi.fn(async (path) => path.endsWith('/lib/mathjax-plugin.js'));
+    const exists = vi.fn(async () => false);
 
     const settings = {
       theme: 'wechat',

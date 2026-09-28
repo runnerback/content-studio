@@ -4,6 +4,7 @@ import { CreateThemeModal } from './CreateThemeModal.ts';
 import { CreateFontModal } from './CreateFontModal.ts';
 import { ConfirmModal } from './ConfirmModal.ts';
 import { ThemePreviewModal } from './ThemePreviewModal.ts';
+import { t } from '../../services/i18n.js';
 
 /**
  * 「小红书图卡」设置面板。
@@ -62,8 +63,8 @@ export class RedSettingsPanel {
 
         // 页面标题由宿主设置页的返回栏提供（「小红书图卡」），这里不再重复渲染标题
 
-        this.createSection(containerEl, '基本设置', el => this.renderBasicSettings(el));
-        this.createSection(containerEl, '主题设置', el => this.renderThemeSettings(el));
+        this.createSection(containerEl, t('rednoteSettings.sectionBasic'), el => this.renderBasicSettings(el));
+        this.createSection(containerEl, t('rednoteSettings.sectionTheme'), el => this.renderThemeSettings(el));
     }
 
     private renderBasicSettings(containerEl: HTMLElement): void {
@@ -73,7 +74,7 @@ export class RedSettingsPanel {
         const typographyToggle = typographyHeader.createSpan('red-settings-subsection-toggle');
         setIcon(typographyToggle, 'chevron-right');
         
-        new Setting(typographyHeader).setName('排版管理').setHeading();
+        new Setting(typographyHeader).setName(t('rednoteSettings.typographyHeading')).setHeading();
         
         const typographyContent = typographySection.createDiv('red-settings-subsection-content');
         
@@ -86,17 +87,17 @@ export class RedSettingsPanel {
 
         // 内容分割标题级别设置
         new Setting(typographyContent)
-            .setName('内容分割标题级别')
-            .setDesc('选择用于分割内容生成图片的标题级别：')
+            .setName(t('rednoteSettings.headingLevelName'))
+            .setDesc(t('rednoteSettings.headingLevelDesc'))
             .addDropdown(dropdown => dropdown
-                .addOption('h1', '一级标题(#) - 按大章节分割')
-                .addOption('h2', '二级标题(##) - 按小章节分割')
+                .addOption('h1', t('rednoteSettings.headingLevelH1'))
+                .addOption('h2', t('rednoteSettings.headingLevelH2'))
                 .setValue(this.plugin.settingsManager.getSettings().headingLevel)
                 .onChange(async (value: 'h1' | 'h2') => {
                     await this.plugin.settingsManager.updateSettings({
                         headingLevel: value
                     });
-                    new Notice('标题级别设置已更新，请重启 Obsidian 或重新加载以使更改生效');
+                    new Notice(t('rednoteSettings.headingLevelUpdatedNotice'));
                 })
             );
 
@@ -106,7 +107,7 @@ export class RedSettingsPanel {
         const fontToggle = fontHeader.createSpan('red-settings-subsection-toggle');
         setIcon(fontToggle, 'chevron-right');
         
-        new Setting(fontHeader).setName('字体管理').setHeading();
+        new Setting(fontHeader).setName(t('rednoteSettings.fontHeading')).setHeading();
         
         const fontContent = fontSection.createDiv('red-settings-subsection-content');
         
@@ -130,31 +131,31 @@ export class RedSettingsPanel {
                 setting
                     .addExtraButton(btn => 
                         btn.setIcon('pencil')
-                            .setTooltip('编辑')
+                            .setTooltip(t('rednoteSettings.editTooltip'))
                             .onClick(() => {
                                 new CreateFontModal(
                                     this.app,
                                     async (updatedFont) => {
                                         await this.plugin.settingsManager.updateFont(font.value, updatedFont);
                                         this.render();
-                                        new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                                        new Notice(t('rednoteSettings.reloadNotice'));
                                     },
                                     font
                                 ).open();
                             }))
                     .addExtraButton(btn => 
                         btn.setIcon('trash')
-                            .setTooltip('删除')
+                            .setTooltip(t('rednoteSettings.deleteTooltip'))
                             .onClick(() => {
                                 // 新增确认模态框
                                 new ConfirmModal(
                                     this.app,
-                                    '确认删除字体',
-                                    `确定要删除「${font.label}」字体配置吗？`,
+                                    t('rednoteSettings.confirmDeleteFontTitle'),
+                                    t('rednoteSettings.confirmDeleteFontMessage', { name: font.label }),
                                     async () => {
                                         await this.plugin.settingsManager.removeFont(font.value);
                                         this.render();
-                                        new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                                        new Notice(t('rednoteSettings.reloadNotice'));
                                     }
                                 ).open();
                             }));
@@ -164,7 +165,7 @@ export class RedSettingsPanel {
         // 添加新字体按钮
         new Setting(fontContent)
             .addButton(btn => btn
-                .setButtonText('+ 添加字体')
+                .setButtonText(t('rednoteSettings.addFontButton'))
                 .setCta()
                 .onClick(() => {
                     new CreateFontModal(
@@ -172,7 +173,7 @@ export class RedSettingsPanel {
                         async (newFont) => {
                             await this.plugin.settingsManager.addCustomFont(newFont);
                             this.render();
-                            new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                            new Notice(t('rednoteSettings.reloadNotice'));
                         }
                     ).open();
                 }));
@@ -186,7 +187,7 @@ export class RedSettingsPanel {
         const themeVisibilityToggle = themeVisibilityHeader.createSpan('red-settings-subsection-toggle');
         setIcon(themeVisibilityToggle, 'chevron-right');
         
-        new Setting(themeVisibilityHeader).setName('显示设置').setHeading();
+        new Setting(themeVisibilityHeader).setName(t('rednoteSettings.visibilityHeading')).setHeading();
         
         const themeVisibilityContent = themeVisibilitySection.createDiv('red-settings-subsection-content');
         
@@ -199,43 +200,43 @@ export class RedSettingsPanel {
         
         // 添加页脚显示设置
         new Setting(themeVisibilityContent)
-            .setName('是否显示时间')
-            .setDesc('控制是否在主题中显示页眉时间')
+            .setName(t('rednoteSettings.showTimeName'))
+            .setDesc(t('rednoteSettings.showTimeDesc'))
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settingsManager.getSettings().showTime !== false)
                 .onChange(async (value) => {
                     await this.plugin.settingsManager.updateSettings({
                         showTime: value
                     });
-                    new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                    new Notice(t('rednoteSettings.reloadNotice'));
                 })
             );
 
         // 页眉显示设置（头像/昵称/时间整块）：与页脚对称，替代此前靠 CSS 片段 display:none 硬藏的做法
         new Setting(themeVisibilityContent)
-            .setName('是否显示页眉')
-            .setDesc('控制是否在图卡顶部显示头像、昵称、时间；关闭后正文区上移')
+            .setName(t('rednoteSettings.showHeaderName'))
+            .setDesc(t('rednoteSettings.showHeaderDesc'))
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settingsManager.getSettings().showHeader !== false)
                 .onChange(async (value) => {
                     await this.plugin.settingsManager.updateSettings({
                         showHeader: value
                     });
-                    new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                    new Notice(t('rednoteSettings.reloadNotice'));
                 })
             );
 
         // 添加页脚显示设置
         new Setting(themeVisibilityContent)
-            .setName('是否显示页脚')
-            .setDesc('控制是否在主题中显示页脚部分')
+            .setName(t('rednoteSettings.showFooterName'))
+            .setDesc(t('rednoteSettings.showFooterDesc'))
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settingsManager.getSettings().showFooter !== false)
                 .onChange(async (value) => {
                     await this.plugin.settingsManager.updateSettings({
                         showFooter: value
                     });
-                    new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                    new Notice(t('rednoteSettings.reloadNotice'));
                 })
             );
    
@@ -246,7 +247,7 @@ export class RedSettingsPanel {
         
         // 左侧：所有主题列表
         const allThemesContainer = themeSelectionContainer.createDiv('all-themes-container');
-        new Setting(allThemesContainer).setName('隐藏主题').setHeading();
+        new Setting(allThemesContainer).setName(t('rednoteSettings.hiddenThemesHeading')).setHeading();
         const allThemesList = allThemesContainer.createDiv('themes-list');
         
         // 中间：控制按钮
@@ -256,7 +257,7 @@ export class RedSettingsPanel {
 
         // 右侧：显示的主题列表
         const visibleThemesContainer = themeSelectionContainer.createDiv('visible-themes-container');
-        new Setting(visibleThemesContainer).setName('显示主题').setHeading();
+        new Setting(visibleThemesContainer).setName(t('rednoteSettings.visibleThemesHeading')).setHeading();
         const visibleThemesList = visibleThemesContainer.createDiv('themes-list');
         
         
@@ -319,7 +320,7 @@ export class RedSettingsPanel {
             }
             
             renderThemeLists();
-            new Notice('请重启 Obsidian 或重新加载以使更改生效');
+            new Notice(t('rednoteSettings.reloadNotice'));
         };
         addButton.addEventListener('click', () => { void showSelectedThemes(); });
         
@@ -340,14 +341,14 @@ export class RedSettingsPanel {
             }
             
             renderThemeLists();
-            new Notice('请重启 Obsidian 或重新加载以使更改生效');
+            new Notice(t('rednoteSettings.reloadNotice'));
         };
         removeButton.addEventListener('click', () => { void hideSelectedThemes(); });
 
         // 主题管理区域
         const themeList = containerEl.createDiv('theme-management');
         // 渲染自定义主题
-        new Setting(themeList).setName('自定义主题').setHeading().setClass('theme-custom-header');
+        new Setting(themeList).setName(t('rednoteSettings.customThemesHeading')).setHeading().setClass('theme-custom-header');
         this.plugin.settingsManager.getAllThemes()
             .filter(theme => !theme.isPreset)
             .forEach(theme => {
@@ -357,13 +358,13 @@ export class RedSettingsPanel {
                     .setDesc(theme.description)
                     .addExtraButton(btn => 
                         btn.setIcon('eye')
-                            .setTooltip('预览')
+                            .setTooltip(t('rednoteSettings.previewTooltip'))
                             .onClick(() => {
                                 new ThemePreviewModal(this.app, this.plugin.settingsManager, theme, this.plugin.themeManager).open(); // 修改为使用预览模态框
                             }))
                     .addExtraButton(btn => 
                         btn.setIcon('pencil')
-                            .setTooltip('编辑')
+                            .setTooltip(t('rednoteSettings.editTooltip'))
                             .onClick(() => {
                                 new CreateThemeModal(
                                     this.app,
@@ -371,24 +372,24 @@ export class RedSettingsPanel {
                                     async (updatedTheme) => {
                                         await this.plugin.settingsManager.updateTheme(theme.id, updatedTheme);
                                         this.render();
-                                        new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                                        new Notice(t('rednoteSettings.reloadNotice'));
                                     },
                                     theme
                                 ).open();
                             }))
                     .addExtraButton(btn => 
                         btn.setIcon('trash')
-                            .setTooltip('删除')
+                            .setTooltip(t('rednoteSettings.deleteTooltip'))
                             .onClick(() => {
                                 // 新增确认模态框
                                 new ConfirmModal(
                                     this.app,
-                                    '确认删除主题',
-                                    `确定要删除「${theme.name}」主题吗？此操作不可恢复。`,
+                                    t('rednoteSettings.confirmDeleteThemeTitle'),
+                                    t('rednoteSettings.confirmDeleteThemeMessage', { name: theme.name }),
                                     async () => {
                                         await this.plugin.settingsManager.removeTheme(theme.id);
                                         this.render();
-                                        new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                                        new Notice(t('rednoteSettings.reloadNotice'));
                                     }
                                 ).open();
                             }));
@@ -397,7 +398,7 @@ export class RedSettingsPanel {
         // 添加新主题按钮
         new Setting(containerEl)
             .addButton(btn => btn
-                .setButtonText('+ 新建主题')
+                .setButtonText(t('rednoteSettings.addThemeButton'))
                 .setCta()
                 .onClick(() => {
                     new CreateThemeModal(
@@ -406,7 +407,7 @@ export class RedSettingsPanel {
                         async (newTheme) => {
                             await this.plugin.settingsManager.addCustomTheme(newTheme);
                             this.render();
-                            new Notice('请重启 Obsidian 或重新加载以使更改生效');
+                            new Notice(t('rednoteSettings.reloadNotice'));
                         }
                     ).open();
                 }));

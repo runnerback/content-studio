@@ -2,6 +2,7 @@ import { App, Modal, setIcon } from 'obsidian';
 import { ThemeManager } from '../themeManager.ts';
 import type { Theme } from '../themeManager.ts';
 import { SettingsManager } from '../settings/settings.ts';
+import { t } from '../../services/i18n.js';
 
 export class ThemePreviewModal extends Modal {
     private theme: Theme;
@@ -21,7 +22,7 @@ export class ThemePreviewModal extends Modal {
         contentEl.addClass('theme-preview-modal');
 
         // 添加标题
-        contentEl.createEl('h2', { text: `主题预览: ${this.theme.name}`, cls: 'red-theme-title' });
+        contentEl.createEl('h2', { text: t('rednoteSettings.themePreviewTitle', { name: this.theme.name }), cls: 'red-theme-title' });
 
         // 添加预览区域
         const container = contentEl.createDiv('tp-red-preview-container');
@@ -38,7 +39,7 @@ export class ThemePreviewModal extends Modal {
             avatar.createEl('img', {
                 attr: {
                     src: settings.userAvatar,
-                    alt: '用户头像'
+                    alt: t('rednoteSettings.avatarAlt')
                 }
             });
         } else {
@@ -67,22 +68,22 @@ export class ThemePreviewModal extends Modal {
         const content = previewContainer.createDiv('red-preview-content');
 
         // 标题样式
-        content.createEl('h2', { text: '探索图卡排版的无限可能' });
+        content.createEl('h2', { text: t('rednoteSettings.previewSampleHeading') });
 
         // 段落样式
         const paragraph1 = content.createEl('p');
-        paragraph1.createSpan({ text: '插件提供多种' });
-        paragraph1.createEl('strong', { text: '优雅的操作，' });
-        paragraph1.createSpan({ text: '助您轻松发布笔记。' });
+        paragraph1.createSpan({ text: t('rednoteSettings.previewSampleParaStart') });
+        paragraph1.createEl('strong', { text: t('rednoteSettings.previewSampleParaStrong') });
+        paragraph1.createSpan({ text: t('rednoteSettings.previewSampleParaEnd') });
 
         // 列表样式
         const list = content.createEl('ul');
-        list.createEl('li', { text: '轻松定制主题样式' });
-        list.createEl('li', { text: '实时预览主题效果' });
+        list.createEl('li', { text: t('rednoteSettings.previewSampleListOne') });
+        list.createEl('li', { text: t('rednoteSettings.previewSampleListTwo') });
 
         // 引用样式
         const quote = content.createEl('blockquote');
-        quote.createEl('p', { text: '“让笔记发帖变得如此简单。”' });
+        quote.createEl('p', { text: t('rednoteSettings.previewSampleQuote') });
 
         // 代码样式
         const codeBlock = content.createEl('pre');
@@ -91,12 +92,12 @@ export class ThemePreviewModal extends Modal {
         ['red', 'yellow', 'green'].forEach(color => {
             dots.createSpan({ cls: `red-code-dot red-code-dot-${color}` });
         });
-        codeBlock.createEl('code', { text: '// 欢迎使用小红书图卡\nconsole.log("让笔记发帖更简单");' });
+        codeBlock.createEl('code', { text: t('rednoteSettings.previewSampleCode') });
 
         // 分隔线样式
         content.createEl('hr');
 
-        content.createEl('strong', { text: '如果您觉得我的插件对您有帮助，请打赏支持我。' });
+        content.createEl('strong', { text: t('rednoteSettings.previewSampleTip') });
 
         // 页脚区域
         const footer = previewContainer.createDiv('red-preview-footer');

@@ -18,6 +18,10 @@ export const Modal = mock.Modal;
 export const requestUrl = mock.requestUrl;
 export const request = mock.request;
 export const setIcon = mock.setIcon;
+export const getLanguage = (...args) => mock.getLanguage(...args);
+export const loadMathJax = mock.loadMathJax;
+export const renderMath = mock.renderMath;
+export const finishRenderMath = mock.finishRenderMath;
 
 // CJS mock 未提供的最小空壳(仅类型占位,rednote 运行路径按需扩展)
 export const App = mock.App || class App {};

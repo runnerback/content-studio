@@ -19,7 +19,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { createObsidianLikeElement } = require('./helpers/obsidian-dom.js');
 const { loadInputModule } = require('./helpers/input-module.cjs');
 const { AppleStyleSettingTab } = loadInputModule();
-const { MULTI_PLATFORM_TAB_LABEL } = await import('../services/settings-defaults.js');
+const { getMultiPlatformTabLabel } = await import('../services/settings-defaults.js');
 
 // 设置项的 action / onDelete 回调是 fire-and-forget（内部 void 一个 async 方法），
 // 测试用一个宏任务等待其 await 链（确认弹窗 → saveSettings → update）跑完
@@ -64,8 +64,6 @@ function makeMinimalSettings(overrides = {}) {
       },
       recentTasks: [],
     },
-    wechatAppId: '',
-    wechatAppSecret: '',
     ai: {
       enabled: false,
       providers: [],
@@ -115,14 +113,14 @@ function renderTab(plugin) {
   const tab = makeTab(plugin);
   tab.update();
   // 3.11.4 起普通设置项在声明式子页面里；打开三个子页面让注册表包含其中的项
-  for (const name of ['公众号排版', '微信公众号', 'AI Provider 与编排']) tab.renderPage(name);
+  for (const name of ['微信公众号', 'AI Provider 与编排']) tab.renderPage(name);
   return tab;
 }
 
 // 「其他平台」子页面：实例化 page 工厂并 display()，内容在 page.containerEl
 function renderMultiPlatformPage(plugin) {
   const tab = renderTab(plugin);
-  return tab.renderPage(MULTI_PLATFORM_TAB_LABEL);
+  return tab.renderPage(getMultiPlatformTabLabel());
 }
 
 // 声明式子页面的内容容器（renderTab 已打开三个子页面）
@@ -158,21 +156,22 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     expect(definitions.length).toBe(4);
     expect(definitions.some((item) => typeof item.render === 'function')).toBe(false);
     // 3.11.4：顶层 = 说明行 + 「样式设置 / 分发设置 / AI 设置」三组，组内是子页面入口；
-    // 3.11.16：样式设置组末尾多一个一级开关「按文档属性自动切换预览平台」（跨平台功能，不放进公众号排版页）
+    // 3.11.16：样式设置组末尾多一个一级开关「按文档属性自动切换预览平台」；
+    // 3.12.0：「公众号排版」页（手机仿真框 / 图片水印）挪到预览面板高级选项，样式设置组只剩小红书图卡页 + 该开关
     const groups = definitions.filter((item) => item.type === 'group');
     expect(definitions.filter((item) => item.type === 'list')).toEqual([]);
     expect(definitions.filter((item) => item.type === 'page')).toEqual([]);
     expect(groups.map((group) => group.heading)).toEqual(['样式设置', '分发设置', 'AI 设置']);
     const pagesByGroup = groups.map((group) => group.items.map((item) => `${item.type || 'control'}:${item.name}`));
     expect(pagesByGroup).toEqual([
-      ['page:公众号排版', 'page:小红书图卡', 'control:按文档属性自动切换预览平台'],
-      ['page:微信公众号', 'page:飞书', `page:${MULTI_PLATFORM_TAB_LABEL}`],
+      ['page:小红书图卡', 'control:按文档属性自动切换预览平台'],
+      ['page:微信公众号', 'page:飞书', `page:${getMultiPlatformTabLabel()}`],
       ['page:AI Provider 与编排'],
     ]);
     // 命令式子页面走 page 工厂；其余是声明式 items（含 group / list）
     const allPages = groups.flatMap((group) => group.items).filter((item) => item.type === 'page');
     const factoryPages = allPages.filter((page) => typeof page.page === 'function').map((page) => page.name);
-    expect(factoryPages).toEqual(['小红书图卡', '飞书', MULTI_PLATFORM_TAB_LABEL]);
+    expect(factoryPages).toEqual(['小红书图卡', '飞书', getMultiPlatformTabLabel()]);
     allPages.filter((page) => typeof page.page !== 'function').forEach((page) => expect(Array.isArray(page.items)).toBe(true));
     const wechatPage = allPages.find((page) => page.name === '微信公众号');
     expect(wechatPage.items.map((item) => item.heading)).toEqual(['微信公众号账号', '账号列表', 'API 代理']);
@@ -220,14 +219,14 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     expect(names).not.toContain('清理目录');
   });
 
-  it('renders the preview / watermark headings inside 样式设置 → 公众号排版', () => {
+  it('3.12.0：设置页不再渲染预览模式 / 图片水印（已挪到预览面板高级选项）', () => {
     renderTab(makePlugin());
     const names = globalThis.__obsidianSettingNamesRegistry;
-    expect(names).toContain('预览模式');
-    expect(names).toContain('使用手机仿真框');
-    expect(names).toContain('图片水印');
-    expect(names).toContain('启用图片水印');
-    expect(names).toContain('头像 URL（备用）');
+    expect(names).not.toContain('预览模式');
+    expect(names).not.toContain('使用手机仿真框');
+    expect(names).not.toContain('图片水印');
+    expect(names).not.toContain('启用图片水印');
+    expect(names).not.toContain('头像 URL（备用）');
   });
 
   it('cancels AI Provider deletion through an Obsidian confirmation modal', async () => {
@@ -351,28 +350,7 @@ describe('AppleStyleSettingTab settings rendering - smoke test', () => {
     expect(findButton('清空 AI 编排缓存')).toBeUndefined();
   });
 
-  it('offers 「清除本地头像」only when a local avatar exists and clears it on click', async () => {
-    renderTab(makePlugin({ avatarBase64: '' }));
-    expect(globalThis.__obsidianSettingNamesRegistry).not.toContain('清除本地头像');
-    expect(findButton('清除本地头像')).toBeUndefined();
-
-    globalThis.__obsidianSettingNamesRegistry = [];
-    globalThis.__obsidianButtonRegistry = [];
-    const plugin = makePlugin({ avatarBase64: 'data:image/png;base64,ZmFrZQ==' });
-    renderTab(plugin);
-    expect(globalThis.__obsidianSettingNamesRegistry).toContain('清除本地头像');
-    const clearButton = findButton('清除本地头像');
-    expect(clearButton).toBeDefined();
-
-    clearButton.clickHandler();
-    await flushPromises();
-
-    expect(plugin.settings.avatarBase64).toBe('');
-    expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
-    expect(globalThis.__obsidianNoticeRegistry.at(-1).message).toBe('已清除本地头像');
-    // 清除后重绘，action 随之消失
-    expect(findButton('清除本地头像')?.buttonEl?.isConnected ?? false).toBe(false);
-  });
+  // 3.12.0：头像上传 / 清除挪到预览悬浮层（tests/settings_overlay_layout.test.js），设置页不再有这两个动作
 
   it('renders the multi-platform page core fields when bridge is enabled', () => {
     renderMultiPlatformPage(makePlugin({ multiPlatformSync: {

@@ -15,7 +15,7 @@ describe('Golden Control Baseline (Main + Micro Samples)', () => {
     // Match plugin runtime dependencies without relying on eval-based dynamic loading in tests.
     global.markdownit = require('../lib/markdown-it.min.js');
     global.hljs = require('../lib/highlight.min.js');
-    require('../lib/mathjax-plugin.js');
+    await require('./helpers/math-runtime.js').installTestMathPlugin();
 
     const themeCode = fs.readFileSync(path.resolve(__dirname, '../themes/apple-theme.js'), 'utf8');
     const converterCode = fs.readFileSync(path.resolve(__dirname, '../converter.js'), 'utf8');

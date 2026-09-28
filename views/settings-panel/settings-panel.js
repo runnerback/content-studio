@@ -10,11 +10,16 @@
 // 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
 /** @typedef {import('../../input.js').ObsidianElementLike} ObsidianElementLike */
 
-import { getObsidianSetIcon, getAppleThemeApi, isMobileClient } from '../../services/obsidian-adapters.js';
-import { getEventTargetValue } from '../../services/dom-utils.js';
+import { obsidianApi, getObsidianSetIcon, getAppleThemeApi, isMobileClient } from '../../services/obsidian-adapters.js';
+import { getEventTargetValue, getActiveDocument } from '../../services/dom-utils.js';
+import { getAvatarSrc } from '../../services/dependency-loader.js';
+import { pickLocalAvatarDataUrl } from '../../services/avatar-settings.js';
 import { APPLE_STYLE_VIEW_TITLE } from '../../services/settings-defaults.js';
 import { getImageSwipeCommandCopy } from '../../services/image-swipe.js';
-import { resolvePreviewModeFromFrontmatter } from '../../services/platform-property.js';
+import { resolvePreviewModeFromFrontmatter, resolvePlatformTargetsFromFrontmatter, resolvePreferredBridgePlatformIds } from '../../services/platform-property.js';
+import { t } from '../../services/i18n.js';
+
+const { Notice } = obsidianApi;
 
 /** @typedef {import('../../input.js').AppleStyleViewInstance} AppleStyleViewInstance */
 /** @satisfies {ThisType<AppleStyleViewInstance>} */
@@ -135,13 +140,20 @@ export const settingsPanelMixin = {
     // 且只默认勾选对应平台(preferredPlatform)。
     this.sendBtn = createIconBtn('send', '发布与分发', () => {
       const mode = this._previewMode || 'wechat';
-      if (mode === 'rednote') {
-        void this.showMultiPlatformSyncModal({ preferredPlatform: 'xiaohongshu' });
-      } else if (mode === 'x') {
-        void this.showMultiPlatformSyncModal({ preferredPlatform: 'x' });
+      if (mode === 'rednote' || mode === 'x') {
+        // 3.12.0：frontmatter `platform: [rednote, x]` 一稿多发 → 弹窗默认勾选全部经扩展的目标，当前模式排第一
+        const file = this.getPublishContextFile();
+        const frontmatter = file ? this.app.metadataCache?.getFileCache?.(/** @type {import('obsidian').TFile} */ (file))?.frontmatter : null;
+        const preferredPlatforms = resolvePreferredBridgePlatformIds(mode, resolvePlatformTargetsFromFrontmatter(frontmatter));
+        void this.showMultiPlatformSyncModal({ preferredPlatform: preferredPlatforms[0], preferredPlatforms });
       } else {
         this.showSyncModal();
       }
+    });
+
+    // [看板] 按钮（3.12.0）：打开分发看板视图
+    this.dashboardBtn = createIconBtn('layout-list', t('dashboard.toolbarButton'), () => {
+      void this.plugin.openPublishDashboard();
     });
 
     // 2. 创建悬浮设置层 (初始隐藏)
@@ -419,6 +431,69 @@ export const settingsPanelMixin = {
     });
     codeLineNumberSection.classList.add('apple-settings-inline-toggle');
 
+    // === 手机仿真框（3.12.0 从插件设置页挪来，即时生效） ===
+    const phoneFrameSection = this.createSection(advancedArea, '手机仿真框', /** @param {ObsidianElementLike} section */ (section) => {
+      const row = section.createEl('div', { cls: 'apple-settings-inline-row' });
+      const toggle = row.createEl('label', { cls: 'apple-toggle' });
+      const checkbox = toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
+      checkbox.checked = this.plugin.settings.usePhoneFrame === true;
+      toggle.createEl('span', { cls: 'apple-toggle-slider' });
+      section.createEl('span', {
+        text: '开启后预览区显示为手机框；关闭为经典全宽预览（移动端始终全宽）',
+        attr: {
+          style: 'font-size: 11px; color: var(--apple-secondary); opacity: 0.8; font-weight: 500; display: block;'
+        }
+      });
+      checkbox.addEventListener('change', () => { void this.onUsePhoneFrameChange(checkbox.checked); });
+    });
+    phoneFrameSection.classList.add('apple-settings-inline-toggle');
+
+    // === 图片水印（3.12.0 从插件设置页挪来，即时生效） ===
+    const watermarkSection = this.createSection(advancedArea, '图片水印', /** @param {ObsidianElementLike} section */ (section) => {
+      const row = section.createEl('div', { cls: 'apple-settings-inline-row' });
+      const toggle = row.createEl('label', { cls: 'apple-toggle' });
+      const checkbox = toggle.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
+      checkbox.checked = this.plugin.settings.enableWatermark === true;
+      toggle.createEl('span', { cls: 'apple-toggle-slider' });
+      section.createEl('span', {
+        text: '在每张图片上方显示头像水印',
+        attr: {
+          style: 'font-size: 11px; color: var(--apple-secondary); opacity: 0.8; font-weight: 500; display: block;'
+        }
+      });
+      checkbox.addEventListener('change', () => { void this.onEnableWatermarkChange(checkbox.checked); });
+
+      const avatarRow = section.createEl('div', { cls: 'apple-settings-avatar-row' });
+      const avatarPreview = avatarRow.createEl('img', { cls: 'apple-settings-avatar-preview' });
+      const uploadBtn = avatarRow.createEl('button', { cls: 'apple-btn-secondary', text: '上传本地头像' });
+      const clearBtn = avatarRow.createEl('button', { cls: 'apple-btn-secondary', text: '清除' });
+      const urlInput = section.createEl('input', {
+        cls: 'apple-text-input',
+        type: 'text',
+        placeholder: '头像 URL（未上传本地头像时使用）',
+      });
+      urlInput.value = this.plugin.settings.avatarUrl || '';
+      const syncAvatarRow = () => {
+        const base64 = this.plugin.settings.avatarBase64 || '';
+        const src = base64 || this.plugin.settings.avatarUrl || '';
+        avatarPreview.classList.toggle('is-hidden', !src);
+        if (src) avatarPreview.setAttribute('src', src);
+        clearBtn.classList.toggle('is-hidden', !base64);
+        uploadBtn.setText(base64 ? '重新上传头像' : '上传本地头像');
+      };
+      syncAvatarRow();
+      uploadBtn.addEventListener('click', () => {
+        void this.onPickLocalAvatar().then(syncAvatarRow);
+      });
+      clearBtn.addEventListener('click', () => {
+        void this.onClearLocalAvatar().then(syncAvatarRow);
+      });
+      urlInput.addEventListener('change', () => {
+        void this.onAvatarUrlChange(urlInput.value).then(syncAvatarRow);
+      });
+    });
+    watermarkSection.classList.add('apple-settings-inline-toggle');
+
     // === 显示图片说明文字 ===
     const captionSection = this.createSection(advancedArea, '显示图片说明文字', /** @param {ObsidianElementLike} section */ (section) => {
       const row = section.createEl('div', { cls: 'apple-settings-inline-row' });
@@ -451,8 +526,8 @@ export const settingsPanelMixin = {
 
     // === 横滑图片块提示 ===
     this.createSection(advancedArea, '横滑图片块', /** @param {ObsidianElementLike} section */ (section) => {
-      const imageBlockCommand = getImageSwipeCommandCopy(this.app, 'image-swipe').name;
-      const sensitiveImageBlockCommand = getImageSwipeCommandCopy(this.app, 'image-sensitive').name;
+      const imageBlockCommand = getImageSwipeCommandCopy('image-swipe').name;
+      const sensitiveImageBlockCommand = getImageSwipeCommandCopy('image-sensitive').name;
       section.createEl('span', {
         text: `选中多张图片，打开命令面板，运行「${imageBlockCommand}」或「${sensitiveImageBlockCommand}」。`,
         attr: {
@@ -461,25 +536,8 @@ export const settingsPanelMixin = {
       });
     });
 
-    // 根据全局水印设置更新状态
-    if (this.plugin.settings.enableWatermark) {
-      const captionDesc = captionSection.querySelector('.apple-setting-content > span');
-      if (captionDesc) {
-        captionDesc.setText('因全局设置中已开启水印，此选项默认开启');
-      }
-      const toggleState = this.captionToggleState;
-      if (toggleState?.checkbox) {
-        toggleState.checkbox.checked = true;
-        toggleState.checkbox.disabled = true;
-      }
-      if (toggleState?.toggle) {
-        toggleState.toggle.setCssStyles({
-          pointerEvents: 'none',
-          opacity: '0.6',
-          filter: 'grayscale(100%)',
-        });
-      }
-    }
+    this.captionSectionEl = captionSection;
+    this.syncCaptionToggleWithWatermark();
 
     // === 使用指南(面板底部常驻说明,与小红书设置面板同款样式) ===
     this.createSection(settingsArea, '使用指南', /** @param {ObsidianElementLike} section */ (section) => {
@@ -489,7 +547,7 @@ export const settingsPanelMixin = {
 3. AI 编排：顶栏 ✨ 按钮让 AI 自动优化整篇排版与配色
 4. 复制发布：顶栏复制按钮把排版结果复制进剪贴板，粘贴到公众号编辑器即可
 5. 草稿同步：顶栏「发布与分发」直接保存公众号草稿，本地图片/公式/图表自动上传
-6. 手机预览：插件设置中开启手机框模式，模拟手机端阅读效果`,
+6. 手机预览：本面板「高级选项」里开关手机框模式，模拟手机端阅读效果`,
         attr: {
           style: 'font-size: 11px; color: var(--apple-secondary); opacity: 0.8; font-weight: 500; display: block; white-space: pre-line; line-height: 1.7;'
         }
@@ -539,6 +597,84 @@ export const settingsPanelMixin = {
     }
   },
   // === 设置变更处理 ===
+  /**
+   * 「显示图片说明文字」随水印开关联动：开了水印就强制开启并置灰（3.12.0 起在面板内即时切换，不再重开面板）。
+   */
+  syncCaptionToggleWithWatermark() {
+    const enabled = this.plugin.settings.enableWatermark === true;
+    const captionDesc = this.captionSectionEl?.querySelector('.apple-setting-content > span');
+    if (captionDesc) {
+      captionDesc.setText(enabled ? '已开启水印，此选项固定开启' : '关闭水印时，在图片下方显示说明文字');
+    }
+    const toggleState = this.captionToggleState;
+    if (toggleState?.checkbox) {
+      if (enabled) toggleState.checkbox.checked = true;
+      toggleState.checkbox.disabled = enabled;
+    }
+    if (toggleState?.toggle) {
+      toggleState.toggle.setCssStyles(enabled
+        ? { pointerEvents: 'none', opacity: '0.6', filter: 'grayscale(100%)' }
+        : { pointerEvents: '', opacity: '', filter: '' });
+    }
+  },
+
+  /**
+   * @param {boolean} enabled
+   */
+  async onUsePhoneFrameChange(enabled) {
+    this.plugin.settings.usePhoneFrame = enabled;
+    await this.plugin.saveSettings();
+    this.applyPhoneFrameMode();
+  },
+
+  /**
+   * 水印开关 / 头像变化后：更新转换器里的头像并重渲染。
+   */
+  async applyWatermarkSetting() {
+    await this.plugin.saveSettings();
+    this.syncCaptionToggleWithWatermark();
+    if (this.converter) {
+      this.converter.updateConfig({ avatarUrl: getAvatarSrc(this.plugin.settings) });
+      await this.convertCurrent(true);
+    }
+  },
+
+  /**
+   * @param {boolean} enabled
+   */
+  async onEnableWatermarkChange(enabled) {
+    this.plugin.settings.enableWatermark = enabled;
+    await this.applyWatermarkSetting();
+  },
+
+  async onPickLocalAvatar() {
+    const activeDocument = getActiveDocument();
+    if (!activeDocument) return;
+    try {
+      const dataUrl = await pickLocalAvatarDataUrl(activeDocument);
+      if (!dataUrl) return;
+      this.plugin.settings.avatarBase64 = dataUrl;
+      await this.applyWatermarkSetting();
+      new Notice('头像已上传');
+    } catch (error) {
+      new Notice(`头像上传失败：${error instanceof Error ? error.message : String(error)}`);
+    }
+  },
+
+  async onClearLocalAvatar() {
+    this.plugin.settings.avatarBase64 = '';
+    await this.applyWatermarkSetting();
+    new Notice('已清除本地头像');
+  },
+
+  /**
+   * @param {string} value
+   */
+  async onAvatarUrlChange(value) {
+    this.plugin.settings.avatarUrl = String(value || '').trim();
+    await this.applyWatermarkSetting();
+  },
+
   /**
    * @param {string} value
    * @param {Element} grid

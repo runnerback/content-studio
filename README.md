@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> Version 3.11.17 · Updated 2026-09-24 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
+> Version 3.12.0 · Updated 2026-09-28 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
 
 Turn your Obsidian notes into ready-to-publish content: **WeChat Official Account** articles, **Xiaohongshu (rednote)** image cards, and **Feishu** cloud docs, all previewed live inside Obsidian.
 
@@ -10,9 +10,12 @@ Turn your Obsidian notes into ready-to-publish content: **WeChat Official Accoun
 - **Xiaohongshu image cards**: switch the preview to 小红书 mode and each heading becomes one image card. Images under a heading are laid out inline with the text (full width, height by aspect ratio); when a card cannot fit both, the image is split into its own card automatically. Style cards with themes (including an iOS-Notes look), then export as PNGs.
 - **Feishu docs**: sync the same note to Feishu cloud documents.
 - **AI layout and title polish** (optional): AI-assisted typesetting and title suggestions with your own API key.
-- **Draft publishing to Xiaohongshu / X** (optional): push rendered cards to the platform draft box through a companion browser extension.
+- **Publishing dashboard**: the "Open publishing dashboard" command lists every note's target platforms (frontmatter `platform`, arrays allowed), what is published, awaiting confirmation or not yet published, with filters. The UI follows Obsidian's language (Chinese → Simplified Chinese, anything else → English).
+- **Draft publishing to Xiaohongshu / X** (optional, **extension not yet released**): push rendered cards to the platform draft box through a companion browser extension; until the extension ships this is author-only.
 
 ## Quick start
+
+> Desktop only (`isDesktopOnly: true` since 3.12.0): the local WebSocket bridge and Feishu image handling rely on desktop capabilities, so Obsidian mobile does not load this plugin.
 
 1. Click the **Content Studio** ribbon icon (or run the command `打开预览面板`) to open the preview panel.
 2. Edit your note. The panel renders it live, with two-way scroll sync.

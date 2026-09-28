@@ -9,6 +9,8 @@ const {
   FRONTMATTER_KEYS,
   PUBLISH_STATUS_SYNCED,
   PUBLISH_STATUS_PARTIAL,
+  PUBLISH_STATUS_PENDING,
+  PUBLISH_KIND_PENDING,
 } = require('../services/publish-status');
 
 describe('publish-status service', () => {
@@ -116,6 +118,45 @@ describe('publish-status service', () => {
       updatePublishFrontmatter(fm, { targets: [], requestedCount: 2, date: new Date() });
       expect(fm[FRONTMATTER_KEYS.status]).toBeUndefined();
       expect(fm[FRONTMATTER_KEYS.at]).toBeUndefined();
+    });
+
+    // 3.12.0：经扩展投递只拿到"已接收"→ pending，不点亮 platform_<name>，整体状态 pending
+    it('records extension deliveries as pending instead of a confirmed draft', () => {
+      const fm = {};
+      updatePublishFrontmatter(fm, {
+        targets: [{ platform: 'xiaohongshu', kind: PUBLISH_KIND_PENDING }],
+        requestedCount: 1,
+        date: new Date('2026-09-28T04:00:00.000Z'),
+      });
+      expect(fm[FRONTMATTER_KEYS.status]).toBe(PUBLISH_STATUS_PENDING);
+      expect(fm[FRONTMATTER_KEYS.kind]).toBe(PUBLISH_KIND_PENDING);
+      expect(fm[FRONTMATTER_KEYS.pending]).toEqual(['rednote']);
+      expect(fm[FRONTMATTER_KEYS.platforms]).toEqual(['rednote']);
+      expect(fm.platform_rednote).toBeUndefined();
+      expect(fm[FRONTMATTER_KEYS.at]).toBe('2026-09-28T12:00:00+08:00');
+    });
+
+    it('mixes pending and confirmed targets: status follows confirmed ones, pending list keeps the rest', () => {
+      const fm = {};
+      updatePublishFrontmatter(fm, {
+        targets: [{ platform: 'wechat', kind: 'draft' }, { platform: 'x', kind: PUBLISH_KIND_PENDING }],
+        requestedCount: 2,
+        date: new Date(),
+      });
+      expect(fm[FRONTMATTER_KEYS.status]).toBe(PUBLISH_STATUS_PARTIAL);
+      expect(fm.platform_wechat).toBe(1);
+      expect(fm.platform_x).toBeUndefined();
+      expect(fm[FRONTMATTER_KEYS.pending]).toEqual(['x']);
+    });
+
+    it('confirming a previously pending platform removes it from publish_pending and lights the flag', () => {
+      const fm = { [FRONTMATTER_KEYS.pending]: ['rednote', 'x'], [FRONTMATTER_KEYS.status]: PUBLISH_STATUS_PENDING };
+      updatePublishFrontmatter(fm, { targets: [{ platform: 'rednote', kind: 'draft' }], requestedCount: 1, date: new Date() });
+      expect(fm[FRONTMATTER_KEYS.pending]).toEqual(['x']);
+      expect(fm.platform_rednote).toBe(1);
+      expect(fm[FRONTMATTER_KEYS.status]).toBe(PUBLISH_STATUS_SYNCED);
+      updatePublishFrontmatter(fm, { targets: [{ platform: 'x', kind: 'draft' }], requestedCount: 1, date: new Date() });
+      expect(fm[FRONTMATTER_KEYS.pending]).toBeUndefined();
     });
   });
 });

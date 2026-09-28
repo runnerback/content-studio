@@ -52,6 +52,12 @@ import {
 } from '../../services/article-image-assets.js';
 import { getActiveWindowValue } from '../../services/dom-utils.js';
 import { formatQuotaSummary } from '../../services/wechatsync-quota.js';
+import {
+  CROSSPOST_EXTENSION_RELEASED,
+  CROSSPOST_EXTENSION_NAME,
+} from '../../services/wechatsync-constants.js';
+import { t } from '../../services/i18n.js';
+import { PUBLISH_KIND_PENDING } from '../../services/publish-status.js';
 
 const QUOTA_POLICY = 'truncate';
 const MODAL_SELECTED_PLATFORM_IDS = '__wechatMultiPlatformSelectedPlatformIds';
@@ -604,8 +610,14 @@ function showMultiPlatformPublishModal(view, options = {}) {
 
   if (!bridgeSettings.enabled) {
     const disabledHint = asModalElement(modal.contentEl.createDiv({ cls: 'wechat-sync-empty-state' }));
-    disabledHint.createEl('h3', { text: '尚未启用浏览器插件发布' });
-    disabledHint.createEl('p', { text: '请先安装浏览器插件，再到设置中启用浏览器插件发布、测试连接并选择平台。' });
+    if (CROSSPOST_EXTENSION_RELEASED) {
+      disabledHint.createEl('h3', { text: '尚未启用浏览器插件发布' });
+      disabledHint.createEl('p', { text: '请先安装浏览器插件，再到设置中启用浏览器插件发布、测试连接并选择平台。' });
+    } else {
+      // 3.12.0：扩展未发行前如实说明，图卡导出 / 复制不受影响
+      disabledHint.createEl('h3', { text: t('multiPlatform.extensionUnreleasedTitle', { name: CROSSPOST_EXTENSION_NAME }) });
+      disabledHint.createEl('p', { text: t('multiPlatform.extensionUnreleasedDesc') });
+    }
     const settingsBtn = asModalElement(disabledHint.createEl('button', { text: '去设置', cls: 'mod-cta' }));
     settingsBtn.onclick = () => {
       modal.close();
@@ -621,13 +633,19 @@ function showMultiPlatformPublishModal(view, options = {}) {
   // 设置项已改为只读信息展示,不再由用户勾选;选哪个发布在本弹窗决定。
   const displayedPlatforms = toRecordList(getEnabledWechatsyncPlatforms(bridgeSettings));
   const allEnabledIds = displayedPlatforms.map((p) => getPlatformId(p)).filter(Boolean);
-  // 顶栏选了小红书/X 时,弹窗只默认勾选对应平台(preferredPlatform);否则全选。
+  // 顶栏选了小红书/X 时,弹窗默认勾选对应平台(preferredPlatform);3.12.0 起还可带 preferredPlatforms
+  // (frontmatter `platform` 数组一稿多发,见 settings-panel 的发布按钮);都没有则全选。
   const preferredPlatform = typeof options.preferredPlatform === 'string' ? options.preferredPlatform : '';
-  const hasPreferred = preferredPlatform && allEnabledIds.includes(preferredPlatform);
-  const defaultSelectedPlatforms = new Set(hasPreferred ? [preferredPlatform] : allEnabledIds);
-  // preferredPlatform 强制覆盖持久化选择,确保初次打开只勾选目标平台(不受上次残留影响)
+  const preferredList = Array.isArray(options.preferredPlatforms)
+    ? options.preferredPlatforms.filter((item) => typeof item === 'string')
+    : [];
+  const preferredIds = [preferredPlatform, ...preferredList].filter((id) => id && allEnabledIds.includes(id));
+  const uniquePreferredIds = Array.from(new Set(preferredIds));
+  const hasPreferred = uniquePreferredIds.length > 0;
+  const defaultSelectedPlatforms = new Set(hasPreferred ? uniquePreferredIds : allEnabledIds);
+  // preferred 强制覆盖持久化选择,确保初次打开只勾选目标平台(不受上次残留影响)
   if (hasPreferred) {
-    modal[MODAL_SELECTED_PLATFORM_IDS] = [preferredPlatform];
+    modal[MODAL_SELECTED_PLATFORM_IDS] = uniquePreferredIds;
   }
   const isBridgeReady = cachedConnectionRecord.status === 'connected';
   const modalSelectedPlatforms = getModalSelectedPlatformIds(modal, defaultSelectedPlatforms);
@@ -843,12 +861,14 @@ function showMultiPlatformPublishModal(view, options = {}) {
             view.showMultiPlatformQuotaBlockedModal({ quotaResult: redResult, requestedPlatformIds: [xhsPlatformId] });
             return;
           }
-          new Notice(`✅ 小红书图卡已投递(${prep.cardCount} 张,已存 ${prep.dirPath}/)。请到浏览器插件任务窗口或小红书草稿箱查看。`, 10000);
+          // 3.12.0：扩展只回「已接收」，真正写入草稿箱的结果不会回到 Obsidian，
+          // 所以这里只能说"已投递、等待确认"，frontmatter 记 pending 而不是 draft。
+          new Notice(`📤 小红书图卡已投递，等待浏览器扩展确认（${prep.cardCount} 张，已存 ${prep.dirPath}/）。请到扩展任务窗口或小红书草稿箱确认是否写入成功。`, 10000);
           // 属性标签:与微信/飞书/多平台复用同一 recordPublishStatus
-          //(publish_status / publish_platforms / publish_time … 英文 key,累加去重)
+          //(publish_status / publish_platforms / publish_pending / publish_time … 英文 key,累加去重)
           if (activeFile && typeof view.recordPublishStatus === 'function') {
             await view.recordPublishStatus(activeFile, {
-              successfulTargets: [{ platform: xhsPlatformId, kind: 'draft' }],
+              successfulTargets: [{ platform: xhsPlatformId, kind: PUBLISH_KIND_PENDING }],
               requestedCount: 1,
             });
           }
@@ -879,10 +899,10 @@ function showMultiPlatformPublishModal(view, options = {}) {
             view.showMultiPlatformQuotaBlockedModal({ quotaResult: xResult, requestedPlatformIds: [xPlatformId] });
             return;
           }
-          new Notice(`✅ X 图卡已投递(${prep.cardCount} 张,已存 ${prep.dirPath}/)。请到浏览器插件任务窗口或 X 草稿箱查看。`, 10000);
+          new Notice(`📤 X 图卡已投递，等待浏览器扩展确认（${prep.cardCount} 张，已存 ${prep.dirPath}/）。请到扩展任务窗口或 X 草稿箱确认是否写入成功。`, 10000);
           if (activeFile && typeof view.recordPublishStatus === 'function') {
             await view.recordPublishStatus(activeFile, {
-              successfulTargets: [{ platform: 'x', kind: 'draft' }],
+              successfulTargets: [{ platform: 'x', kind: PUBLISH_KIND_PENDING }],
               requestedCount: 1,
             });
           }

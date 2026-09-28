@@ -29,7 +29,9 @@ import { toText } from './input-utils.js';
  * @typedef {{ path?: string, message?: string, fatal?: boolean }} AiLayoutSchemaIssue
  * @typedef {{ isValid?: boolean, fatal?: boolean, issueCount?: number, issues?: AiLayoutSchemaIssue[] }} AiLayoutSchemaValidationLike
  * @typedef {{ index?: number, type?: string, source?: 'ai' | 'fallback', label?: string }} AiLayoutBlockOriginLike
- * @typedef {{ providerName?: string, providerModel?: string, skillId?: string, skillLabel?: string, skillVersion?: string, executionMode?: string, layoutFamilyLabel?: string, colorPaletteLabel?: string, stylePackLabel?: string, recommendedLayoutFamilyLabel?: string, recommendedColorPaletteLabel?: string, headingCount?: number, sectionCount?: number, leadParagraphCount?: number, bulletGroupCount?: number, imageCount?: number, aiBlockCount?: number, finalBlockCount?: number, fallbackUsed?: boolean, fallbackBlockCount?: number, fallbackBlockTypes?: string[], schemaValidation?: AiLayoutSchemaValidationLike, blockOrigins?: AiLayoutBlockOriginLike[] } AiLayoutGenerationMetaLike
+ * @typedef {{ promptTokens: number, completionTokens: number, totalTokens: number }} AiUsageLike
+ * @typedef {{ requests: number, promptTokens: number, completionTokens: number, totalTokens: number, updatedAt: number }} AiUsageTotalsLike
+ * @typedef {{ providerName?: string, providerModel?: string, skillId?: string, skillLabel?: string, skillVersion?: string, executionMode?: string, layoutFamilyLabel?: string, colorPaletteLabel?: string, stylePackLabel?: string, recommendedLayoutFamilyLabel?: string, recommendedColorPaletteLabel?: string, headingCount?: number, sectionCount?: number, leadParagraphCount?: number, bulletGroupCount?: number, imageCount?: number, aiBlockCount?: number, finalBlockCount?: number, fallbackUsed?: boolean, fallbackBlockCount?: number, fallbackBlockTypes?: string[], schemaValidation?: AiLayoutSchemaValidationLike, blockOrigins?: AiLayoutBlockOriginLike[], usage?: AiUsageLike } AiLayoutGenerationMetaLike
  * @typedef {{ version?: number, updatedAt?: number, sourceHash?: string, providerId?: string, model?: string, skillId?: string, skillVersion?: string, selection?: AiLayoutSelectionLike, resolved?: AiLayoutResolvedSelectionLike, recommendedLayoutFamily?: string, recommendedColorPalette?: string, stylePack?: string, layoutFamily?: string, status?: 'ready'|'error'|'schema-error', lastError?: string, lastAttemptStatus?: 'idle'|'success'|'error'|'schema-error', lastAttemptError?: string, lastAttemptAt?: number, lastAttemptSchemaValidation?: AiLayoutSchemaValidationLike, dismissedBlockKeys?: string[], generationMeta?: AiLayoutGenerationMetaLike, layoutJson?: Record<string, unknown> } AiLayoutStateLike
  * @typedef {{ type?: string, label?: string, text?: string, title?: string, summary?: string, caseLabel?: string, highlight?: string, note?: string, imageId?: string, coverImageId?: string, variant?: string, eyebrow?: string, subtitle?: string, sectionIndex?: number|string, sectionLabel?: string, headingLevel?: number, paragraphs?: string[], bulletGroups?: string[][], bullets?: string[], callouts?: AiLayoutCalloutLike[], imageIds?: string[], items?: Array<{ label?: string, text?: string, title?: string }>, subsections?: AiLayoutSubsectionLike[], quote?: string }} AiLayoutBlockLike
  * @typedef {{ type?: string, title?: string, body?: string }} AiLayoutCalloutLike
@@ -45,7 +47,7 @@ import { toText } from './input-utils.js';
  * @typedef {{ accent?: string, accentDeep?: string, accentSoft?: string, text?: string, muted?: string, border?: string, surface?: string, surfaceSoft?: string, quoteBg?: string }} AiColorTokens
  * @typedef {{ articleType?: string, selection?: AiLayoutSelectionLike, resolved?: AiLayoutResolvedSelectionLike, recommendedLayoutFamily?: string, recommendedColorPalette?: string, title?: string, summary?: string, stylePack?: string, layoutFamily?: string, blocks?: AiLayoutBlockLike[] }} AiLayoutJsonLike
  * @typedef {{ lastLayoutFamily?: string, lastAutoResolvedFamily?: string, familyStates?: Record<string, AiLayoutStateLike>, lastSelectionKey?: string, selectionStates?: Record<string, AiLayoutStateLike>, lastStylePack?: string, stylePackStates?: Record<string, AiLayoutStateLike> }} AiLayoutCacheEntryLike
- * @typedef {{ enabled: boolean, defaultProviderId: string, layoutModel?: string, defaultLayoutFamily: string, defaultColorPalette: string, defaultStylePack?: string, customColor: string, includeImagesInLayout: boolean, requestTimeoutMs: number, providers: ReturnType<typeof normalizeAiProvider>[], articleLayoutsByPath: Record<string, AiLayoutCacheEntryLike> }} AiSettingsLike
+ * @typedef {{ enabled: boolean, defaultProviderId: string, layoutModel?: string, defaultLayoutFamily: string, defaultColorPalette: string, defaultStylePack?: string, customColor: string, includeImagesInLayout: boolean, requestTimeoutMs: number, providers: ReturnType<typeof normalizeAiProvider>[], articleLayoutsByPath: Record<string, AiLayoutCacheEntryLike>, usageTotals?: AiUsageTotalsLike, usagePricePerMillion?: { input: number, output: number } }} AiSettingsLike
  * @typedef {{ title?: string, leadHtml?: string, subsections?: RenderedSubsectionFragmentLike[] }} RenderedSectionFragmentLike
  * @typedef {{ title?: string, titleKey?: string, contentHtml?: string }} RenderedSubsectionFragmentLike
  * @typedef {{ ok: boolean, status: number, statusText?: string, text: () => Promise<string>, json: () => Promise<unknown> }} FetchResponseLike
@@ -126,6 +128,113 @@ const AI_PROVIDER_KIND_DEFAULTS = {
     model: 'claude-3-5-haiku-latest',
   },
 };
+
+// ---- 用量（3.12.0 费用可见性）：每次编排记录各家返回的 token 数，累计到 settings.ai.usageTotals ----
+/** @type {AiUsageLike} */
+const AI_USAGE_EMPTY = Object.freeze({ promptTokens: 0, completionTokens: 0, totalTokens: 0 });
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+function toTokenCount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? Math.round(n) : 0;
+}
+
+/**
+ * @param {unknown} [raw={}]
+ * @returns {AiUsageLike}
+ */
+function normalizeAiUsage(raw = {}) {
+  const source = toRecord(raw);
+  const promptTokens = toTokenCount(source.promptTokens);
+  const completionTokens = toTokenCount(source.completionTokens);
+  const totalTokens = toTokenCount(source.totalTokens) || promptTokens + completionTokens;
+  return { promptTokens, completionTokens, totalTokens };
+}
+
+/**
+ * 从各家响应体读 token 用量：OpenAI 兼容 usage.*_tokens；Gemini usageMetadata.*TokenCount；Anthropic usage.input/output_tokens。
+ * 没有用量字段时返回全 0（不猜）。
+ * @param {string} kind AI_PROVIDER_KINDS 之一
+ * @param {unknown} data 响应 JSON
+ * @returns {AiUsageLike}
+ */
+function readProviderUsage(kind, data) {
+  const source = toRecord(data);
+  if (kind === AI_PROVIDER_KINDS.GEMINI) {
+    const meta = toRecord(source.usageMetadata);
+    return normalizeAiUsage({ promptTokens: meta.promptTokenCount, completionTokens: meta.candidatesTokenCount, totalTokens: meta.totalTokenCount });
+  }
+  const usage = toRecord(source.usage);
+  if (kind === AI_PROVIDER_KINDS.ANTHROPIC) {
+    return normalizeAiUsage({ promptTokens: usage.input_tokens, completionTokens: usage.output_tokens });
+  }
+  return normalizeAiUsage({ promptTokens: usage.prompt_tokens, completionTokens: usage.completion_tokens, totalTokens: usage.total_tokens });
+}
+
+/**
+ * @param {unknown} [raw={}]
+ * @returns {AiUsageTotalsLike}
+ */
+function normalizeAiUsageTotals(raw = {}) {
+  const source = toRecord(raw);
+  const usage = normalizeAiUsage(source);
+  return {
+    requests: toTokenCount(source.requests),
+    ...usage,
+    updatedAt: clampNumber(source.updatedAt, 0, 0, 9999999999999),
+  };
+}
+
+/**
+ * 累加一次编排的用量（纯函数，返回新对象）。
+ * @param {AiUsageTotalsLike | null | undefined} totals
+ * @param {AiUsageLike | null | undefined} usage
+ * @param {number} [now=Date.now()]
+ * @returns {AiUsageTotalsLike}
+ */
+function addAiUsageToTotals(totals, usage, now = Date.now()) {
+  const base = normalizeAiUsageTotals(totals);
+  const delta = normalizeAiUsage(usage);
+  return {
+    requests: base.requests + 1,
+    promptTokens: base.promptTokens + delta.promptTokens,
+    completionTokens: base.completionTokens + delta.completionTokens,
+    totalTokens: base.totalTokens + delta.totalTokens,
+    updatedAt: now,
+  };
+}
+
+/**
+ * 按「元 / 百万 tokens」估算费用；单价未填（0）返回 null。
+ * @param {AiUsageLike | AiUsageTotalsLike | null | undefined} usage
+ * @param {{ input?: number, output?: number } | null | undefined} pricePerMillion
+ * @returns {number | null}
+ */
+function estimateAiUsageCost(usage, pricePerMillion) {
+  const u = normalizeAiUsage(usage);
+  const price = toRecord(pricePerMillion);
+  const input = Number(price.input);
+  const output = Number(price.output);
+  if (!(input > 0) && !(output > 0)) return null;
+  const cost = (u.promptTokens * (input > 0 ? input : 0) + u.completionTokens * (output > 0 ? output : 0)) / 1_000_000;
+  return Math.round(cost * 10000) / 10000;
+}
+
+/**
+ * 缓存的排版是否由旧版技能生成（技能随插件版本更新后，旧缓存建议重新生成）。
+ * @param {AiLayoutStateLike | null | undefined} state
+ * @returns {boolean}
+ */
+function isLayoutStateSkillOutdated(state) {
+  const source = toRecord(state);
+  const family = getArticleLayoutFamilyCacheKey(/** @type {AiLayoutStateLike} */ (source));
+  const current = getLayoutFamilyById(family)?.version || '';
+  const recorded = coerceString(source.skillVersion || toRecord(source.generationMeta).skillVersion);
+  return Boolean(current && recorded && recorded !== current);
+}
 
 /**
  * @param {unknown} value
@@ -226,6 +335,9 @@ function createDefaultAiSettings() {
     requestTimeoutMs: DEFAULT_AI_REQUEST_TIMEOUT_MS,
     providers: [],
     articleLayoutsByPath: {},
+    // 3.12.0：本机累计用量与单价（元 / 百万 tokens，0 = 只显示 token 数不估算费用）
+    usageTotals: normalizeAiUsageTotals({}),
+    usagePricePerMillion: { input: 0, output: 0 },
   };
 }
 
@@ -775,6 +887,7 @@ function normalizeLayoutGenerationMeta(raw = {}, layoutJson = null) {
       ? source.fallbackBlockTypes.map((item) => coerceString(item)).filter(Boolean).slice(0, 6)
       : [],
     schemaValidation: normalizeSchemaValidation(source.schemaValidation),
+    usage: normalizeAiUsage(source.usage),
     blockOrigins,
   };
 }
@@ -1141,6 +1254,11 @@ function normalizeAiSettings(raw = {}) {
     requestTimeoutMs: clampNumber(source.requestTimeoutMs, defaults.requestTimeoutMs, 5000, 180000),
     providers,
     articleLayoutsByPath,
+    usageTotals: normalizeAiUsageTotals(source.usageTotals),
+    usagePricePerMillion: {
+      input: clampNumber(toRecord(source.usagePricePerMillion).input, 0, 0, 100000),
+      output: clampNumber(toRecord(source.usagePricePerMillion).output, 0, 0, 100000),
+    },
   };
 }
 
@@ -2698,6 +2816,7 @@ function createLayoutGenerationMeta({
   normalizedAiBlocks = [],
   mergedEntries = [],
   schemaValidation = null,
+  usage = AI_USAGE_EMPTY,
 }) {
   const safeSignals = signals || extractMarkdownSignals('');
   const safeImageRefs = toAiImageRefs(imageRefs);
@@ -2741,6 +2860,7 @@ function createLayoutGenerationMeta({
     fallbackBlockCount: fallbackEntries.length,
     fallbackBlockTypes: Array.from(new Set(fallbackEntries.map((entry) => entry.block?.type).filter(Boolean))).slice(0, 6),
     schemaValidation: normalizeSchemaValidation(schemaValidation),
+    usage: normalizeAiUsage(usage),
     blockOrigins: safeMergedEntries.map((entry, index) => ({
       index,
       type: coerceString(entry.block?.type),
@@ -2752,7 +2872,7 @@ function createLayoutGenerationMeta({
 
 /**
  * @param {AiLayoutJsonLike | Record<string, unknown>} [rawLayout={}]
- * @param {{ markdown?: string, selection?: AiLayoutSelectionLike, stylePack?: string, imageRefs?: AiImageRefLike[], signals?: MarkdownSignals, provider?: AiProviderLike }} [context={}]
+ * @param {{ markdown?: string, selection?: AiLayoutSelectionLike, stylePack?: string, imageRefs?: AiImageRefLike[], signals?: MarkdownSignals, provider?: AiProviderLike, usage?: AiUsageLike }} [context={}]
  * @returns {AiLayoutStateLike}
  */
 function buildLayoutResult(rawLayout = {}, context = {}) {
@@ -2779,6 +2899,7 @@ function buildLayoutResult(rawLayout = {}, context = {}) {
       normalizedAiBlocks: [],
       mergedEntries: [],
       schemaValidation: validation,
+      usage: normalizeAiUsage(contextRecord.usage),
     });
     throw new AiLayoutSchemaError(`AI 返回的布局结果未通过 schema 校验（${validation.issueCount} 项）`, validation, generationMeta);
   }
@@ -2833,6 +2954,7 @@ function buildLayoutResult(rawLayout = {}, context = {}) {
       normalizedAiBlocks,
       mergedEntries,
       schemaValidation: validation,
+      usage: normalizeAiUsage(contextRecord.usage),
     }),
   };
 }
@@ -3098,7 +3220,7 @@ function parseAndRepairLayoutPayload(jsonPayload) {
 
 /**
  * @param {AiLayoutRequestOptions} options
- * @returns {Promise<Record<string, unknown>>}
+ * @returns {Promise<{ rawLayout: Record<string, unknown>, usage: AiUsageLike }>}
  */
 async function requestOpenAICompatibleLayout({
   provider,
@@ -3135,14 +3257,15 @@ async function requestOpenAICompatibleLayout({
     }
 
     const data = await response.json();
+    const usage = readProviderUsage(AI_PROVIDER_KINDS.OPENAI_COMPATIBLE, data);
     const content = readChatCompletionContent(data);
     const jsonPayload = extractJsonPayload(content);
     try {
-      return parseAndRepairLayoutPayload(jsonPayload);
+      return { rawLayout: parseAndRepairLayoutPayload(jsonPayload), usage };
     } catch (error) {
       const sanitizedPayload = sanitizeJsonStringLiteralControls(jsonPayload);
       if (sanitizedPayload !== jsonPayload) {
-        return parseAndRepairLayoutPayload(sanitizedPayload);
+        return { rawLayout: parseAndRepairLayoutPayload(sanitizedPayload), usage };
       }
       throw error;
     }
@@ -3158,7 +3281,7 @@ async function requestOpenAICompatibleLayout({
 
 /**
  * @param {AiLayoutRequestOptions} options
- * @returns {Promise<Record<string, unknown>>}
+ * @returns {Promise<{ rawLayout: Record<string, unknown>, usage: AiUsageLike }>}
  */
 async function requestGeminiLayout({
   provider,
@@ -3211,14 +3334,15 @@ async function requestGeminiLayout({
     }
 
     const data = await response.json();
+    const usage = readProviderUsage(AI_PROVIDER_KINDS.GEMINI, data);
     const content = readGeminiContent(data);
     const jsonPayload = extractJsonPayload(content);
     try {
-      return parseAndRepairLayoutPayload(jsonPayload);
+      return { rawLayout: parseAndRepairLayoutPayload(jsonPayload), usage };
     } catch (error) {
       const sanitizedPayload = sanitizeJsonStringLiteralControls(jsonPayload);
       if (sanitizedPayload !== jsonPayload) {
-        return parseAndRepairLayoutPayload(sanitizedPayload);
+        return { rawLayout: parseAndRepairLayoutPayload(sanitizedPayload), usage };
       }
       throw error;
     }
@@ -3234,7 +3358,7 @@ async function requestGeminiLayout({
 
 /**
  * @param {AiLayoutRequestOptions} options
- * @returns {Promise<Record<string, unknown>>}
+ * @returns {Promise<{ rawLayout: Record<string, unknown>, usage: AiUsageLike }>}
  */
 async function requestAnthropicLayout({
   provider,
@@ -3282,14 +3406,15 @@ async function requestAnthropicLayout({
     }
 
     const data = await response.json();
+    const usage = readProviderUsage(AI_PROVIDER_KINDS.ANTHROPIC, data);
     const content = readAnthropicContent(data);
     const jsonPayload = extractJsonPayload(content);
     try {
-      return parseAndRepairLayoutPayload(jsonPayload);
+      return { rawLayout: parseAndRepairLayoutPayload(jsonPayload), usage };
     } catch (error) {
       const sanitizedPayload = sanitizeJsonStringLiteralControls(jsonPayload);
       if (sanitizedPayload !== jsonPayload) {
-        return parseAndRepairLayoutPayload(sanitizedPayload);
+        return { rawLayout: parseAndRepairLayoutPayload(sanitizedPayload), usage };
       }
       throw error;
     }
@@ -3337,6 +3462,8 @@ async function generateArticleLayout({
 
   /** @type {Record<string, unknown>} */
   let rawLayout;
+  /** @type {AiUsageLike} */
+  let usage = AI_USAGE_EMPTY;
   if (!safeProvider) {
     if (requestedLayoutFamily !== 'source-first') {
       throw new Error('未找到可用的 AI Provider');
@@ -3353,7 +3480,7 @@ async function generateArticleLayout({
     try {
       switch (safeProvider.kind) {
         case AI_PROVIDER_KINDS.OPENAI_COMPATIBLE:
-          rawLayout = await requestOpenAICompatibleLayout({
+          ({ rawLayout, usage } = await requestOpenAICompatibleLayout({
             provider: safeProvider,
             title: safeTitle,
             markdown: safeMarkdown,
@@ -3363,10 +3490,10 @@ async function generateArticleLayout({
             timeoutMs: requestedTimeoutMs,
             abortTimeoutMs: safeTimeoutMs,
             fetchImpl: /** @type {FetchLike} */ (fetchImpl),
-          });
+          }));
           break;
         case AI_PROVIDER_KINDS.GEMINI:
-          rawLayout = await requestGeminiLayout({
+          ({ rawLayout, usage } = await requestGeminiLayout({
             provider: safeProvider,
             title: safeTitle,
             markdown: safeMarkdown,
@@ -3376,10 +3503,10 @@ async function generateArticleLayout({
             timeoutMs: requestedTimeoutMs,
             abortTimeoutMs: safeTimeoutMs,
             fetchImpl: /** @type {FetchLike} */ (fetchImpl),
-          });
+          }));
           break;
         case AI_PROVIDER_KINDS.ANTHROPIC:
-          rawLayout = await requestAnthropicLayout({
+          ({ rawLayout, usage } = await requestAnthropicLayout({
             provider: safeProvider,
             title: safeTitle,
             markdown: safeMarkdown,
@@ -3389,7 +3516,7 @@ async function generateArticleLayout({
             timeoutMs: requestedTimeoutMs,
             abortTimeoutMs: safeTimeoutMs,
             fetchImpl: /** @type {FetchLike} */ (fetchImpl),
-          });
+          }));
           break;
         default:
           throw new Error(`暂不支持的 AI Provider 类型: ${safeProvider.kind}`);
@@ -3418,6 +3545,7 @@ async function generateArticleLayout({
       provider: safeProvider,
       signals,
       sourceSections,
+      usage,
     });
   } catch (error) {
     if (!shouldUseLocalFallbackLayout(error, safeSelection)) {
@@ -3438,6 +3566,7 @@ async function generateArticleLayout({
       provider: null,
       signals,
       sourceSections,
+      usage,
     });
   }
 }
@@ -4142,6 +4271,13 @@ export {
   summarizeAiProviderIssues,
   normalizeArticleLayoutState,
   normalizeArticleLayoutCacheEntry,
+  normalizeAiUsage,
+  readProviderUsage,
+  normalizeAiUsageTotals,
+  addAiUsageToTotals,
+  estimateAiUsageCost,
+  isLayoutStateSkillOutdated,
+  AI_USAGE_EMPTY,
   normalizeSchemaValidation,
   normalizeLayoutFamily,
   normalizeColorPalette,

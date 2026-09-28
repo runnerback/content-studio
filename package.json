@@ -1,6 +1,6 @@
 {
 	"name": "note-content-studio",
-	"version": "3.11.17",
+	"version": "3.12.0",
 	"description": "Turn notes into WeChat Official Account articles, Xiaohongshu image cards, and Feishu docs, with live preview.",
 	"main": "main.js",
 	"scripts": {
@@ -61,8 +61,7 @@
 	},
 	"dependencies": {
 		"fflate": "^0.8.3",
-		"html-to-image": "^1.11.13",
-		"markdown-it-mathjax3": "^4.3.2"
+		"html-to-image": "^1.11.13"
 	},
 	"overrides": {
 		"@xmldom/xmldom": "0.9.12"

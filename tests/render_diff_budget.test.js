@@ -24,7 +24,7 @@ describe('Render Diff Budget (Legacy vs Experimental Phase 1)', () => {
 
     global.markdownit = require('../lib/markdown-it.min.js');
     global.hljs = require('../lib/highlight.min.js');
-    require('../lib/mathjax-plugin.js');
+    await require('./helpers/math-runtime.js').installTestMathPlugin();
 
     const themeCode = fs.readFileSync(path.resolve(__dirname, '../themes/apple-theme.js'), 'utf8');
     const converterCode = fs.readFileSync(path.resolve(__dirname, '../converter.js'), 'utf8');

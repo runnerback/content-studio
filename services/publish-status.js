@@ -14,10 +14,15 @@
 
 export const PUBLISH_STATUS_SYNCED = 'synced';
 export const PUBLISH_STATUS_PARTIAL = 'partial';
+// 3.12.0：经浏览器扩展投递的小红书 / X 只拿到"已接收"，真正的写入结果不会回到 Obsidian。
+// 这类目标 kind 记 pending：进 publish_pending 列表、不点亮 platform_<name>，整体状态为 pending。
+export const PUBLISH_STATUS_PENDING = 'pending';
+export const PUBLISH_KIND_PENDING = 'pending';
 
 export const FRONTMATTER_KEYS = Object.freeze({
   status: 'publish_status',
   platforms: 'publish_platforms',
+  pending: 'publish_pending',
   kind: 'publish_kind',
   time: 'publish_time',
   at: 'publish_at',
@@ -196,18 +201,28 @@ export function updatePublishFrontmatter(frontmatter, { targets, requestedCount,
   if (normalized.length === 0) return fm; // never write an empty/false status
 
   const latest = normalized[normalized.length - 1];
+  const confirmed = normalized.filter((t) => t.kind !== PUBLISH_KIND_PENDING);
+  const pending = normalized.filter((t) => t.kind === PUBLISH_KIND_PENDING);
   fm[FRONTMATTER_KEYS.platforms] = mergePlatformList(fm[FRONTMATTER_KEYS.platforms], normalized.map((t) => t.platform));
-  // 每平台独立布尔字段:成功发布记 1;未发布的平台不写字段(0 留给手动重置)
-  for (const target of normalized) {
+  // 每平台独立布尔字段:确认发布记 1;未发布的平台不写字段(0 留给手动重置);pending 不点亮
+  for (const target of confirmed) {
     fm[`platform_${target.platform}`] = 1;
   }
+  // 待确认列表:新投递的进列表;本次已确认的平台从列表移出
+  const confirmedNames = new Set(confirmed.map((t) => t.platform));
+  const nextPending = mergePlatformList(fm[FRONTMATTER_KEYS.pending], pending.map((t) => t.platform))
+    .filter((name) => !confirmedNames.has(name));
+  if (nextPending.length > 0) fm[FRONTMATTER_KEYS.pending] = nextPending;
+  else if (fm[FRONTMATTER_KEYS.pending] !== undefined) delete fm[FRONTMATTER_KEYS.pending];
   fm[FRONTMATTER_KEYS.kind] = latest.kind;
   fm[FRONTMATTER_KEYS.time] = readableTime;
   fm[FRONTMATTER_KEYS.at] = isoTime;
-  fm[FRONTMATTER_KEYS.status] = resolvePublishStatus(
-    typeof requestedCount === 'number' ? requestedCount : normalized.length,
-    normalized.length,
-  );
+  fm[FRONTMATTER_KEYS.status] = confirmed.length === 0
+    ? PUBLISH_STATUS_PENDING
+    : resolvePublishStatus(
+      typeof requestedCount === 'number' ? requestedCount : normalized.length,
+      confirmed.length,
+    );
 
   // Clean up nested/legacy keys from earlier versions for readability.
   for (const key of DEPRECATED_KEYS) {

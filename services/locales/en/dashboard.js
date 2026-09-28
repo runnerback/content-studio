@@ -1,0 +1,30 @@
+// services/locales/en/dashboard.js —— 分发看板（3.12.0）文案。key 与另一语言文件一一对应，tests/i18n.test.js 校验。
+
+/** @type {Readonly<Record<string, string>>} */
+export default Object.freeze({
+  'dashboard.viewTitle': 'Publishing dashboard',
+  'dashboard.openCommand': 'Open publishing dashboard',
+  'dashboard.toolbarButton': 'Publishing dashboard',
+  'dashboard.refresh': 'Refresh',
+  'dashboard.searchPlaceholder': 'Search by title or path',
+  'dashboard.filterPlatformAll': 'All platforms',
+  'dashboard.filterStatusAll': 'All statuses',
+  'dashboard.platformWechat': 'WeChat',
+  'dashboard.platformRednote': 'Xiaohongshu',
+  'dashboard.platformX': 'X',
+  'dashboard.statusUnpublished': 'Unpublished',
+  'dashboard.statusPending': 'Awaiting confirmation',
+  'dashboard.statusPartial': 'Partially published',
+  'dashboard.statusSynced': 'Published',
+  'dashboard.summaryTotal': '{count} notes',
+  'dashboard.columnNote': 'Note',
+  'dashboard.columnTargets': 'Targets',
+  'dashboard.columnPublished': 'Published',
+  'dashboard.columnPending': 'Awaiting',
+  'dashboard.columnMissing': 'Not yet',
+  'dashboard.columnTime': 'Last time',
+  'dashboard.columnStatus': 'Status',
+  'dashboard.empty': 'No notes carry a platform property or a publish record yet. Add platform: wechat / rednote / x to a note\'s properties; publishing writes the status here.',
+  'dashboard.emptyFiltered': 'No notes match the current filters.',
+  'dashboard.none': '—',
+});

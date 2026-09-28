@@ -1004,3 +1004,23 @@ input[type="range"].apple-slider:active::-webkit-slider-thumb {
 }
 .red-embed-container.is-hidden { display: none; }
 .apple-preview-wrapper.is-hidden { display: none; }
+
+/* ========================================
+   3.12.0：手机框 DOM 常驻，经典模式只靠类切换（悬浮层开关即时生效）
+   ======================================== */
+.apple-preview-wrapper.mode-classic .apple-phone-frame,
+.theme-dark .apple-preview-wrapper.mode-classic .apple-phone-frame {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.apple-preview-wrapper.mode-classic .apple-phone-header,
+.apple-preview-wrapper.mode-classic .apple-home-indicator {
+  display: none;
+}

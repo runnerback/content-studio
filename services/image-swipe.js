@@ -1,73 +1,44 @@
 // services/image-swipe.js
 //
 // 横滑图片块（image-swipe / image-sensitive）命令文案 + callout markdown 生成。
-// 纯函数（入参 app 判断中英文 locale），从 input.js 抽出为共享 service，供入口、
-// 设置面板等多处复用。对外只暴露 getImageSwipeCommandCopy / createImageSwipeCalloutMarkdown。
-
-// 共享类型定义来自 input.js（仅供 JSDoc 类型检查，无运行时依赖）
-/** @typedef {import('../input.js').AppLike} AppLike */
-/** @typedef {import('../input.js').ImageSwipeCopyLike} ImageSwipeCopyLike */
+// 3.12.0：文案走统一的 i18n（services/i18n.js，按 Obsidian 语言中 / 英），不再自己探测 vault 语言配置。
+// 对外只暴露 getImageSwipeCommandCopy / createImageSwipeCalloutMarkdown。
 
 import { toText } from './input-utils.js';
+import { t, getLocale } from './i18n.js';
 
-/** @type {Record<string, ImageSwipeCopyLike>} */
-const IMAGE_SWIPE_COMMAND_COPY = {
+/** @type {Record<string, { nameKey: string, titleKey: string, noticeKey: string }>} */
+const IMAGE_SWIPE_COMMAND_KEYS = {
   'image-swipe': {
-    commandName: '插入横滑图片块',
-    zhTitle: '左右滑动查看图片',
-    enTitle: 'Swipe to view images',
-    zhPlaceholder: ['![[图片1.png]]', '![[图片2.png]]'],
-    enPlaceholder: ['![[image-1.png]]', '![[image-2.png]]'],
-    zhNotice: '已插入图片块',
-    enNotice: 'Image block inserted',
+    nameKey: 'commands.imageSwipeName',
+    titleKey: 'commands.imageSwipeTitle',
+    noticeKey: 'commands.imageSwipeNotice',
   },
   'image-sensitive': {
-    commandName: '插入横滑敏感图片块',
-    zhTitle: '此类图片可能引发不适，向左滑动查看',
-    enTitle: 'Sensitive images. Swipe to view.',
-    zhPlaceholder: ['![[图片1.png]]', '![[图片2.png]]'],
-    enPlaceholder: ['![[image-1.png]]', '![[image-2.png]]'],
-    zhNotice: '已插入敏感图片块',
-    enNotice: 'Sensitive image block inserted',
+    nameKey: 'commands.imageSensitiveName',
+    titleKey: 'commands.imageSensitiveTitle',
+    noticeKey: 'commands.imageSensitiveNotice',
   },
 };
 
-/**
- * @param {AppLike | null} [app=null]
- * @returns {string}
- */
-function getObsidianLocale(app = null) {
-  const candidates = [
-    app?.vault?.getConfig?.('language'),
-    app?.vault?.getConfig?.('locale'),
-    typeof navigator !== 'undefined' ? navigator.language : '',
-  ];
-
-  return toText(candidates.find((value) => typeof value === 'string' && value.trim())).trim().toLowerCase();
-}
+// 占位图片名是插进文档的示例 markdown，按语言给不同文件名
+/** @type {Record<'zh-cn' | 'en', string[]>} */
+const IMAGE_SWIPE_PLACEHOLDERS = {
+  'zh-cn': ['![[图片1.png]]', '![[图片2.png]]'],
+  en: ['![[image-1.png]]', '![[image-2.png]]'],
+};
 
 /**
- * @param {AppLike | null} [app=null]
- * @returns {boolean}
- */
-function isChineseObsidianLocale(app = null) {
-  const locale = getObsidianLocale(app);
-  return !locale || /^zh(?:-|_|$)/i.test(locale);
-}
-
-/**
- * @param {AppLike | null} [app=null]
  * @param {string} [type='image-swipe']
  * @returns {{ name: string, title: string, placeholder: string[], notice: string }}
  */
-export function getImageSwipeCommandCopy(app = null, type = 'image-swipe') {
-  const copy = IMAGE_SWIPE_COMMAND_COPY[type] || IMAGE_SWIPE_COMMAND_COPY['image-swipe'];
-  const useChinese = isChineseObsidianLocale(app);
+export function getImageSwipeCommandCopy(type = 'image-swipe') {
+  const keys = IMAGE_SWIPE_COMMAND_KEYS[type] || IMAGE_SWIPE_COMMAND_KEYS['image-swipe'];
   return {
-    name: copy.commandName,
-    title: useChinese ? copy.zhTitle : copy.enTitle,
-    placeholder: useChinese ? copy.zhPlaceholder : copy.enPlaceholder,
-    notice: useChinese ? copy.zhNotice : copy.enNotice,
+    name: t(keys.nameKey),
+    title: t(keys.titleKey),
+    placeholder: [...IMAGE_SWIPE_PLACEHOLDERS[getLocale()]],
+    notice: t(keys.noticeKey),
   };
 }
 
@@ -83,11 +54,10 @@ function quoteLinesForImageSwipeCallout(text) {
 /**
  * @param {string} [type]
  * @param {string} [selectedText]
- * @param {AppLike | null} [app]
  * @returns {string}
  */
-export function createImageSwipeCalloutMarkdown(type = 'image-swipe', selectedText = '', app = null) {
-  const copy = getImageSwipeCommandCopy(app, type);
+export function createImageSwipeCalloutMarkdown(type = 'image-swipe', selectedText = '') {
+  const copy = getImageSwipeCommandCopy(type);
   const content = String(selectedText || '').trim()
     ? String(selectedText || '').replace(/\s+$/g, '')
     : copy.placeholder.join('\n');

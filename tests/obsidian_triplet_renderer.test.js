@@ -839,9 +839,9 @@ describe('Obsidian Triplet Renderer', () => {
       markdownRenderer: { renderMarkdown },
     });
 
-    // Block math should render to mjx-container or section with SVG
-    expect(html).toMatch(/mjx-container|<svg/);
-    expect(html).toContain('text-align:center');
+    // 3.12.0：块级公式是 Obsidian MathJax 的 CHTML 容器（display="true"），居中由 MathJax 样式表负责
+    expect(html).toContain('<mjx-container');
+    expect(html).toContain('display="true"');
   });
 
   it('should render blockquote block math without quote marker artifacts', async () => {
@@ -909,10 +909,9 @@ describe('Obsidian Triplet Renderer', () => {
       markdownRenderer: { renderMarkdown },
     });
 
-    // All three formulas should be rendered (check for SVG or mjx-container)
-    // Note: fixMathJaxTags converts mjx-container to span/section, so check for svg
-    const svgMatches = html.match(/<svg/g) || [];
-    expect(svgMatches.length).toBeGreaterThanOrEqual(3);
+    // 三个公式都应渲染成 CHTML 容器（3.12.0：Obsidian 自带 MathJax，不再是 SVG）
+    const mathMatches = html.match(/<mjx-container/g) || [];
+    expect(mathMatches.length).toBeGreaterThanOrEqual(3);
   });
 
   it('should handle mixed inline and block math in preprocessing', async () => {
@@ -954,7 +953,7 @@ describe('Obsidian Triplet Renderer', () => {
     expect(html).toMatch(/mjx-container|<svg/);
   });
 
-  it('should nudge inline math formulas upward in preview output', async () => {
+  it('should keep inline math as a CHTML container in preview output', async () => {
     const converter = await createLegacyConverter();
 
     const renderMarkdown = vi.fn(async (markdown, el) => {
@@ -971,8 +970,10 @@ describe('Obsidian Triplet Renderer', () => {
       preserveSvgStyleTags: true,
     });
 
-    expect(html).toContain('vertical-align:middle');
-    expect(html).toContain('translateY(-0.12em)');
+    // 3.12.0：行内公式原样保留 CHTML 容器（无 display 属性），基线对齐由 MathJax 样式表负责；导出时再转图
+    expect(html).toContain('<mjx-container class="MathJax" jax="CHTML">');
+    expect(html).not.toContain('display="true"');
+    expect(html).not.toContain('translateY(-0.12em)');
   });
 
   it('should handle empty or invalid math gracefully', async () => {

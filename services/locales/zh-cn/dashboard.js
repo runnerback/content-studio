@@ -1,0 +1,30 @@
+// services/locales/zh-cn/dashboard.js —— 分发看板（3.12.0）文案。key 与另一语言文件一一对应，tests/i18n.test.js 校验。
+
+/** @type {Readonly<Record<string, string>>} */
+export default Object.freeze({
+  'dashboard.viewTitle': '分发看板',
+  'dashboard.openCommand': '打开分发看板',
+  'dashboard.toolbarButton': '分发看板',
+  'dashboard.refresh': '刷新',
+  'dashboard.searchPlaceholder': '按标题或路径搜索',
+  'dashboard.filterPlatformAll': '全部平台',
+  'dashboard.filterStatusAll': '全部状态',
+  'dashboard.platformWechat': '公众号',
+  'dashboard.platformRednote': '小红书',
+  'dashboard.platformX': 'X',
+  'dashboard.statusUnpublished': '未发布',
+  'dashboard.statusPending': '待确认',
+  'dashboard.statusPartial': '部分发布',
+  'dashboard.statusSynced': '已发布',
+  'dashboard.summaryTotal': '共 {count} 篇',
+  'dashboard.columnNote': '笔记',
+  'dashboard.columnTargets': '目标平台',
+  'dashboard.columnPublished': '已发布',
+  'dashboard.columnPending': '待确认',
+  'dashboard.columnMissing': '未发布',
+  'dashboard.columnTime': '最近时间',
+  'dashboard.columnStatus': '状态',
+  'dashboard.empty': '没有带 platform 属性或发布记录的笔记。写作时在文档属性里加 platform: wechat / rednote / x，发布后这里会记录状态。',
+  'dashboard.emptyFiltered': '当前筛选下没有笔记。',
+  'dashboard.none': '—',
+});

@@ -1,6 +1,7 @@
 import markdownit from '../lib/markdown-it.min.js';
 import hljs from '../lib/highlight.min.js';
-import '../lib/mathjax-plugin.js';
+import { markdownItMath } from './markdown-it-math.js';
+import { ensureMathJaxLoaded } from './math-renderer.js';
 import { toText } from './input-utils.js';
 
 /**
@@ -61,13 +62,11 @@ async function loadRuntimeDependencies() {
     assignRuntimeGlobal('hljs', hljs);
   }
 
+  // 公式：markdown-it 插件（本仓库实现）+ Obsidian 自带 MathJax；converter.initMarkdownIt 读 window.ObsidianWechatMath
   if (typeof getRuntimeValue(runtimeGlobal, 'ObsidianWechatMath') === 'undefined') {
-    const mathPlugin = getRuntimeValue(runtimeGlobal, 'ObsidianWechatMath')
-      || getRuntimeValue(runtimeGlobal.window || null, 'ObsidianWechatMath');
-    if (typeof mathPlugin !== 'undefined') {
-      assignRuntimeGlobal('ObsidianWechatMath', mathPlugin);
-    }
+    assignRuntimeGlobal('ObsidianWechatMath', markdownItMath);
   }
+  await ensureMathJaxLoaded();
 
   if (typeof getRuntimeValue(runtimeGlobal, 'AppleTheme') === 'undefined') {
     const themeModule = await import('../themes/apple-theme.js');

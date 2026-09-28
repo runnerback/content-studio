@@ -9,7 +9,8 @@
 
 import { obsidianApi } from '../../services/obsidian-adapters.js';
 import { toReadableError } from '../../services/input-utils.js';
-import { MULTI_PLATFORM_TAB_LABEL } from '../../services/settings-defaults.js';
+import { t } from '../../services/i18n.js';
+import { getMultiPlatformTabLabel } from '../../services/settings-defaults.js';
 import { renderFeishuSettingsTab } from './feishu-tab.js';
 import { renderMultiPlatformSettingsTab } from './multi-platform-tab.js';
 
@@ -56,7 +57,7 @@ class ContentStudioSettingPage extends SettingPage {
 export class FeishuSettingPage extends ContentStudioSettingPage {
   /** @param {SettingTabLike} tab */
   constructor(tab) {
-    super(tab, '飞书');
+    super(tab, t('settingsTab.pageFeishu'));
   }
 
   renderContent() {
@@ -68,7 +69,7 @@ export class FeishuSettingPage extends ContentStudioSettingPage {
 export class MultiPlatformSettingPage extends ContentStudioSettingPage {
   /** @param {SettingTabLike} tab */
   constructor(tab) {
-    super(tab, MULTI_PLATFORM_TAB_LABEL);
+    super(tab, getMultiPlatformTabLabel());
   }
 
   renderContent() {
@@ -83,7 +84,7 @@ export class MultiPlatformSettingPage extends ContentStudioSettingPage {
 export class RednoteSettingPage extends ContentStudioSettingPage {
   /** @param {SettingTabLike} tab */
   constructor(tab) {
-    super(tab, '小红书图卡');
+    super(tab, t('settingsTab.pageRednote'));
     /** @type {Promise<void> | null} 供测试等待懒加载完成 */
     this.loadPromise = null;
   }
@@ -98,7 +99,7 @@ export class RednoteSettingPage extends ContentStudioSettingPage {
         new RedSettingsPanel(this.tab.app, this.tab.plugin, containerEl).render();
       } catch (error) {
         containerEl.createEl('p', {
-          text: `小红书设置加载失败：${toReadableError(error).message}`,
+          text: t('settingsTab.rednoteSettingsLoadFailed', { message: toReadableError(error).message }),
           cls: 'setting-item-description',
         });
       }

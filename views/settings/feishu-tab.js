@@ -12,6 +12,7 @@ import {
   normalizeFeishuSyncSettings,
   resetFeishuApiUsage,
 } from '../../services/feishu-settings.js';
+import { t } from '../../services/i18n.js';
 import { toReadableError, toRecord } from '../../services/input-utils.js';
 
 /**
@@ -82,27 +83,31 @@ function renderFeishuUsageStats(containerEl, tab, plugin, settings, obsidian, No
   });
 
   const copy = header.createDiv();
-  copy.createEl('div', { text: '数据统计', cls: 'setting-item-heading' });
+  copy.createEl('div', { text: t('feishu.statsHeading'), cls: 'setting-item-heading' });
   const sharedCount = Array.isArray(settings.uploadHistory) ? settings.uploadHistory.length : 0;
-  const shareTitle = copy.createEl('div', { text: '分享文档数', cls: 'setting-item-name' });
+  const shareTitle = copy.createEl('div', { text: t('feishu.sharedDocsName'), cls: 'setting-item-name' });
   shareTitle.setCssStyles({ marginTop: '10px' });
   copy.createEl('div', {
-    text: `您已成功分享 ${formatFeishuUsageNumber(sharedCount)} 个文档。`,
+    text: t('feishu.sharedDocsDesc', { count: formatFeishuUsageNumber(sharedCount) }),
     cls: 'setting-item-description',
   });
-  const title = copy.createEl('div', { text: '本月 API 调用次数', cls: 'setting-item-name' });
+  const title = copy.createEl('div', { text: t('feishu.apiUsageName'), cls: 'setting-item-name' });
   title.setCssStyles({ marginTop: '16px' });
   copy.createEl('div', {
-    text: `插件估算已调用 ${formatFeishuUsageNumber(used)} / ${formatFeishuUsageNumber(limit)} 次，剩余约 ${formatFeishuUsageNumber(remaining)} 次。`,
+    text: t('feishu.apiUsageDesc', {
+      used: formatFeishuUsageNumber(used),
+      limit: formatFeishuUsageNumber(limit),
+      remaining: formatFeishuUsageNumber(remaining),
+    }),
     cls: 'setting-item-description',
   });
 
-  const resetBtn = header.createEl('button', { text: '重置计数' });
+  const resetBtn = header.createEl('button', { text: t('feishu.resetUsageButton') });
   resetBtn.addClass('mod-warning');
   resetBtn.onclick = async () => {
     resetFeishuApiUsage(settings);
     await plugin.saveSettings();
-    if (Notice) new Notice('✅ 飞书 API 调用计数已重置');
+    if (Notice) new Notice(t('feishu.resetUsageNotice'));
     renderFeishuSettingsTab(tab, containerEl, { obsidianApi: obsidian });
   };
 
@@ -123,7 +128,7 @@ function renderFeishuUsageStats(containerEl, tab, plugin, settings, obsidian, No
   });
 
   card.createEl('p', {
-    text: `统计周期：${usage.month}。该数据仅统计本插件发起的飞书 OpenAPI 请求，实际额度请以飞书开放平台后台为准。`,
+    text: t('feishu.usagePeriodNote', { month: usage.month }),
     cls: 'setting-item-description',
   }).setCssStyles({ marginTop: '10px' });
 }
@@ -150,20 +155,20 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
   if (typeof tab.renderSettingsTabIntro === 'function') {
     tab.renderSettingsTabIntro(
       containerEl,
-      '配置飞书自建应用、目标文件夹和 OpenAPI 调用统计。'
+      t('feishu.intro')
     );
   }
 
-  containerEl.createEl('h2', { text: '飞书云文档同步配置', cls: 'wechat-feishu-heading' });
+  containerEl.createEl('h2', { text: t('feishu.heading'), cls: 'wechat-feishu-heading' });
   containerEl.createEl('p', {
-    text: '通过飞书自建应用机器人接口，将当前 Obsidian 笔记一键发布并转换为原生的飞书云文档（docx），支持保留标题、表格、以及图片上传（包含本地和图床图片）。',
+    text: t('feishu.headingDesc'),
     cls: 'setting-item-description',
   });
 
   // 1. Enable Toggle
   new Setting(containerEl)
-    .setName('启用飞书同步功能')
-    .setDesc('开启后，发布弹窗中会出现「飞书」选项卡，支持将笔记发布至飞书云盘。')
+    .setName(t('feishu.enableName'))
+    .setDesc(t('feishu.enableDesc'))
     .addToggle((toggle) => toggle
       .setValue(settings.enabled)
       .onChange(async (value) => {
@@ -180,10 +185,10 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // 2. App ID
   new Setting(containerEl)
-    .setName('飞书自建应用 ID')
-    .setDesc('在飞书开放平台（open.feishu.cn）中，您创建的企业自建应用的应用 ID')
+    .setName(t('feishu.appIdName'))
+    .setDesc(t('feishu.appIdDesc'))
     .addText((text) => text
-      .setPlaceholder('请输入应用 ID')
+      .setPlaceholder(t('feishu.appIdPlaceholder'))
       .setValue(settings.appId)
       .onChange(async (value) => {
         settings.appId = value.trim();
@@ -193,12 +198,12 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // 3. App Secret
   new Setting(containerEl)
-    .setName('飞书自建应用密钥')
-    .setDesc('自建应用的应用密钥凭证')
+    .setName(t('feishu.appSecretName'))
+    .setDesc(t('feishu.appSecretDesc'))
     .addText((text) => {
       text.inputEl.type = 'password'; // mask the password input
       text
-        .setPlaceholder('请输入应用密钥')
+        .setPlaceholder(t('feishu.appSecretPlaceholder'))
         .setValue(settings.appSecret)
         .onChange(async (value) => {
           settings.appSecret = value.trim();
@@ -208,10 +213,10 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // 4. Folder Token
   new Setting(containerEl)
-    .setName('同步目标文件夹 token')
-    .setDesc('飞书文件夹链接末尾的一串字符。例如链接 feishu.cn/drive/folder/fldcnxxxxxxxxx 中，fldcnxxxxxxxxx 就是文件夹 token。')
+    .setName(t('feishu.folderTokenName'))
+    .setDesc(t('feishu.folderTokenDesc'))
     .addText((text) => text
-      .setPlaceholder('请输入文件夹 token')
+      .setPlaceholder(t('feishu.folderTokenPlaceholder'))
       .setValue(settings.folderToken)
       .onChange(async (value) => {
         settings.folderToken = value.trim();
@@ -221,10 +226,10 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // 5. User ID
   new Setting(containerEl)
-    .setName('飞书用户 ID')
-    .setDesc('用于在同步成功后，把文档的所有权由机器人自动转移给您本人（您的飞书云盘中）。建议使用 user ID 格式，如 abc1234。')
+    .setName(t('feishu.userIdName'))
+    .setDesc(t('feishu.userIdDesc'))
     .addText((text) => text
-      .setPlaceholder('例如 abc1234')
+      .setPlaceholder(t('feishu.userIdPlaceholder'))
       .setValue(settings.userId)
       .onChange(async (value) => {
         settings.userId = value.trim();
@@ -234,21 +239,21 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // 6. Test Connection Button
   new Setting(containerEl)
-    .setName('测试连接')
-    .setDesc('验证自建应用授权和目标文件夹读取权限。完整上传/导入权限会在实际同步时验证。')
+    .setName(t('feishu.testConnectionName'))
+    .setDesc(t('feishu.testConnectionDesc'))
     .addButton((btn) => btn
-      .setButtonText('测试连接')
+      .setButtonText(t('feishu.testConnectionButton'))
       .onClick(async () => {
         if (!settings.appId || !settings.appSecret) {
-          new Notice('❌ 请先填写应用 ID 和应用密钥！');
+          new Notice(t('feishu.noticeMissingCredentials'));
           return;
         }
         if (!settings.folderToken) {
-          new Notice('❌ 请先填写同步目标文件夹 token！');
+          new Notice(t('feishu.noticeMissingFolderToken'));
           return;
         }
 
-        const notice = new Notice('⏳ 正在进行飞书连接测试...', 0);
+        const notice = new Notice(t('feishu.noticeTesting'), 0);
         try {
           let apiUsageChanged = false;
           const client = new FeishuApiClient(settings.appId, settings.appSecret, obsidian.requestUrl, {
@@ -266,12 +271,12 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
           notice.hide();
           if (apiUsageChanged) await plugin.saveSettings();
-          new Notice('✅ 飞书连接成功，且目标文件夹访问正常！');
+          new Notice(t('feishu.noticeTestSuccess'));
         } catch (err) {
           notice.hide();
           await plugin.saveSettings();
           console.error('[飞书连接测试失败]:', err);
-          new Notice(`❌ 飞书连接测试失败: ${toReadableError(err).message}`, 7000);
+          new Notice(t('feishu.noticeTestFailed', { message: toReadableError(err).message }), 7000);
         }
       })
     );
@@ -289,7 +294,7 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // Title
   const titleEl = guideCard.createEl('h3', { cls: 'guide-card-title' });
-  titleEl.setText('飞书应用配置简易步骤：');
+  titleEl.setText(t('feishu.guideTitle'));
   titleEl.setCssStyles({
     fontSize: '15px',
     fontWeight: '600',
@@ -348,8 +353,8 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
 
   // Step 1
   renderStep(1, (body) => {
-    body.createSpan({ text: '访问 ' });
-    const link = body.createEl('a', { text: '飞书开放平台', href: 'https://open.feishu.cn/' });
+    body.createSpan({ text: t('feishu.step1Before') });
+    const link = body.createEl('a', { text: t('feishu.step1Link'), href: 'https://open.feishu.cn/' });
     link.onclick = (e) => {
       e.preventDefault();
       if (plugin && typeof plugin.openExternalUrl === 'function') {
@@ -359,12 +364,12 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
       }
     };
     link.setCssStyles({ color: 'var(--text-accent)', textDecoration: 'underline' });
-    body.createSpan({ text: ' 创建自建应用，并在「应用功能」中启用「机器人」能力。' });
+    body.createSpan({ text: t('feishu.step1After') });
   });
 
   // Step 2
   renderStep(2, (body) => {
-    body.createSpan({ text: '进入「权限管理」，建议按更稳妥的方式开通权限：应用身份开通「云文档」相关全部权限，用户身份开通全部权限。这样可最大限度避免导入、更新、图片处理或所有权转移时遇到 403/权限不足。完成后点击「版本管理与发布」申请上线（需管理员审批）。' });
+    body.createSpan({ text: t('feishu.step2') });
     const subList = body.createDiv();
     subList.setCssStyles({
       display: 'flex',
@@ -398,17 +403,17 @@ function renderFeishuSettingsTab(tab, containerEl, options = {}) {
       desc.setCssStyles({ color: 'var(--text-muted)', fontSize: '12px' });
     };
 
-    addSubItem('应用身份', '开通云文档 / 云空间相关全部权限');
-    addSubItem('用户身份', '建议开通全部权限，减少权限边界导致的异常');
-    addSubItem('至少包含', 'drive:drive、docs:document:import 等文档导入与云盘读写权限');
+    addSubItem(t('feishu.step2AppScopeCode'), t('feishu.step2AppScopeDesc'));
+    addSubItem(t('feishu.step2UserScopeCode'), t('feishu.step2UserScopeDesc'));
+    addSubItem(t('feishu.step2MinScopeCode'), t('feishu.step2MinScopeDesc'));
   });
 
   // Step 3
   renderStep(3, (body) => {
-    body.createSpan({ text: '在飞书客户端新建群聊，添加自建机器人，并将云盘同步文件夹共享给该群，协作权限必须选择 ' });
-    const strong = body.createEl('strong', { text: '「可管理」' });
+    body.createSpan({ text: t('feishu.step3Before') });
+    const strong = body.createEl('strong', { text: t('feishu.step3Strong') });
     strong.setCssStyles({ color: 'var(--text-accent)' });
-    body.createSpan({ text: ' 权限。' });
+    body.createSpan({ text: t('feishu.step3After') });
   });
 }
 

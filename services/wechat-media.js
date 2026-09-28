@@ -1,5 +1,6 @@
 import { createHtmlContainer, getActiveDocument, setElementHtml } from './dom-utils.js';
 import { toText } from './input-utils.js';
+import { findMathContainers, getMathContainerFingerprint, replaceMathContainerWithImage } from './math-export.js';
 
 /**
  * @typedef {{ url: string }} UploadImageResult
@@ -13,6 +14,7 @@ import { toText } from './input-utils.js';
  * @typedef {(src: string) => Promise<Blob>} SrcToBlobLike
  * @typedef {(value: string) => string} SimpleHashLike
  * @typedef {(svg: SVGElement) => Promise<SvgToPngResult>} SvgToPngBlobLike
+ * @typedef {(el: HTMLElement) => Promise<{ blob: Blob, width: number, height: number, display: boolean }>} RasterizeMathContainerLike
  */
 
 /**
@@ -215,6 +217,7 @@ export async function processAllImages({
  *   simpleHash: SimpleHashLike,
  *   svgUploadCache: Map<string, SvgUploadCacheEntry>,
  *   svgToPngBlob: SvgToPngBlobLike,
+ *   rasterizeMathContainer?: RasterizeMathContainerLike,
  * }} options
  * @returns {Promise<string>}
  */
@@ -226,6 +229,7 @@ export async function processMathFormulas({
   simpleHash,
   svgUploadCache,
   svgToPngBlob,
+  rasterizeMathContainer,
 }) {
     const INLINE_MATH_IMAGE_STYLE = 'display:inline-block; vertical-align:middle; transform:translateY(-0.12em); margin:0 1px;';
     const BLOCK_MATH_WRAP_STYLE = 'display:block; width:100%; margin:1em auto; text-align:center; max-width:100%;';
@@ -295,14 +299,46 @@ export async function processMathFormulas({
     activeDocument.body.appendChild(container);
 
     try {
-      // 查找所有 SVG 容器 (MathJax 公式或其他矢量图)
+      // 3.12.0：Obsidian 自带 MathJax 的 CHTML 公式容器 → html-to-image 栅格化 → 上传 → <img>
+      const chtmlNodes = findMathContainers(container);
+      // 查找所有 SVG 容器 (旧 SVG 引擎公式或其他矢量图)
       // 之前只查找 mjx-container svg，导致部分 MathJax 配置下(直接输出svg)无法识别
       // 现在改为通过 querySelectorAll('svg') 捕获所有 SVG，彻底解决内容过长问题
       const mathNodes = /** @type {SVGElement[]} */ (Array.from(container.querySelectorAll('svg')));
-      if (mathNodes.length === 0) return html;
+      if (chtmlNodes.length === 0 && mathNodes.length === 0) return html;
 
-      const total = mathNodes.length;
+      const total = chtmlNodes.length + mathNodes.length;
       let completed = 0;
+
+      if (chtmlNodes.length > 0) {
+        if (typeof rasterizeMathContainer !== 'function') {
+          throw new Error('正文含 CHTML 公式，但未提供 rasterizeMathContainer 转图实现');
+        }
+        await pMap(chtmlNodes, async (item) => {
+          const el = /** @type {HTMLElement} */ (item);
+          try {
+            const fingerprint = simpleHash(getMathContainerFingerprint(el));
+            let cached = svgUploadCache.get(fingerprint);
+            if (!cached) {
+              const raster = await rasterizeMathContainer(el);
+              const res = await api.uploadImage(raster.blob);
+              cached = { url: res.url, width: String(raster.width), height: String(raster.height), style: '' };
+              svgUploadCache.set(fingerprint, cached);
+            }
+            replaceMathContainerWithImage(el, {
+              src: cached.url,
+              width: Number(cached.width) || 0,
+              height: Number(cached.height) || 0,
+            });
+            completed++;
+            if (progressCallback) progressCallback(completed, total);
+          } catch (error) {
+            if (isFatalErrorLike(error)) throw error;
+            console.error('公式转图失败，保留原公式容器:', error);
+          }
+        }, 3);
+      }
+      if (mathNodes.length === 0) return container.innerHTML;
 
       // 并发处理
       await pMap(mathNodes, async (item) => {

@@ -12,7 +12,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 const { createObsidianLikeElement } = require('./helpers/obsidian-dom.js');
 const { loadInputModule } = require('./helpers/input-module.cjs');
 const { AppleStyleSettingTab } = loadInputModule();
-const { MULTI_PLATFORM_TAB_LABEL, MAX_ACCOUNTS } = await import('../services/settings-defaults.js');
+const { getMultiPlatformTabLabel, MAX_ACCOUNTS } = await import('../services/settings-defaults.js');
 const { AI_REQUEST_TIMEOUT_SECONDS_KEY } = await import('../views/settings/apple-style-setting-tab.js');
 const { refreshSettingTabCompat } = await import('../services/obsidian-adapters.js');
 const { createDefaultFeishuSyncSettings } = await import('../services/feishu-settings.js');
@@ -99,7 +99,7 @@ function renderTab(plugin) {
   tab.update();
   // 3.11.4 起普通设置项都在「样式 / 分发 / AI」三组的声明式子页面里：
   // 顶层只渲染页面入口，这里顺手打开三个声明式子页面，让 control / button 注册表包含它们
-  for (const name of ['公众号排版', '微信公众号', 'AI Provider 与编排']) tab.renderPage(name);
+  for (const name of ['微信公众号', 'AI Provider 与编排']) tab.renderPage(name);
   return tab;
 }
 
@@ -154,7 +154,6 @@ describe('AppleStyleSettingTab - 声明式 control 读写', () => {
       expect(value === undefined || value === null ? def.control.defaultValue : value).not.toBeUndefined();
     }
     expect(tab.getControlValue('ai.enabled')).toBe(true);
-    expect(tab.getControlValue('usePhoneFrame')).toBe(true);
     expect(tab.getControlValue(AI_REQUEST_TIMEOUT_SECONDS_KEY)).toBe(45);
   });
 
@@ -192,18 +191,14 @@ describe('AppleStyleSettingTab - 声明式 control 读写', () => {
     expect(tab.getControlValue(AI_REQUEST_TIMEOUT_SECONDS_KEY)).toBe(120);
   });
 
-  it('toggling 使用手机仿真框 through the rendered control persists and shows the restart notice', async () => {
+  it('3.12.0：手机仿真框与图片水印不再出现在设置页（挪到预览面板高级选项即时生效）', () => {
     const plugin = makePlugin();
-    renderTab(plugin);
-    const toggle = findControl('使用手机仿真框');
-    expect(toggle).toBeDefined();
-    expect(toggle.value).toBe(true);
-
-    await toggle.changeHandler(false);
-
-    expect(plugin.settings.usePhoneFrame).toBe(false);
-    expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
-    expect(globalThis.__obsidianNoticeRegistry.at(-1).message).toContain('重新打开发布助手面板');
+    const tab = renderTab(plugin);
+    const names = flattenDefinitions(tab.getSettingDefinitions()).map((item) => item.name);
+    expect(names).not.toContain('公众号排版');
+    expect(names).not.toContain('使用手机仿真框');
+    expect(names).not.toContain('启用图片水印');
+    expect(findControl('使用手机仿真框')).toBeUndefined();
   });
 
   it('trims the proxy url and rejects non-https values through validate without persisting', async () => {
@@ -367,8 +362,8 @@ describe('AppleStyleSettingTab - 子页面', () => {
 
   it('其他平台 page renders the existing multi-platform settings', () => {
     const tab = renderTab(makePlugin());
-    const page = tab.renderPage(MULTI_PLATFORM_TAB_LABEL);
-    expect(page.title).toBe(MULTI_PLATFORM_TAB_LABEL);
+    const page = tab.renderPage(getMultiPlatformTabLabel());
+    expect(page.title).toBe(getMultiPlatformTabLabel());
     expect(globalThis.__obsidianSettingNamesRegistry).toContain('启用浏览器插件发布');
     expect(page.containerEl.querySelector('.wechat-multiplatform-token-status')).not.toBeNull();
   });
@@ -380,7 +375,7 @@ describe('AppleStyleSettingTab - 子页面', () => {
     expect(refreshSettingTabCompat(tab)).toBe(true);
     expect(updateSpy).toHaveBeenCalledTimes(1);
 
-    const page = tab.renderPage(MULTI_PLATFORM_TAB_LABEL);
+    const page = tab.renderPage(getMultiPlatformTabLabel());
     const displaySpy = vi.spyOn(page, 'display');
     expect(refreshSettingTabCompat(tab)).toBe(true);
     expect(displaySpy).toHaveBeenCalledTimes(1);

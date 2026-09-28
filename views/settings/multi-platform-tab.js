@@ -40,6 +40,11 @@ import {
   formatWechatsyncCheckedAt,
 } from '../connection-status-bar.js';
 import { getActiveWindowValue } from '../../services/dom-utils.js';
+import {
+  CROSSPOST_EXTENSION_RELEASED,
+  CROSSPOST_EXTENSION_NAME,
+} from '../../services/wechatsync-constants.js';
+import { t } from '../../services/i18n.js';
 
 /**
  * @typedef {HTMLElement & {
@@ -247,31 +252,44 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
     renderSettingsTabIntro.call(
       tab,
       containerEl,
-      '连接浏览器插件，并选择要保存草稿的内容平台。'
+      t('multiPlatform.intro')
     );
   }
 
   new Setting(containerEl)
-    .setName('浏览器插件发布')
-    .setDesc('Obsidian 负责写作、预览和平台选择；浏览器插件使用当前的浏览器登录态，把文章保存到小红书、X 的草稿箱。微信公众号走上方的公众号 API。')
+    .setName(t('multiPlatform.headingName'))
+    .setDesc(t('multiPlatform.headingDesc'))
     .setHeading();
 
   const guide = containerEl.createDiv({
     cls: 'wechat-multiplatform-onboarding',
   });
-  guide.createEl('div', {
-    cls: 'wechat-multiplatform-onboarding-title',
-    text: '多平台发布依赖配套浏览器扩展「多栖」',
-  });
-  const steps = guide.createEl('ol', { cls: 'wechat-multiplatform-onboarding-steps' });
-  steps.createEl('li', { text: '获取：扩展随本仓库维护（crosspost/packages/extension/dist，pnpm run build:extension 构建），不上应用商店。' });
-  steps.createEl('li', { text: '安装：浏览器 → 扩展程序 → 打开「开发者模式」→「加载已解压的扩展程序」→ 选择上述 dist 目录；仓库目录改名或重建 dist 后需重新加载并重新配对。' });
-  steps.createEl('li', { text: '配对：打开扩展弹窗 → 设置 → 复制「连接令牌」，填到下方；两端令牌一致即完成配对。' });
-  steps.createEl('li', { text: '发布：在「发布与分发」选择小红书或 X，图卡与正文会经扩展用你的浏览器登录态存入草稿箱。' });
+  if (CROSSPOST_EXTENSION_RELEASED) {
+    guide.createEl('div', {
+      cls: 'wechat-multiplatform-onboarding-title',
+      text: t('multiPlatform.onboardingTitle', { name: CROSSPOST_EXTENSION_NAME }),
+    });
+    const steps = guide.createEl('ol', { cls: 'wechat-multiplatform-onboarding-steps' });
+    steps.createEl('li', { text: t('multiPlatform.onboardingStepInstall') });
+    steps.createEl('li', { text: t('multiPlatform.onboardingStepPair') });
+    steps.createEl('li', { text: t('multiPlatform.onboardingStepPublish') });
+  } else {
+    // 3.12.0：扩展未发行前只说明现状，不给仓库内构建步骤（市场用户拿不到扩展）
+    guide.createEl('div', {
+      cls: 'wechat-multiplatform-onboarding-title',
+      text: t('multiPlatform.extensionUnreleasedTitle', { name: CROSSPOST_EXTENSION_NAME }),
+    });
+    guide.createEl('p', {
+      cls: 'wechat-multiplatform-onboarding-steps',
+      text: t('multiPlatform.extensionUnreleasedDesc'),
+    });
+  }
 
   new Setting(containerEl)
-    .setName('启用浏览器插件发布')
-    .setDesc('开启后，Obsidian 会把文章发送给浏览器插件，由插件使用浏览器登录态保存到各平台草稿箱。在下方填入「连接令牌」即可完成配对。')
+    .setName(t('multiPlatform.enableName'))
+    .setDesc(CROSSPOST_EXTENSION_RELEASED
+      ? t('multiPlatform.enableDescReleased')
+      : t('multiPlatform.enableDescUnreleased'))
     .addToggle(toggle => toggle
       .setValue(multiPlatformSettings.enabled)
       .onChange(async (value) => {
@@ -294,8 +312,8 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
   }
 
   new Setting(containerEl)
-    .setName('本地服务端口')
-    .setDesc('默认 9527。只有当浏览器插件中的本地服务地址使用了其他端口时才需要修改。')
+    .setName(t('multiPlatform.portName'))
+    .setDesc(t('multiPlatform.portDesc'))
     .addText(text => text
       .setPlaceholder(String(DEFAULT_WECHATSYNC_PORT))
       .setValue(String(multiPlatformSettings.port))
@@ -311,10 +329,10 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
       }));
 
   new Setting(containerEl)
-    .setName('连接令牌')
-    .setDesc('填入浏览器插件本地服务中显示的连接令牌，用于确认 Obsidian 与插件属于同一组连接。')
+    .setName(t('multiPlatform.tokenName'))
+    .setDesc(t('multiPlatform.tokenDesc'))
     .addText(text => text
-      .setPlaceholder('粘贴扩展弹窗中显示的连接令牌')
+      .setPlaceholder(t('multiPlatform.tokenPlaceholder'))
       .setValue(toText(multiPlatformSettings.token))
       .onChange(async (value) => {
         plugin.settings.multiPlatformSync = normalizeMultiPlatformSyncSettings({
@@ -330,16 +348,16 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
   {
     let redeemOrderNo = '';
     new Setting(containerEl)
-      .setName('第一步：用爱发电订单号兑换密钥')
-      .setDesc('小红书 / X 发布按日计量，免费档每日 3 次。在爱发电购买付费档后，把订单号粘贴到这里点「兑换」，许可密钥会自动填入下方。')
+      .setName(t('multiPlatform.redeemName'))
+      .setDesc(t('multiPlatform.redeemDesc'))
       .addText(text => text
-        .setPlaceholder('爱发电订单号')
+        .setPlaceholder(t('multiPlatform.redeemPlaceholder'))
         .onChange((value) => { redeemOrderNo = value; }))
       .addButton(button => button
-        .setButtonText('兑换')
+        .setButtonText(t('multiPlatform.redeemButton'))
         .onClick(async () => {
           if (typeof requestUrl !== 'function') {
-            new Notice('❌ 当前环境不支持网络请求，无法兑换');
+            new Notice(t('multiPlatform.redeemNoNetwork'));
             return;
           }
           try {
@@ -349,19 +367,22 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
               licenseKey: redeemed.license_key,
             });
             await plugin.saveSettings();
-            new Notice(`✅ 已兑换 ${String(redeemed.tier).toUpperCase()} 许可并填入下方「许可密钥」${redeemed.expires_at ? `，有效期至 ${formatQuotaResetTime(redeemed.expires_at)}` : ''}`, 8000);
+            const tier = String(redeemed.tier).toUpperCase();
+            new Notice(redeemed.expires_at
+              ? t('multiPlatform.redeemSuccessWithExpiry', { tier, date: formatQuotaResetTime(redeemed.expires_at) })
+              : t('multiPlatform.redeemSuccess', { tier }), 8000);
             rerender();
           } catch (redeemError) {
-            new Notice(`❌ 兑换失败：${redeemError instanceof Error ? redeemError.message : String(redeemError)}`, 8000);
+            new Notice(t('multiPlatform.redeemFailed', { message: redeemError instanceof Error ? redeemError.message : String(redeemError) }), 8000);
           }
         }));
   }
 
   new Setting(containerEl)
-    .setName('第二步：许可密钥（付费档）')
-    .setDesc('兑换成功后自动填入；也可手动粘贴已有密钥。留空按免费档计量（每日 3 次），付费档的每日次数见下方档位说明。')
+    .setName(t('multiPlatform.licenseKeyName'))
+    .setDesc(t('multiPlatform.licenseKeyDesc'))
     .addText(text => text
-      .setPlaceholder('兑换后自动填入，也可手动粘贴已有密钥')
+      .setPlaceholder(t('multiPlatform.licenseKeyPlaceholder'))
       .setValue(toText(multiPlatformSettings.licenseKey))
       .onChange(async (value) => {
         plugin.settings.multiPlatformSync = normalizeMultiPlatformSyncSettings({
@@ -376,10 +397,10 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
     const hasLiveClient = (Array.isArray(multiPlatformSettings.connectedClients) ? multiPlatformSettings.connectedClients : [])
       .some((client) => isRecord(client) && client.status === 'connected');
     const quotaBar = containerEl.createDiv({ cls: 'wechat-multiplatform-quota-status' });
-    const quotaDot = quotaBar.createEl('span', { cls: 'wechat-multiplatform-quota-status-dot', text: '额度' });
+    const quotaDot = quotaBar.createEl('span', { cls: 'wechat-multiplatform-quota-status-dot', text: t('multiPlatform.quotaLabel') });
     const quotaBody = quotaBar.createDiv({ cls: 'wechat-quota-status-body' });
     const planLine = quotaBody.createDiv({ cls: 'wechat-quota-plan-line' });
-    const tierLine = quotaBody.createDiv({ cls: 'wechat-quota-tier-line', text: '档位：读取中…' });
+    const tierLine = quotaBody.createDiv({ cls: 'wechat-quota-tier-line', text: t('multiPlatform.tierLoading') });
     /** @param {string} url */
     const openUpgrade = (url) => {
       if (typeof plugin.openExternalUrl === 'function') plugin.openExternalUrl(url);
@@ -397,36 +418,36 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
 
     if (!hasLiveClient) {
       quotaDot.classList?.add?.('is-unknown');
-      planLine.textContent = '连接浏览器插件后显示当前方案、今日用量与到期时间。';
+      planLine.textContent = t('multiPlatform.quotaOffline');
     } else {
-      planLine.textContent = '正在读取当前方案…';
+      planLine.textContent = t('multiPlatform.quotaLoading');
       plugin.getWechatSyncBridgeService().quotaStatus({ licenseKey: multiPlatformSettings.licenseKey })
         .then((info) => {
           const quota = toRecord(info);
           quotaDot.classList?.add?.(quota.tier === 'free' ? 'is-unknown' : 'is-ok');
           planLine.textContent = formatCurrentPlanLine(quota);
           if (typeof quota.upgrade_url === 'string' && quota.upgrade_url) {
-            renderUpgradeLink(quota.upgrade_url, quota.tier === 'free' ? '购买 Pro / Max' : '续费 / 升级');
+            renderUpgradeLink(quota.upgrade_url, quota.tier === 'free' ? t('multiPlatform.quotaBuy') : t('multiPlatform.quotaRenew'));
           }
         })
         .catch((quotaError) => {
           quotaDot.classList?.add?.('is-error');
-          planLine.textContent = `当前方案读取失败：${quotaError instanceof Error ? quotaError.message : String(quotaError)}`;
+          planLine.textContent = t('multiPlatform.quotaFailed', { message: quotaError instanceof Error ? quotaError.message : String(quotaError) });
         });
     }
 
     if (typeof requestUrl === 'function') {
       fetchQuotaPlans(requestUrl)
         .then((plans) => {
-          tierLine.textContent = `档位：${formatTierTable(plans.tiers)}`;
+          tierLine.textContent = t('multiPlatform.tierLine', { tiers: formatTierTable(plans.tiers) });
           // 扩展离线时也给购买入口
-          if (!hasLiveClient && plans.upgrade_url) renderUpgradeLink(plans.upgrade_url, '购买 Pro / Max');
+          if (!hasLiveClient && plans.upgrade_url) renderUpgradeLink(plans.upgrade_url, t('multiPlatform.quotaBuy'));
         })
         .catch((plansError) => {
-          tierLine.textContent = `档位：${plansError instanceof Error ? plansError.message : String(plansError)}`;
+          tierLine.textContent = t('multiPlatform.tierFailed', { message: plansError instanceof Error ? plansError.message : String(plansError) });
         });
     } else {
-      tierLine.textContent = '档位：当前环境不支持网络请求';
+      tierLine.textContent = t('multiPlatform.tierNoNetwork');
     }
   }
 
@@ -490,7 +511,7 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
         parentEl.createEl('span', { cls: 'wechat-bridge-status-profile', text: label });
       } else {
         parentEl.createEl('span', {
-          text: browserLabel ? browserLabel.charAt(0).toUpperCase() + browserLabel.slice(1) : '浏览器',
+          text: browserLabel ? browserLabel.charAt(0).toUpperCase() + browserLabel.slice(1) : t('multiPlatform.browserFallback'),
         });
       }
     }
@@ -503,10 +524,10 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
       const timestamp = toTimestamp(ts);
       if (!timestamp) return '';
       const d = Date.now() - timestamp;
-      if (d < 60000) return '刚刚';
-      if (d < 3600000) return `${Math.floor(d / 60000)} 分钟前`;
-      if (d < 86400000) return `${Math.floor(d / 3600000)} 小时前`;
-      return `${Math.floor(d / 86400000)} 天前`;
+      if (d < 60000) return t('multiPlatform.timeJustNow');
+      if (d < 3600000) return t('multiPlatform.timeMinutesAgo', { count: Math.floor(d / 60000) });
+      if (d < 86400000) return t('multiPlatform.timeHoursAgo', { count: Math.floor(d / 3600000) });
+      return t('multiPlatform.timeDaysAgo', { count: Math.floor(d / 86400000) });
     }
 
 
@@ -516,42 +537,42 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
 
     if (!multiPlatformSettings.token) {
       dot.classList?.add?.('is-error');
-      dot.textContent = '未填写';
-      body.createEl('span', { text: '连接令牌尚未填写。请到浏览器扩展弹窗复制令牌。' });
+      dot.textContent = t('multiPlatform.statusTokenMissing');
+      body.createEl('span', { text: t('multiPlatform.statusTokenMissingDesc') });
     } else if (liveClient) {
       dot.classList?.add?.('is-ok');
-      dot.textContent = '已就绪';
+      dot.textContent = t('multiPlatform.statusReady');
       renderBrowserIcon(body, liveClient.browserName);
       renderBrowserLabel(body, liveClient.browserName, liveClient.profileLabel);
       body.createEl('span', { cls: 'wechat-bridge-status-time', text: fmtRelativeTime(liveClient.lastSeenAt) });
     } else if (lastClient) {
       dot.classList?.add?.('is-unknown');
-      dot.textContent = '已断开';
+      dot.textContent = t('multiPlatform.statusDisconnected');
       renderBrowserIcon(body, lastClient.browserName);
       renderBrowserLabel(body, lastClient.browserName, lastClient.profileLabel);
-      body.createEl('span', { text: ' 已断开，请重启浏览器扩展重新连接。' });
+      body.createEl('span', { text: t('multiPlatform.statusDisconnectedDesc') });
       body.createEl('span', { cls: 'wechat-bridge-status-time', text: fmtRelativeTime(lastClient.lastSeenAt) });
     } else if (multiPlatformSettings.connection?.status === 'connected') {
       dot.classList?.add?.('is-ok');
-      dot.textContent = '已就绪';
+      dot.textContent = t('multiPlatform.statusReady');
       const checkedAt = formatWechatsyncCheckedAt(multiPlatformSettings.connection.checkedAt);
       body.createEl('span', {
         text: checkedAt
-          ? `浏览器扩展已连接，可以发布。上次检查 ${checkedAt}。`
-          : '浏览器扩展已连接，可以发布。',
+          ? t('multiPlatform.statusConnectedChecked', { checkedAt })
+          : t('multiPlatform.statusConnected'),
       });
     } else if (multiPlatformSettings.connection?.status === 'failed') {
       dot.classList?.add?.('is-error');
-      dot.textContent = '连接失败';
+      dot.textContent = t('multiPlatform.statusFailed');
       body.createEl('span', {
         text: multiPlatformSettings.connection.message
-          ? `${multiPlatformSettings.connection.message}。请检查端口和令牌后点击「测试连接」。`
-          : '请检查端口和令牌后点击「测试连接」。',
+          ? t('multiPlatform.statusFailedDescWithMessage', { message: multiPlatformSettings.connection.message })
+          : t('multiPlatform.statusFailedDesc'),
       });
     } else {
       dot.classList?.add?.('is-unknown');
-      dot.textContent = '等待连接';
-      body.createEl('span', { text: '令牌已填写，请点击下方「测试连接」确认连接。' });
+      dot.textContent = t('multiPlatform.statusWaiting');
+      body.createEl('span', { text: t('multiPlatform.statusWaitingDesc') });
     }
   }
 
@@ -588,9 +609,9 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
   const platformPicker = containerEl.createDiv({ cls: 'wechat-platform-picker' });
   const platformPickerHeader = platformPicker.createDiv({ cls: 'wechat-platform-picker-header' });
   const platformPickerTitle = platformPickerHeader.createDiv();
-  platformPickerTitle.createEl('div', { text: '发布平台', cls: 'wechat-platform-picker-title' });
+  platformPickerTitle.createEl('div', { text: t('multiPlatform.platformsTitle'), cls: 'wechat-platform-picker-title' });
   platformPickerTitle.createEl('div', {
-    text: '以下平台已接入，可在「发布与分发」中选择发布；更多平台规划中。',
+    text: t('multiPlatform.platformsDesc'),
     cls: 'wechat-platform-picker-desc',
   });
 
@@ -598,14 +619,14 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
   const enabledGrid = platformPicker.createDiv({ cls: 'wechat-platform-grid' });
   if (enabledPlatforms.length === 0) {
     enabledGrid.createEl('div', {
-      text: '尚未读取到已接入平台，请点击下方「测试连接」。',
+      text: t('multiPlatform.platformsEmpty'),
       cls: 'wechat-platform-picker-desc',
     });
   }
   for (const platform of enabledPlatforms) {
     const authBadge = getPlatformAuthBadge(platform);
     const chip = enabledGrid.createEl('div', { cls: `wechat-platform-chip is-selected ${authBadge.cls}` });
-    chip.setAttribute('title', `${platform.name} · 已接入`);
+    chip.setAttribute('title', t('multiPlatform.platformEnabledTitle', { name: platform.name }));
     const chipBody = chip.createEl('span', { cls: 'wechat-platform-chip-body' });
     chipBody.createEl('span', { text: platform.name, cls: 'wechat-platform-chip-name' });
     chipBody.createEl('span', { text: authBadge.text, cls: `wechat-platform-chip-status ${authBadge.cls}` });
@@ -615,26 +636,26 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
   if (plannedPlatforms.length > 0) {
     const planned = /** @type {WechatSettingsElement} */ (platformPicker.createEl('details', { cls: 'wechat-platform-planned' }));
     planned.createEl('summary', {
-      text: `计划支持（${plannedPlatforms.length}）`,
+      text: t('multiPlatform.plannedSummary', { count: plannedPlatforms.length }),
       cls: 'wechat-platform-planned-summary',
     });
     const plannedGrid = planned.createDiv({ cls: 'wechat-platform-grid' });
     for (const platform of plannedPlatforms) {
       const chip = plannedGrid.createEl('div', { cls: 'wechat-platform-chip is-disabled' });
-      chip.setAttribute('title', `${platform.name}（计划支持）`);
+      chip.setAttribute('title', t('multiPlatform.platformPlannedTitle', { name: platform.name }));
       const chipBody = chip.createEl('span', { cls: 'wechat-platform-chip-body' });
       chipBody.createEl('span', { text: platform.name, cls: 'wechat-platform-chip-name' });
-      chipBody.createEl('span', { text: '计划中', cls: 'wechat-platform-chip-status is-unknown' });
+      chipBody.createEl('span', { text: t('multiPlatform.platformPlannedStatus'), cls: 'wechat-platform-chip-status is-unknown' });
     }
   }
 
   new Setting(containerEl)
-    .setName('测试连接')
-    .setDesc('验证 Obsidian 与浏览器插件是否连通，并逐个检测已接入平台（小红书、X）的登录状态。')
+    .setName(t('multiPlatform.testConnectionName'))
+    .setDesc(t('multiPlatform.testConnectionDesc'))
     .addButton(button => button
-      .setButtonText('测试')
+      .setButtonText(t('multiPlatform.testButton'))
       .onClick(async () => {
-        button.setButtonText('等待插件...');
+        button.setButtonText(t('multiPlatform.testButtonWaiting'));
         button.setDisabled?.(true);
         const startedAt = Date.now();
         /** @type {WechatBridgeLike | null} */
@@ -668,12 +689,12 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
               }
               const healthResult = toHealthResult(await bridge.health({ timeoutMs: 5000 }));
               if (healthResult?.tokenValid === false) {
-                const authError = /** @type {Error & { code?: string }} */ (new Error('连接令牌校验失败。请确认 Obsidian 与浏览器插件使用同一个连接令牌。'));
+                const authError = /** @type {Error & { code?: string }} */ (new Error(t('multiPlatform.errorTokenInvalid')));
                 authError.code = 'AUTH_FAILED';
                 throw authError;
               }
               if (healthResult?.ok === false) {
-                const healthError = /** @type {Error & { code?: string }} */ (new Error(healthResult.error || '浏览器插件健康检查失败'));
+                const healthError = /** @type {Error & { code?: string }} */ (new Error(healthResult.error || t('multiPlatform.errorHealthFailed')));
                 healthError.code = 'BRIDGE_REQUEST_TIMEOUT';
                 throw healthError;
               }
@@ -748,17 +769,17 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
               platforms: nextPlatforms,
               capabilities,
               message: gotAuth
-                ? '已连接，并已检测各发布平台的登录状态。'
+                ? t('multiPlatform.connectedWithAuth')
                 : (health
-                  ? '已连接，连接令牌已通过插件校验。未检测到平台登录状态。'
-                  : '已连接。当前插件版本未提供健康校验，平台登录状态未自动检测。'),
+                  ? t('multiPlatform.connectedTokenVerified')
+                  : t('multiPlatform.connectedNoHealth')),
             },
           });
           await plugin.saveSettings();
           shouldRedisplay = true;
           new Notice(health
-            ? '✅ 已连接浏览器插件，连接令牌校验通过'
-            : '✅ 已连接浏览器插件');
+            ? t('multiPlatform.noticeConnectedVerified')
+            : t('multiPlatform.noticeConnected'));
         } catch (error) {
           /** @type {Record<string, unknown> | null} */
           let bridgeStatusAfterFailure = null;
@@ -780,26 +801,26 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
           // state 2 (no extension reached the bridge at all) so the user sees an
           // actionable message instead of the generic timeout text.
           const readableError = toReadableError(error);
-          let detailedMessage = readableError.message || '浏览器插件连接失败';
+          let detailedMessage = readableError.message || t('multiPlatform.errorConnectFailed');
           let hint = '';
           if (readableError.code === 'EXTENSION_NOT_CONNECTED' && diagnostics?.helloRejections > 0) {
             const reason = diagnostics.lastHelloRejection?.reason;
             if (reason === 'token_mismatch') {
-              detailedMessage = '配对令牌不一致。如果你刚刚在浏览器插件设置中重置过令牌，请复制新令牌并粘贴到下方"连接令牌"输入框。';
+              detailedMessage = t('multiPlatform.errorTokenMismatch');
             } else if (reason === 'hello_timeout') {
-              detailedMessage = '浏览器插件连接后未在限定时间内完成握手。可能扩展版本过旧或未启用握手。';
+              detailedMessage = t('multiPlatform.errorHelloTimeout');
             } else if (reason === 'invalid_payload') {
-              detailedMessage = '浏览器插件发送的握手数据格式不正确。请升级浏览器插件到支持安全握手的版本。';
+              detailedMessage = t('multiPlatform.errorInvalidPayload');
             } else if (reason === 'version_unsupported') {
-              detailedMessage = '浏览器插件版本与 Obsidian 不兼容，握手被拒绝。请升级浏览器插件。';
+              detailedMessage = t('multiPlatform.errorVersionUnsupported');
             } else if (reason) {
-              detailedMessage = `浏览器插件握手失败（${reason}）。请检查浏览器插件版本与连接令牌。`;
+              detailedMessage = t('multiPlatform.errorHelloRejected', { reason });
             }
             hint = '';
           } else if (['EXTENSION_NOT_CONNECTED', 'BRIDGE_UNAVAILABLE', 'BRIDGE_REQUEST_TIMEOUT'].includes(readableError.code)) {
-            hint = '请确认浏览器正在运行、已安装浏览器插件，并检查地址、端口和连接令牌与这里一致。';
+            hint = t('multiPlatform.hintCheckBridge');
           } else if (readableError.code === 'EXTENSION_NOT_AUTHENTICATED') {
-            detailedMessage = '浏览器插件已连接但尚未通过认证。请确认插件已升级到支持安全握手的版本，且使用与 Obsidian 一致的连接令牌。';
+            detailedMessage = t('multiPlatform.errorNotAuthenticated');
           }
 
           console.error('[Wechatsync] test connection failed', {
@@ -823,11 +844,11 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
             },
           });
           await plugin.saveSettings();
-          new Notice(`❌ ${detailedMessage}${hint ? ` ${hint}` : ''}`, 12000);
+          new Notice(t('multiPlatform.noticeTestFailed', { message: hint ? `${detailedMessage} ${hint}` : detailedMessage }), 12000);
           shouldRedisplay = true;
         } finally {
           button.setDisabled?.(false);
-          button.setButtonText('测试');
+          button.setButtonText(t('multiPlatform.testButton'));
           if (shouldRedisplay) rerender();
         }
       }));

@@ -180,6 +180,14 @@ describe('AppleStyleView - showMultiPlatformSyncModal platform rows', () => {
     expect(findRow(modal, 'x').querySelector('input[type="checkbox"]').checked).toBe(false);
   });
 
+  it('3.12.0：preferredPlatforms（frontmatter 一稿多发）→ 同时勾选列出的平台，去重且忽略未接入的 id', async () => {
+    const view = makeView();
+    await view.showMultiPlatformSyncModal({ preferredPlatform: 'xiaohongshu', preferredPlatforms: ['xiaohongshu', 'x', 'x', 'zhihu'] });
+    const modal = modalCapture.getLastModal();
+    expect(findRow(modal, 'xiaohongshu').querySelector('input[type="checkbox"]').checked).toBe(true);
+    expect(findRow(modal, 'x').querySelector('input[type="checkbox"]').checked).toBe(true);
+  });
+
   it('无 preferredPlatform 时默认全选(小红书+X)', async () => {
     const view = makeView();
     await view.showMultiPlatformSyncModal();

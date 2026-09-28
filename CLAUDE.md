@@ -2,98 +2,64 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **版本**: v3.12.0 ｜ **更新时间**: 2026-09-28（公式改用 Obsidian 自带 MathJax、包体 1.3MB；桌面版专用；设置项 i18n；分发看板；AI 用量；入口与 AI 服务拆分；本文件按当前结构全文校对）
+
 ## Language Preferences
 - Detect the language of the user's prompt (English or Chinese). Always reply in the same language unless explicitly asked otherwise.
 - When drafting replies or documentation intended for Chinese audiences, ensure natural, native-level phrasing.
 
 ## Commands
 
-- **Install Dependencies**: `npm install`
-- **Build for Production**: `npm run build` (Minifies code, no sourcemaps)
-- **Start Development Watcher**: `npm run dev` (Builds `main.js` and watches for changes)
-- **Testing**: This project relies on manual visual testing.
-    - Use `TEST.md` to verify rendering logic, style conversion, and WeChat compatibility.
-    - Check the "Live Preview" pane in Obsidian to ensure "What You See Is What You Get".
-- **Automated Testing**: `npm test` (Runs Vitest unit tests).
-    - Always evaluate the need for new unit tests after significant logic changes.
-    - Use the `universal-guardrails` skill to scaffold tests if needed.
+- **Install Dependencies**: `npm install --legacy-peer-deps`
+- **Build for Production**: `npm run build` (generate:runtime + esbuild, minified, no sourcemaps)
+- **Start Development Watcher**: `npm run dev`
+- **Install into the vault**: `bash dev-install.sh` (target pinned by `.vault-path.local`; run after every change)
+- **Unit tests**: `npm test -- --run` (Vitest + jsdom; `pretest` regenerates/validates generated files)
+- **Full guard before tagging**: `npm run review:guard` = lint + risk-pattern scan + `scan:directory` (must be 0 problems) + tests + pack + validate
+- Manual visual checks: `TEST.md` (rendering / WeChat compatibility) and the live preview pane.
 
 ## Architecture & Structure
 
-- **Project Type**: Obsidian Plugin (Node.js environment within Electron).
-- **Entry Point**: `input.js` is the source entry point, which bundles into `main.js`.
-- **Core Components**:
-    - `input.js`: Main plugin logic and lifecycle management.
-    - `converter.js`: Handles Markdown to WeChat-compatible HTML conversion.
-    - `styles.css`: **GENERATED FILE** — built by `scripts/build-styles.mjs` from `styles/src/*.css`. NEVER edit it directly; edit the module under `styles/src/` (numeric prefix = concat order; `1x-rednote-*.css` are the rednote/小红书 styles) then run `npm run generate:styles` (also runs inside `npm run build`/`dev`). `pretest` runs `check:styles` and fails if styles.css drifts from its sources.
-    - `themes/`: Contains specific visual themes (Simple, Classic, Elegant).
-    - `lib/`: Helper libraries (including the dynamically loaded `mathjax-plugin.js`).
-- **Build System**:
-    - **Main Bundle**: `esbuild` via `esbuild.config.mjs` (Targets `main.js`).
-    - **Math Bundle**: `esbuild` via `esbuild.math.mjs` (Targets `lib/mathjax-plugin.js`).
-    - Targets `es2018` / CommonJS.
-- **WeChat Integration**:
-    - Supports syncing to WeChat Drafts.
-    - Uses a proxy (e.g., Cloudflare Worker) to handle CORS and IP whitelisting for WeChat API calls (logic likely in `input.js` or `converter.js`).
-    - Handles image processing: Local images are converted/uploaded; supports avatars and covers.
+- **Project Type**: Obsidian plugin, desktop only (`isDesktopOnly: true` since 3.12.0: the local WebSocket bridge and Feishu image handling use Node APIs).
+- **Entry Point**: `input.js` bundles into `main.js` (≈1.3 MB minified). It holds the plugin lifecycle, the `AppleStyleView` class shell, view wiring and shared JSDoc typedefs; behaviour lives in mixins under `views/**` and services under `services/**`.
+- **Core pieces**:
+    - `converter.js`: markdown-it based Markdown → WeChat-compatible HTML (inline styles only).
+    - `services/markdown-it-math.js` + `services/math-renderer.js`: math via **Obsidian's own MathJax (CHTML)**; `services/math-export.js` rasterizes `<mjx-container>` to PNG (html-to-image) when copying or saving drafts. No MathJax bundle ships with the plugin.
+    - `services/ai-layout.js`: facade for AI 编排 (providers / core / render modules under `services/ai-layout/`); `services/ai-layout-runtime/` is generated from `ai-layout-skills/`.
+    - `services/i18n.js` + `services/locales/{zh-cn,en}/*.js`: UI copy for settings, commands, card settings and the dashboard. `t('ns.key')`; both dictionaries must have identical keys (`tests/i18n.test.js`). Language rule: Obsidian zh / zh-TW → 简体中文, anything else → English.
+    - `services/publish-status.js` / `services/platform-property.js` / `services/publish-dashboard-data.js`: frontmatter is the spine of distribution (`platform`, `publish_status`, `publish_pending`, `platform_<name>`); `views/dashboard/publish-dashboard.js` renders the 分发看板.
+    - `views/settings/`: declarative settings tab (Obsidian 1.13 API) + imperative sub-pages (飞书 / 小红书图卡 / 小红书 & X extension). Phone frame and watermark live in the preview overlay (`views/settings-panel/settings-panel.js`), not in the settings tab.
+    - `rednote/`: TypeScript port of note-to-red (Xiaohongshu / X image cards); backgrounds are WebP data URLs.
+    - `styles.css`: **GENERATED** from `styles/src/*.css` by `npm run generate:styles`; never edit it directly.
+    - `types/view-mixins.d.ts`: **GENERATED** by `npm run generate:view-types` from the mixins' JSDoc.
+    - `lib/`: generated `markdown-it.min.js` and `highlight.min.js` only (`npm run generate:embedded`).
+- **Build System**: `esbuild.config.mjs` → `main.js`, target es2018 / CommonJS; `obsidian`, `electron` and `@codemirror/*` are externals provided by the app.
+- **WeChat Integration**: draft sync through the official API (needs the user's proxy for IP whitelisting), copy-to-editor with inline styles, image / cover / formula upload.
+- **Companion extension**: Xiaohongshu / X drafts go through the private Crosspost extension over `ws://127.0.0.1:9527`. Until it is released, `CROSSPOST_EXTENSION_RELEASED` in `services/wechatsync-constants.js` is `false` and the UI says "尚未发行". Deliveries are recorded as `publish_status: pending`, never as a confirmed draft, because the extension only acknowledges receipt.
 
 ## Development Notes
 
-- **Language**: JavaScript/TypeScript (mixed).
-- **External Dependencies**: `obsidian`, `electron`, and `@codemirror/*` packages are peer dependencies provided by the Obsidian app.
-- **UI/UX**: The plugin adds a ribbon icon and a command "Open Wechat Converter". It uses a side panel for live preview.
-- **Image Handling**: Special attention is needed for local image paths (absolute/relative/WikiLink) and GIF handling (size limits).
+- **Rebuild Requirement**: any source change requires `npm run build` (or `dev`) before Obsidian sees it; then `bash dev-install.sh`.
+- **Version bump on every shipped change**: `manifest.json`, `package.json`, `versions.json`, README headers, `RELEASE_NOTES/v<version>.md`, `CHANGELOG.md`. Compliance-only fixes ride along with the next functional release (see `RELEASING.md`).
+- **Zero-CSS Strategy for WeChat**: the editor strips `<style>` and classes; everything exported must be inline styles or images.
+- **Math export**: WeChat and the clipboard do not understand `mjx-*` elements; `convertMathContainersToImages` (copy) and `processMathFormulas` (API) must run on a mounted DOM so html-to-image can measure the formula.
+- **Circuit breaker**: fail fast on WeChat `45009` / `45001`.
+- **Native components first** for UI; no manual pixel nudging for alignment.
+- **State persistence**: per-file in-memory maps for transient UI state; clear them on view close.
+- **No 兜底**: throw with a clear message instead of silently falling back; missing i18n keys, zero-size formulas and missing rasterizers are errors.
 
-## Best Practices & Lessons Learned (v2.1 Math Update & v2.5 Math-to-Image)
+## Types & directory scan
 
-### 1. Bundling & Dependencies
-- **Avoid Dynamic Requires**: Libraries that use `require(path.join(__dirname, 'package.json'))` will crash in Obsidian. Use `esbuild`'s `define` to inject static versions or mock the file system if possible.
-- **ESM vs CJS**: When bundling CJS libraries (like `markdown-it` plugins), be wary of default exports. Always check `module.default || module`.
-- **Rebuild Requirement**: `input.js` is the source for `main.js`. **ANY change to `input.js` requires `npm run build` to take effect.** Restarting the plugin is not enough if you haven't rebuilt.
-
-### 2. WeChat Compatibility
-- **Zero-CSS Strategy**: WeChat strips `<style>` and class-based styling. All visual elements must be inline styles or self-contained SVGs.
-- **Math Formula Strategy**:
-    - **Upload as Image**: WeChat API has strict content length limits. Complex SVGs (MathJax) must be converted to PNGs and uploaded to WeChat servers to bypass this limit.
-    - **Smart Recoloring**: MathJax formulas should be recolored (e.g., `#333333`) for better readability, but non-formula SVGs (e.g., Mermaid) must retain their original colors.
-- **Circuit Breaker**: Implement fail-fast logic for API rate limits (`45009`) and quota limits (`45001`) to prevent wasted retries and poor UX.
-
-### 3. Architecture (Dynamic Loading)
-- **Separate Bundles**: Heavy features (like MathJax) are bundled separately (`lib/mathjax-plugin.js`) and loaded via `eval()` in `input.js` only when needed.
-- **Global Scope**: When `eval`-ing code, do not assume `window` is available or writable in the same way. Use a safe global resolver (`const _global = typeof window ...`) to export functions from the dynamic bundle.
-
-### 4. UI/UX & Styling
-- **Native Components First**: Always prefer Obsidian's native UI components and browser-default styles (e.g., standard range inputs) over custom CSS hacks.
-- **Vertical Alignment**: Avoid manually calculating margins for vertical centering (e.g., `margin-top: -8px`). Use flexbox or grid layouts where possible, or rely on standard form controls which are already optimized for the platform.
-- **State Persistence**: For multi-document workflows, use in-memory maps (e.g., `Map<Path, State>`) to temporarily cache UI state (like cover images or toggle positions) per file. Clear this cache on plugin unload or view close to prevent memory leaks.
-
-### 5. Engineering & Quality
-- **Unit Testing**: Use `Vitest` + `jsdom`.
-    - Mock Obsidian API (`requestUrl`, `Notice`) robustly using `vi.mock` factory functions or file-system mocks in CI.
-    - **Always** add unit tests for new core logic (especially regex, data transformation, and error handling).
-    - Use the `universal-guardrails` skill to maintain test infrastructure.
-- **CI/CD**: Ensure CI environments (Node version) match toolchain requirements (e.g., Node 20+ for Vitest), even if the runtime target is lower (Node 16).
-
-### 6. Modular Architecture
-- Adhere to the refactored modular architecture. Do not pile rendering rules or core logic inside the entry file `input.js`.
-- Keep the entry file `input.js` lightweight, focused only on plugin lifecycle, view wiring, settings UI, and top-level sync actions.
-- Place markdown-it rules and conversion core in `converter.js`.
-- Place styling rules in `themes/apple-theme.js`.
-- Place preprocessing, path resolution, and cleaner logic in their respective modules under `services/`.
-
-## Types & directory scan (2026-09-23)
-
-- `npm run scan:directory` reproduces the Obsidian community directory scanner locally (`eslint.scan.config.mjs`: `eslint-plugin-obsidianmd` recommended + `typescript-eslint` type-checked rules over the same tsconfig, **with `--no-inline-config`**, so `eslint-disable` comments do not count). The target is `0 problems`; run it before tagging a release. The directory shows the type-aware findings as warnings and the obsidianmd rules (`no-static-styles-assignment`, `settings-tab/no-manual-html-headings`, `prefer-create-el`, `prefer-window-timers`, `no-nodejs-modules`, …) as errors.
-- Never suppress: no `eslint-disable`, `@ts-ignore`, `any` (`{any}` in JSDoc, `as any`). Fix the type at its source instead.
-- The directory scanner has no `@types/node`: `tsconfig.scan.json` (`types: []`) reproduces that, `tsconfig.json` pins `lib` explicitly (ES2022 + DOM), and `types/node-globals.d.ts` declares the `Buffer` / `require` surface the desktop-only code uses (mergeable with `@types/node`; if `@types/node` is upgraded past v20 the `Buffer` interface there becomes generic and this shim must match). Never rely on `@types/node` for DOM/ES lib features.
-- Gitignored build outputs are absent in CI and on the directory scanner: any imported generated module needs a committed `.d.ts` next to it (`services/ai-layout-runtime/generated-skills.d.ts`), otherwise the import is an error type there even though it is fine locally. To reproduce that environment, move the generated files aside and run the scan.
-- View mixins (`views/**`) get a typed `this` via `/** @satisfies {ThisType<AppleStyleViewInstance>} */` on the mixin object. The mixins' method surface lives in `types/view-mixins.d.ts` (**generated**: `npm run generate:view-types`, verified by `pretest`); a method's return type comes from its JSDoc `@returns {XLike}` where `XLike` is a typedef from `input.js` or from the mixin file itself. `types/view-augment.d.ts` merges that surface into the `AppleStyleView` class (interface/class merge), so `this.someMixinMethod()` also resolves inside `input.js` class methods.
-- Members assigned outside a constructor are invisible to TypeScript: declare every view member in the `AppleStyleView` constructor and every plugin member in the `AppleStylePlugin` constructor (`/** @type {…} */ this.x = null;`); otherwise `this.x` is `any`/unresolved and every downstream use is flagged.
-- Shared JSDoc typedefs live in `input.js`; other files import them with `/** @typedef {import('../../input.js').XLike} XLike */`. Shared value helpers live in `services/input-utils.js`: `toText(unknown)` (replaces `String(value || '')` on unknown values), `toReadableError`, `isRecord` / `toRecord`, `toAiLayoutState` & co. (typed, not `any`).
-- Async hygiene: event handlers wrap async work as `() => { void this.doAsync(); }`; `async` without `await` becomes a sync function returning `Promise.resolve(...)` when the signature must stay a Promise.
-- `obsidianmd/ui/sentence-case` lowercases any capitalized English word mid-sentence that is not in its built-in brand/acronym lists (brands: Obsidian, OpenAI, GitHub, Markdown…; acronyms: API, URL, JSON, HTML, CSS, PDF, PNG, JPG, SVG, UI, ID, AI, LLM). Write UI copy in Chinese without such words (e.g. "开发者 ID 与密钥", "提示词", "AI 服务商", "本插件") rather than lowercasing product names.
-- `rednote/` uses Obsidian's global DOM helpers (`createEl` / `createDiv` / `createSpan` / `createSvg`) and `window.setTimeout`; tests get the globals from `tests/helpers/obsidian-resolver.cjs`. The 小红书图卡 settings UI is `rednote/settings/RedSettingsPanel.ts`, a plain render class hosted by `views/settings/setting-pages.js` — it is deliberately **not** a `PluginSettingTab` (the directory flags `display()` on tabs as deprecated).
+- `npm run scan:directory` reproduces the Obsidian community directory scanner (`eslint.scan.config.mjs`, `--no-inline-config`). Target: 0 problems. Never suppress: no `eslint-disable`, `@ts-ignore`, `any`.
+- The scanner has no `@types/node`: `tsconfig.scan.json` (`types: []`), `tsconfig.json` pins `lib` (ES2022 + DOM), `types/node-globals.d.ts` declares the `Buffer` / `require` surface used by desktop-only code.
+- Gitignored generated modules need a committed `.d.ts` beside them (`services/ai-layout-runtime/generated-skills.d.ts`).
+- View mixins get a typed `this` via `/** @satisfies {ThisType<AppleStyleViewInstance>} */`; declare every view / plugin member in the constructor (`/** @type {…} */ this.x = null;`).
+- Shared typedefs live in `input.js`; other files import them with `/** @typedef {import('../../input.js').XLike} XLike */`. Value helpers (`toText`, `toRecord`, `toReadableError`, …) live in `services/input-utils.js`.
+- Async hygiene: event handlers wrap async work as `() => { void this.doAsync(); }`; `async` without `await` becomes a sync function returning `Promise.resolve(...)`.
+- `obsidianmd/ui/sentence-case` lowercases mid-sentence capitalized English words that are not brands / acronyms; write Chinese UI copy without such words. English dictionary strings are not scanned, so keep them in sentence case by hand.
+- `rednote/` uses Obsidian's global DOM helpers (`createEl` / `createDiv` / …) and `window.setTimeout`; tests get the globals from `tests/helpers/obsidian-resolver.cjs`. The 小红书图卡 settings UI is a plain render class hosted by `views/settings/setting-pages.js`, deliberately not a `PluginSettingTab`.
+- Tests that import services which pull `services/obsidian-adapters.js` must set `window.require = require` first (see `tests/helpers/input-module.cjs` / `tests/helpers/math-runtime.js`); `__mocks__/obsidian.js` provides `getLanguage`, `renderMath`, `loadMathJax`, `finishRenderMath`.
 
 ## Release
 
-发布新版本时，使用 `/project-release` skill 查看完整流程。
+发布新版本时，使用 `/project-release` skill 查看完整流程；规则见 `RELEASING.md`。

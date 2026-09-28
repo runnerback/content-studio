@@ -27,3 +27,35 @@ describe('resolvePreviewModeFromFrontmatter', () => {
     expect(PLATFORM_PROPERTY_KEY).toBe('platform');
   });
 });
+
+// 3.12.0：platform 支持数组（一稿多发），resolvePlatformTargetsFromFrontmatter 给全部目标；预览模式取第一个能识别的
+import { resolvePlatformTargetsFromFrontmatter } from '../services/platform-property.js';
+
+describe('resolvePlatformTargetsFromFrontmatter', () => {
+  it('数组：去重、保持顺序、跳过不认识的值', () => {
+    expect(resolvePlatformTargetsFromFrontmatter({ platform: ['rednote', 'x'] })).toEqual(['rednote', 'x']);
+    expect(resolvePlatformTargetsFromFrontmatter({ platform: ['小红书', 'xiaohongshu', 'iOS', 'X'] })).toEqual(['rednote', 'x']);
+    expect(resolvePlatformTargetsFromFrontmatter({ platform: ['公众号', 'rednote', 'wechat'] })).toEqual(['wechat', 'rednote']);
+  });
+  it('字符串视为单元素；缺失 / 全不认识 → 空数组', () => {
+    expect(resolvePlatformTargetsFromFrontmatter({ platform: 'wechat' })).toEqual(['wechat']);
+    expect(resolvePlatformTargetsFromFrontmatter({ platform: ['iOS', 3] })).toEqual([]);
+    expect(resolvePlatformTargetsFromFrontmatter({})).toEqual([]);
+    expect(resolvePlatformTargetsFromFrontmatter(null)).toEqual([]);
+  });
+  it('预览模式取第一个能识别的（跳过前面的无效值）', () => {
+    expect(resolvePreviewModeFromFrontmatter({ platform: ['iOS', 'x'] })).toBe('x');
+  });
+});
+
+// 3.12.0：发布按钮默认勾选：当前模式排第一，再补 frontmatter 里其它经扩展的平台；公众号不进扩展
+import { resolvePreferredBridgePlatformIds } from '../services/platform-property.js';
+
+describe('resolvePreferredBridgePlatformIds', () => {
+  it('当前模式在前，frontmatter 目标去重补后；公众号忽略', () => {
+    expect(resolvePreferredBridgePlatformIds('rednote', ['wechat', 'x', 'rednote'])).toEqual(['xiaohongshu', 'x']);
+    expect(resolvePreferredBridgePlatformIds('x', ['rednote'])).toEqual(['x', 'xiaohongshu']);
+    expect(resolvePreferredBridgePlatformIds('x', [])).toEqual(['x']);
+    expect(resolvePreferredBridgePlatformIds('wechat', ['wechat'])).toEqual([]);
+  });
+});

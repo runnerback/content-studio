@@ -67,15 +67,14 @@
  * @typedef {{ id: string, name: string, kind: string, baseUrl: string, apiKey: string, model: string, enabled?: boolean }} AiProviderLike
  * @typedef {{ enabled: boolean, defaultLayoutFamily: string, defaultColorPalette: string, defaultProviderId: string, customColor?: string, includeImagesInLayout?: boolean, requestTimeoutMs?: number, layoutModel?: string, defaultStylePack?: string, providers: AiProviderLike[], articleLayoutsByPath: Record<string, unknown> }} AiSettingsLike
  * @typedef {{ blockKey: string, relativeTop: number, fallbackScrollTop: number }} AiLayoutPendingAnchorLike
- * @typedef {{ theme: string, themeColor: string, customColor: string, quoteCalloutStyleMode: string, fontFamily: string, fontSize: number, macCodeBlock: boolean, codeLineNumber: boolean, avatarUrl: string, avatarBase64: string, enableWatermark: boolean, showImageCaption: boolean, normalizeChinesePunctuation: boolean, wechatAccounts: WechatAccountLike[], defaultAccountId: string, proxyUrl: string, clientId: string, draftCache: unknown, usePhoneFrame: boolean, autoSwitchPlatformByProperty: boolean, sidePadding: number, coloredHeader: boolean, cleanupAfterSync: boolean, cleanupUseSystemTrash: boolean, cleanupDirTemplate: string, multiPlatformSync: unknown, wechatAppId: string, wechatAppSecret: string, ai: AiSettingsLike, [key: string]: unknown }} PluginSettingsLike
+ * @typedef {{ theme: string, themeColor: string, customColor: string, quoteCalloutStyleMode: string, fontFamily: string, fontSize: number, macCodeBlock: boolean, codeLineNumber: boolean, avatarUrl: string, avatarBase64: string, enableWatermark: boolean, showImageCaption: boolean, normalizeChinesePunctuation: boolean, wechatAccounts: WechatAccountLike[], defaultAccountId: string, proxyUrl: string, clientId: string, draftCache: unknown, usePhoneFrame: boolean, autoSwitchPlatformByProperty: boolean, sidePadding: number, coloredHeader: boolean, cleanupAfterSync: boolean, cleanupUseSystemTrash: boolean, cleanupDirTemplate: string, multiPlatformSync: unknown, ai: AiSettingsLike, [key: string]: unknown }} PluginSettingsLike
  * @typedef {{ update: (values: Record<string, unknown>) => void }} ThemeRuntimeLike
  * @typedef {{ updateConfig?: (values: Record<string, unknown>) => void, reinit?: () => void, initMarkdownIt?: () => Promise<void> }} ConverterRuntimeLike
  * @typedef {{ renderForPreview: (markdown: string, context: { sourcePath: string, settings: PluginSettingsLike }) => Promise<string> }} RenderPipelineLike
  * @typedef {{ updateAiToolbarState?: () => void, refreshAiLayoutPanel?: () => void }} ConverterViewRefreshLike
- * @typedef {PluginBaseLike & { settings: PluginSettingsLike, obsidianApi?: ObsidianApiLike, _wechatSyncBridgeService?: WechatSyncBridgeServiceLike, _wechatSyncBridgeCacheKey?: string, settingTab?: SettingTabCompatLike, _lastSaveSettingsErrorAt?: number, openConverter: () => Promise<void>, openExternalUrl?: (url: string) => boolean, getConverterView?: () => AppleStyleViewInstance | null, getWechatSyncBridgeService?: () => WechatSyncBridgeServiceLike, saveSettings: () => Promise<boolean>, settingsManager: import('./rednote/index.ts').SettingsManager, themeManager: import('./rednote/index.ts').ThemeManager, startWechatSyncBridgeInBackground?: (reason?: string) => void, getArticleLayoutState?: (sourcePath: string, selection?: AiLayoutSelectionLike | Record<string, unknown>) => AiLayoutStateLike | null, saveArticleLayoutState?: (sourcePath: string, nextState: AiLayoutStateLike | Record<string, unknown>, selection?: AiLayoutSelectionLike | Record<string, unknown>) => Promise<AiLayoutStateLike | null> }} AppleStylePluginLike
+ * @typedef {PluginBaseLike & { settings: PluginSettingsLike, obsidianApi?: ObsidianApiLike, _wechatSyncBridgeService?: WechatSyncBridgeServiceLike, _wechatSyncBridgeCacheKey?: string, settingTab?: SettingTabCompatLike, _lastSaveSettingsErrorAt?: number, openConverter: () => Promise<void>, openPublishDashboard: () => Promise<void>, recordAiUsage?: (usage: import('./services/ai-layout.js').AiUsageLike | null | undefined) => Promise<void>, resetAiUsageTotals?: () => Promise<void>, openExternalUrl?: (url: string) => boolean, getConverterView?: () => AppleStyleViewInstance | null, getWechatSyncBridgeService?: () => WechatSyncBridgeServiceLike, saveSettings: () => Promise<boolean>, settingsManager: import('./rednote/index.ts').SettingsManager, themeManager: import('./rednote/index.ts').ThemeManager, startWechatSyncBridgeInBackground?: (reason?: string) => void, getArticleLayoutState?: (sourcePath: string, selection?: AiLayoutSelectionLike | Record<string, unknown>) => AiLayoutStateLike | null, saveArticleLayoutState?: (sourcePath: string, nextState: AiLayoutStateLike | Record<string, unknown>, selection?: AiLayoutSelectionLike | Record<string, unknown>) => Promise<AiLayoutStateLike | null> }} AppleStylePluginLike
  * @typedef {{ settings?: PluginSettingsLike | Record<string, unknown> }} PluginWithSettingsLike
  * @typedef {{ update?: () => void, activeSettingPage?: { display: () => void } | null, [key: string]: unknown }} SettingTabCompatLike
- * @typedef {{ commandName: string, zhTitle: string, enTitle: string, zhPlaceholder: string[], enPlaceholder: string[], zhNotice: string, enNotice: string }} ImageSwipeCopyLike
  * @typedef {{ message: string, isFatal?: boolean, isProxyAuth?: boolean }} ReadableErrorLike
  * @typedef {{ method?: string, body?: string, headers?: Record<string, string>, contentType?: string, throw?: boolean }} RequestUrlOptionsLike
  * @typedef {{ status: number, json?: unknown, text: string, arrayBuffer?: () => Promise<ArrayBuffer>, headers: Record<string, string> }} RequestUrlResponseLike
@@ -118,6 +117,8 @@ import { normalizeVaultPath } from './services/path-utils.js';
 import { renderObsidianTripletMarkdown } from './services/obsidian-triplet-renderer.js';
 import { canUseNativePreviewFastPath, renderNativeMarkdown } from './services/native-renderer.js';
 import { convertRenderedMermaidDiagramsToImages } from './services/rendered-mermaid.js';
+import { finishMathRender } from './services/math-renderer.js';
+import { convertMathContainersToImages } from './services/math-export.js';
 import {
   AI_LAYOUT_SELECTION_AUTO,
   createDefaultAiSettings,
@@ -130,6 +131,8 @@ import {
   extractImageRefsFromHtml,
   extractRenderedSectionFragments,
   renderArticleLayoutHtml,
+  addAiUsageToTotals,
+  normalizeAiUsageTotals,
 } from './services/ai-layout.js';
 import {
   createWechatSyncBridgeService,
@@ -202,6 +205,8 @@ import {
   updateFeishuHistoryPath,
 } from './services/feishu-settings.js';
 import { getImageSwipeCommandCopy, createImageSwipeCalloutMarkdown } from './services/image-swipe.js';
+import { t } from './services/i18n.js';
+import { PublishDashboardView, PUBLISH_DASHBOARD_VIEW } from './views/dashboard/publish-dashboard.js';
 
 import {
   DEFAULT_SETTINGS,
@@ -391,6 +396,8 @@ class AppleStyleView extends ItemView {
     // 复制与同步复用同一份本地导出结果，避免重复栅格化
     /** @type {Map<string, unknown>} */
     this.mermaidImageCache = new Map();
+    /** @type {Map<string, { dataUrl: string, width: number, height: number }>} 复制到公众号时公式转图的缓存（3.12.0） */
+    this.mathImageCache = new Map();
 
     /** @type {number} */
     this.renderGeneration = 0;
@@ -454,6 +461,10 @@ class AppleStyleView extends ItemView {
     this.isCopying = false;
     /** @type {CaptionToggleStateLike | null} */
     this.captionToggleState = null;
+    /** @type {ObsidianElementLike | null} 悬浮层「显示图片说明文字」区块（随水印开关联动说明文字，3.12.0） */
+    this.captionSectionEl = null;
+    /** @type {ObsidianElementLike | null} 预览区外层（mode-phone / mode-classic 类在它上面切换，3.12.0） */
+    this.previewWrapper = null;
     /** @type {string} */
     this.pendingAiLayoutFamily = '';
     /** @type {string} */
@@ -492,40 +503,29 @@ class AppleStyleView extends ItemView {
     // 创建设置面板
     this.createSettingsPanel(container);
 
-    // 创建预览区 - 根据设置决定是否使用手机框
-    const usePhoneFrame = this.plugin.settings.usePhoneFrame && !isMobileClient(this.app);
+    // 创建预览区。3.12.0：手机框的 DOM 始终存在，手机 / 经典两种模式只靠 wrapper 上的类切换
+    //（mode-classic 下 CSS 隐藏顶栏与 Home 条、手机框铺满），这样悬浮层里的开关能即时生效，不用重开面板。
     const previewWrapper = container.createEl('div', {
-      cls: `apple-preview-wrapper ${usePhoneFrame ? 'mode-phone' : 'mode-classic'}`
+      cls: `apple-preview-wrapper ${this.shouldUsePhoneFrame() ? 'mode-phone' : 'mode-classic'}`
     });
+    this.previewWrapper = previewWrapper;
 
     // Light Dismiss: 点击预览区域(手机框外)收起设置面板
     previewWrapper.addEventListener('click', () => {
       this.closeTransientPanels();
     });
 
-    if (usePhoneFrame) {
-      // === 手机仿真模式 ===
-      const phoneFrame = previewWrapper.createEl('div', { cls: 'apple-phone-frame' });
-
-      // 1. 顶部导航栏 (模拟微信)
-      const header = phoneFrame.createEl('div', { cls: 'apple-phone-header' });
-      header.createEl('span', { cls: 'title', text: '公众号预览' });
-      header.createEl('span', { cls: 'dots', text: '•••' });
-
-      // 2. 内容区域 (挂载到手机框内)
-      this.previewContainer = phoneFrame.createEl('div', {
-        cls: 'apple-converter-preview',
-      });
-
-      // 3. 底部 Home Indicator
-      phoneFrame.createEl('div', { cls: 'apple-home-indicator' });
-    } else {
-      // === 经典无框模式 ===
-      // 直接挂载到 wrapper，且 wrapper 样式会变为填满父容器
-      this.previewContainer = previewWrapper.createEl('div', {
-        cls: 'apple-converter-preview',
-      });
-    }
+    const phoneFrame = previewWrapper.createEl('div', { cls: 'apple-phone-frame' });
+    // 1. 顶部导航栏 (模拟微信)
+    const header = phoneFrame.createEl('div', { cls: 'apple-phone-header' });
+    header.createEl('span', { cls: 'title', text: '公众号预览' });
+    header.createEl('span', { cls: 'dots', text: '•••' });
+    // 2. 内容区域 (挂载到手机框内)
+    this.previewContainer = phoneFrame.createEl('div', {
+      cls: 'apple-converter-preview',
+    });
+    // 3. 底部 Home Indicator
+    phoneFrame.createEl('div', { cls: 'apple-home-indicator' });
 
     // rednote(小红书图卡)预览容器:与公众号预览并存,按模式显隐
     this.rednoteContainer = container.createEl('div', { cls: 'red-embed-container is-hidden' });
@@ -1356,6 +1356,7 @@ class AppleStyleView extends ItemView {
     this.currentHtml = this.baseRenderedHtml;
     this.aiPreviewApplied = false;
     setElementHtml(this.previewContainer, this.baseRenderedHtml);
+    if (this.baseRenderedHtml.includes('<mjx-container')) void finishMathRender();
     this.previewContainer.scrollTop = scrollTop;
     this.previewContainer.addClass('apple-has-content');
     this.syncPreviewPresentationMode();
@@ -1373,6 +1374,25 @@ class AppleStyleView extends ItemView {
   /**
    * @returns {boolean}
    */
+  /**
+   * 是否用手机仿真框：设置开启且不是移动端。
+   * @returns {boolean}
+   */
+  shouldUsePhoneFrame() {
+    return this.plugin.settings.usePhoneFrame === true && !isMobileClient(this.app);
+  }
+
+  /**
+   * 按当前设置切换预览区的手机框 / 经典模式（3.12.0：悬浮层开关即时生效，不再要求重开面板）。
+   * 手机框 DOM 常驻，这里只切 wrapper 上的类，CSS 负责显隐与铺满。
+   */
+  applyPhoneFrameMode() {
+    if (!this.previewWrapper) return;
+    const phone = this.shouldUsePhoneFrame();
+    this.previewWrapper.classList.toggle('mode-phone', phone);
+    this.previewWrapper.classList.toggle('mode-classic', !phone);
+  }
+
   openPluginSettings() {
     const settingApi = this.app?.setting;
     if (!settingApi || typeof settingApi.open !== 'function') return false;
@@ -1556,6 +1576,8 @@ class AppleStyleView extends ItemView {
       // 滚动位置保持 (Scroll Preservation)
       const scrollTop = this.previewContainer.scrollTop;
       setElementHtml(this.previewContainer, html);
+      // 3.12.0：CHTML 公式插入 DOM 后让 MathJax 补齐本轮字形样式
+      if (html.includes('<mjx-container')) void finishMathRender();
       this.previewContainer.scrollTop = scrollTop;
 
       this.previewContainer.addClass('apple-has-content'); // 添加内容状态类
@@ -1708,6 +1730,11 @@ class AppleStyleView extends ItemView {
       await convertRenderedMermaidDiagramsToImages(root, {
         simpleHash: (value) => this.simpleHash(String(value || '')),
         mermaidImageCache: this.mermaidImageCache,
+      });
+      // 3.12.0：Obsidian 自带 MathJax 的 CHTML 公式，公众号编辑器不认 mjx-* 元素，复制前栅格化成图片
+      await convertMathContainersToImages(root, {
+        cache: this.mathImageCache,
+        simpleHash: (value) => this.simpleHash(String(value || '')),
       });
       this.transformCodeBlocksForClipboard(root);
     } finally {
@@ -2046,6 +2073,9 @@ class AppleStyleView extends ItemView {
     if (this.svgUploadCache) {
       this.svgUploadCache.clear();
     }
+    if (this.mathImageCache) {
+      this.mathImageCache.clear();
+    }
     if (this.imageUploadCache) {
       this.imageUploadCache.clear();
     }
@@ -2141,6 +2171,8 @@ class AppleStylePlugin extends Plugin {
       APPLE_STYLE_VIEW,
       (leaf) => new AppleStyleView(leaf, this)
     );
+    // 3.12.0：分发看板
+    this.registerView(PUBLISH_DASHBOARD_VIEW, (leaf) => new PublishDashboardView(leaf));
 
     this.addRibbonIcon('tractor', APPLE_STYLE_VIEW_TITLE, async () => {
       await this.openConverter();
@@ -2148,15 +2180,23 @@ class AppleStylePlugin extends Plugin {
 
     this.addCommand({
       id: 'open-apple-converter',
-      name: '打开预览面板',
+      name: t('commands.openPreviewPanel'),
       callback: async () => {
         await this.openConverter();
       },
     });
 
     this.addCommand({
+      id: 'open-publish-dashboard',
+      name: t('dashboard.openCommand'),
+      callback: async () => {
+        await this.openPublishDashboard();
+      },
+    });
+
+    this.addCommand({
       id: 'insert-image-swipe-block',
-      name: getImageSwipeCommandCopy(this.app, 'image-swipe').name,
+      name: getImageSwipeCommandCopy('image-swipe').name,
       callback: () => {
         this.insertImageSwipeCalloutFromActiveEditor('image-swipe');
       },
@@ -2164,7 +2204,7 @@ class AppleStylePlugin extends Plugin {
 
     this.addCommand({
       id: 'insert-image-sensitive-block',
-      name: getImageSwipeCommandCopy(this.app, 'image-sensitive').name,
+      name: getImageSwipeCommandCopy('image-sensitive').name,
       callback: () => {
         this.insertImageSwipeCalloutFromActiveEditor('image-sensitive');
       },
@@ -2221,9 +2261,9 @@ class AppleStylePlugin extends Plugin {
     }
 
     const selectedText = typeof editor.getSelection === 'function' ? editor.getSelection() : '';
-    const markdown = createImageSwipeCalloutMarkdown(type, selectedText, this.app);
+    const markdown = createImageSwipeCalloutMarkdown(type, selectedText);
     editor.replaceSelection(markdown);
-    new Notice(getImageSwipeCommandCopy(this.app, type).notice);
+    new Notice(getImageSwipeCommandCopy(type).notice);
   }
 
   /**
@@ -2255,6 +2295,21 @@ class AppleStylePlugin extends Plugin {
         this.toConverterViewState(currentViewState, { active: currentViewState.active === true })
       );
     }
+  }
+
+  /**
+   * 打开分发看板（3.12.0）：已开着就聚焦，否则在主区域新开一个标签页。
+   */
+  async openPublishDashboard() {
+    const existing = this.app.workspace.getLeavesOfType(PUBLISH_DASHBOARD_VIEW)[0];
+    if (existing) {
+      await revealLeafCompat(this.app.workspace, existing);
+      return;
+    }
+    const leaf = this.app.workspace.getLeaf?.('tab') || this.app.workspace.getLeaf?.(false);
+    if (!leaf) return;
+    await leaf.setViewState({ type: PUBLISH_DASHBOARD_VIEW, active: true });
+    await revealLeafCompat(this.app.workspace, leaf);
   }
 
   async openConverter() {
@@ -2419,7 +2474,7 @@ class AppleStylePlugin extends Plugin {
       }
     }
 
-    // 数据迁移：将旧的单账号格式迁移到新的多账号格式
+    // 数据迁移：将旧的单账号格式迁移到新的多账号格式（3.12.0：迁移后把旧字段整个删掉，不再留空串）
     if (settings['wechatAppId'] && settings['wechatAccounts'].length === 0) {
       const migratedAccount = {
         id: generateId(),
@@ -2429,10 +2484,13 @@ class AppleStylePlugin extends Plugin {
       };
       /** @type {WechatAccountLike[]} */ (settings['wechatAccounts']).push(migratedAccount);
       settings['defaultAccountId'] = migratedAccount.id;
-      // 清除旧字段
-      settings['wechatAppId'] = '';
-      settings['wechatAppSecret'] = '';
       didMigrate = true;
+    }
+    for (const legacyKey of ['wechatAppId', 'wechatAppSecret']) {
+      if (Object.prototype.hasOwnProperty.call(settings, legacyKey)) {
+        delete settings[legacyKey];
+        didMigrate = true;
+      }
     }
 
     if (Array.isArray(settings['wechatAccounts'])) {
@@ -2613,6 +2671,28 @@ class AppleStylePlugin extends Plugin {
       articleLayoutsByPath[normalizedPath] = normalizeArticleLayoutCacheEntry(existingEntry) || existingEntry;
     }
     return this.saveSettings();
+  }
+
+  /**
+   * 记一次 AI 编排的 token 用量到本机累计（3.12.0 费用可见性）。
+   * @param {import('./services/ai-layout.js').AiUsageLike | null | undefined} usage
+   * @returns {Promise<void>}
+   */
+  async recordAiUsage(usage) {
+    const pluginSettings = getPluginSettings(this);
+    const aiSettings = /** @type {AiSettingsLike} */ (pluginSettings['ai'] || createDefaultAiSettings());
+    aiSettings.usageTotals = addAiUsageToTotals(aiSettings.usageTotals, usage);
+    pluginSettings['ai'] = aiSettings;
+    await this.saveSettings();
+  }
+
+  /** 清零本机累计用量（设置页按钮） */
+  async resetAiUsageTotals() {
+    const pluginSettings = getPluginSettings(this);
+    const aiSettings = /** @type {AiSettingsLike} */ (pluginSettings['ai'] || createDefaultAiSettings());
+    aiSettings.usageTotals = normalizeAiUsageTotals({});
+    pluginSettings['ai'] = aiSettings;
+    await this.saveSettings();
   }
 
   async saveSettings() {

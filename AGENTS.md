@@ -57,8 +57,7 @@ This file provides guidance to Codex when working with code in this repository.
   - `wechat-sync.js` and `sync-context.js`: draft sync orchestration and user-facing sync messaging.
 - **Generated embedded dependency snapshot**: `services/generated-embedded-deps.js`
   This is generated. If you change embedded runtime sources such as `converter.js` or `themes/apple-theme.js`, regenerate it before building or testing.
-- **Math bundle**: `lib/mathjax-plugin.js`
-  Built separately via `esbuild.math.mjs` and loaded dynamically.
+- **Math**: rendered by Obsidian's own MathJax (CHTML) through `services/markdown-it-math.js` + `services/math-renderer.js`; exports rasterize formulas via `services/math-export.js`. No MathJax bundle ships with the plugin (3.12.0).
 
 ## Current Product Behavior To Keep In Mind
 - Live preview is a first-class feature; the plugin is expected to feel close to WYSIWYG for WeChat publishing.

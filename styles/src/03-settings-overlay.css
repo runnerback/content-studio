@@ -192,3 +192,30 @@
   letter-spacing: 0.5px;
   margin-bottom: 2px;
 }
+
+/* 3.12.0：高级选项里的图片水印（头像上传 / 清除 / 备用 URL） */
+.apple-setting-content .apple-text-input {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.apple-settings-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.apple-settings-avatar-preview {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--background-modifier-border);
+}

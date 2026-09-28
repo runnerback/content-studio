@@ -14,13 +14,13 @@ import {
   createObsidianModal,
   getObsidianRequestUrl,
   getObsidianRequest,
-  getActiveDocumentCompat,
 } from '../../services/obsidian-adapters.js';
 import { normalizeVaultPath, isAbsolutePathLike } from '../../services/path-utils.js';
 import { toReadableError, toText, generateId } from '../../services/input-utils.js';
+import { t } from '../../services/i18n.js';
 import {
   MAX_ACCOUNTS,
-  MULTI_PLATFORM_TAB_LABEL,
+  getMultiPlatformTabLabel,
   getWechatAccountPublishOptions,
   normalizeWechatAccountPublishOptions,
 } from '../../services/settings-defaults.js';
@@ -37,6 +37,8 @@ import {
   getColorPaletteList,
   normalizeArticleLayoutCacheEntry,
   testAiProviderConnection,
+  normalizeAiUsageTotals,
+  estimateAiUsageCost,
 } from '../../services/ai-layout.js';
 import {
   FeishuSettingPage,
@@ -55,11 +57,16 @@ const { PluginSettingTab, Notice } = obsidianApi;
  * @typedef {import('../../input.js').AiProviderLike} AiProviderLike
  */
 
-/** 「AI 编排」与「标题 AI 润色」共用的模型质量选项 */
-const AI_MODEL_QUALITY_OPTIONS = {
-  'deepseek-v4-pro': 'DeepSeek V4 Pro（质量优先）',
-  'deepseek-v4-flash': 'DeepSeek V4 Lite（快/省）',
-};
+/**
+ * 「AI 编排」与「标题 AI 润色」共用的模型质量选项（渲染时取当前语言文案）
+ * @returns {Record<string, string>}
+ */
+function getAiModelQualityOptions() {
+  return {
+    'deepseek-v4-pro': t('settingsTab.modelQualityPro'),
+    'deepseek-v4-flash': t('settingsTab.modelQualityLite'),
+  };
+}
 const DEFAULT_AI_MODEL_QUALITY = 'deepseek-v4-pro';
 /**
  * Provider 层只标明模型家族一项；具体 Pro/Lite 质量由各消费方（标题润色 / AI 编排）
@@ -68,20 +75,21 @@ const DEFAULT_AI_MODEL_QUALITY = 'deepseek-v4-pro';
 const AI_MODEL_FAMILY_OPTION = { value: 'deepseek-v4-pro', label: 'DeepSeek V4' };
 /**
  * 各 Provider 类型的 Base URL 占位与默认值：切换类型且输入框为空时自动填入。
- * OpenAI 兼容（DeepSeek 走这条）默认指向 DeepSeek。
- * @type {Record<string, { placeholder: string, baseUrl: string }>}
+ * OpenAI 兼容（DeepSeek 走这条）默认指向 DeepSeek。占位文案随界面语言，故在渲染时取。
+ * @returns {Record<string, { placeholder: string, baseUrl: string }>}
  */
-const AI_PROVIDER_BASE_URL_DEFAULTS = {
-  [AI_PROVIDER_KINDS.GEMINI]: { placeholder: 'https://generativelanguage.googleapis.com/v1beta', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
-  [AI_PROVIDER_KINDS.ANTHROPIC]: { placeholder: 'https://api.anthropic.com/v1', baseUrl: 'https://api.anthropic.com/v1' },
-  [AI_PROVIDER_KINDS.OPENAI_COMPATIBLE]: { placeholder: 'https://api.deepseek.com/v1 或 http://localhost:11434/v1', baseUrl: 'https://api.deepseek.com/v1' },
-};
+function getAiProviderBaseUrlDefaults() {
+  return {
+    [AI_PROVIDER_KINDS.GEMINI]: { placeholder: 'https://generativelanguage.googleapis.com/v1beta', baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+    [AI_PROVIDER_KINDS.ANTHROPIC]: { placeholder: 'https://api.anthropic.com/v1', baseUrl: 'https://api.anthropic.com/v1' },
+    [AI_PROVIDER_KINDS.OPENAI_COMPATIBLE]: { placeholder: t('settingsTab.aiProviderBaseUrlPlaceholderOpenaiCompatible'), baseUrl: 'https://api.deepseek.com/v1' },
+  };
+}
 /** 虚拟 key：面板按「秒」编辑，settings 里持久化的是 ai.requestTimeoutMs */
 export const AI_REQUEST_TIMEOUT_SECONDS_KEY = 'ai.requestTimeoutSeconds';
 const DEFAULT_AI_REQUEST_TIMEOUT_SECONDS = 120;
 const MIN_AI_REQUEST_TIMEOUT_SECONDS = 5;
 const MAX_AI_REQUEST_TIMEOUT_SECONDS = 180;
-const PANEL_RESTART_NOTICE = '设置已保存，请关闭并重新打开发布助手面板以生效';
 
 /**
  * 按点路径读取（如 'ai.enabled'）；途中遇到 null / undefined 即返回 undefined
@@ -178,7 +186,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
    * @param {{ title?: string, message?: string, confirmText?: string, cancelText?: string }} options
    * @returns {Promise<boolean>}
    */
-  confirmDestructiveAction({ title, message, confirmText = '确认', cancelText = '取消' }) {
+  confirmDestructiveAction({ title, message, confirmText = t('settingsTab.confirm'), cancelText = t('settingsTab.cancel') }) {
     return new Promise((resolve) => {
       const modal = createObsidianModal(this.app);
       let settled = false;
@@ -190,9 +198,9 @@ export class AppleStyleSettingTab extends PluginSettingTab {
         resolve(value);
       };
 
-      modal.titleEl.setText(title || '确认操作');
+      modal.titleEl.setText(title || t('settingsTab.confirmActionTitle'));
       const body = modal.contentEl.createDiv({ cls: 'wechat-confirm-modal' });
-      body.createEl('p', { text: message || '确定要继续吗？' });
+      body.createEl('p', { text: message || t('settingsTab.confirmActionMessage') });
       const actions = modal.contentEl.createDiv({ cls: 'wechat-modal-buttons' });
       actions.createEl('button', { text: cancelText }).onclick = () => settle(false);
       const confirmBtn = actions.createEl('button', { text: confirmText, cls: 'mod-warning' });
@@ -220,46 +228,38 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     return [
       {
         name: 'Note Content Studio',
-        desc: '把笔记发布到微信公众号、小红书 / X 与飞书。设置分三组：样式（排版与图卡）、分发（各平台账号与连接）、AI（编排与润色）。',
+        desc: t('settingsTab.introDesc'),
         searchable: false,
       },
       {
         type: 'group',
-        heading: '样式设置',
+        heading: t('settingsTab.groupStyle'),
         items: [
+          // 3.12.0：手机仿真框与图片水印挪到预览面板「样式设置 → 高级选项」即时生效，样式只剩一个入口
           {
             type: 'page',
-            name: '公众号排版',
-            desc: '预览模式（手机仿真框）与图片水印头像',
-            items: [
-              this.getPreviewModeGroupDefinition(),
-              this.getWatermarkGroupDefinition(),
-            ],
-          },
-          {
-            type: 'page',
-            name: '小红书图卡',
-            desc: '图卡的用户信息、标题级别、页眉页脚、主题与字体管理（X 图卡同款）',
+            name: t('settingsTab.pageRednote'),
+            desc: t('settingsTab.pageRednoteDesc'),
             page: () => new RednoteSettingPage(this),
           },
           {
-            name: '按文档属性自动切换预览平台',
-            desc: '切换文档时读取 frontmatter 的 platform 属性并切到对应平台（公众号 / 小红书 / X），省去手动点顶栏下拉框。写作时在文档属性里加 platform: wechat / rednote / x（也可写 公众号 / 小红书 / X）即可；没有该属性的文档保持当前平台。',
+            name: t('settingsTab.autoSwitchPlatformName'),
+            desc: t('settingsTab.autoSwitchPlatformDesc'),
             control: { type: 'toggle', key: 'autoSwitchPlatformByProperty' },
           },
         ],
       },
       {
         type: 'group',
-        heading: '分发设置',
+        heading: t('settingsTab.groupDistribution'),
         items: [
           {
             type: 'page',
-            name: '微信公众号',
-            desc: '公众号账号列表、默认账号、API 代理',
+            name: t('settingsTab.pageWechat'),
+            desc: t('settingsTab.pageWechatDesc'),
             displayValue: () => {
               const count = (this.plugin.settings.wechatAccounts || []).length;
-              return count > 0 ? `${count} 个账号` : '未配置';
+              return count > 0 ? t('settingsTab.wechatAccountCount', { count }) : t('settingsTab.wechatNotConfigured');
             },
             items: [
               ...this.getWechatAccountDefinitions(),
@@ -268,27 +268,27 @@ export class AppleStyleSettingTab extends PluginSettingTab {
           },
           {
             type: 'page',
-            name: '飞书',
-            desc: '飞书自建应用、目标文件夹与 OpenAPI 调用统计',
+            name: t('settingsTab.pageFeishu'),
+            desc: t('settingsTab.pageFeishuDesc'),
             page: () => new FeishuSettingPage(this),
           },
           {
             type: 'page',
-            name: MULTI_PLATFORM_TAB_LABEL,
-            desc: '连接浏览器插件「多栖 Crosspost」发布到小红书 / X；许可密钥与每日额度',
+            name: getMultiPlatformTabLabel(),
+            desc: t('settingsTab.pageMultiPlatformDesc'),
             page: () => new MultiPlatformSettingPage(this),
           },
         ],
       },
       {
         type: 'group',
-        heading: 'AI 设置',
+        heading: t('settingsTab.groupAi'),
         items: [
           {
             type: 'page',
-            name: 'AI Provider 与编排',
-            desc: 'AI Provider 凭证、AI 编排、标题 AI 润色',
-            displayValue: () => (this.plugin.settings.ai?.enabled ? 'AI 编排已开启' : 'AI 编排未开启'),
+            name: t('settingsTab.pageAi'),
+            desc: t('settingsTab.pageAiDesc'),
+            displayValue: () => (this.plugin.settings.ai?.enabled ? t('settingsTab.aiLayoutEnabledValue') : t('settingsTab.aiLayoutDisabledValue')),
             items: [
               ...this.getAiProviderDefinitions(),
               this.getAiLayoutGroupDefinition(),
@@ -301,70 +301,17 @@ export class AppleStyleSettingTab extends PluginSettingTab {
   }
 
   /**
-   * 「公众号排版」页：预览模式
-   * @returns {SettingDefinitionGroup}
-   */
-  getPreviewModeGroupDefinition() {
-    return {
-      type: 'group',
-      heading: '预览模式',
-      items: [{
-        name: '使用手机仿真框',
-        desc: '开启后，预览区域将显示为 iPhone X 手机框样式；关闭则恢复为经典全宽预览模式（需重启插件面板生效）',
-        control: { type: 'toggle', key: 'usePhoneFrame' },
-      }],
-    };
-  }
-
-  /**
-   * 「公众号排版」页：图片水印
-   * @returns {SettingDefinitionGroup}
-   */
-  getWatermarkGroupDefinition() {
-    const settings = this.plugin.settings;
-    return {
-      type: 'group',
-      heading: '图片水印',
-      items: [
-        {
-          name: '启用图片水印',
-          desc: '在每张图片上方显示头像（需重启插件面板生效）',
-          control: { type: 'toggle', key: 'enableWatermark' },
-        },
-        {
-          name: '上传本地头像',
-          desc: settings.avatarBase64
-            ? '✅ 已上传本地头像（优先使用）；点击可重新选择图片'
-            : '选择本地图片（小于 100KB），转换为 Base64 存储，无需网络请求',
-          action: () => this.pickLocalAvatar(),
-        },
-        {
-          name: '清除本地头像',
-          desc: '清除后改用下方「头像 URL（备用）」',
-          visible: () => Boolean(this.plugin.settings.avatarBase64),
-          action: () => { void this.clearLocalAvatar(); },
-        },
-        {
-          name: '头像 URL（备用）',
-          desc: '如未上传本地头像，将使用此 URL',
-          control: { type: 'text', key: 'avatarUrl', placeholder: 'https://example.com/avatar.jpg' },
-        },
-      ],
-    };
-  }
-
-  /**
    * 「微信公众号」页：API 代理（原「高级设置」）
    * @returns {SettingDefinitionGroup}
    */
   getProxyGroupDefinition() {
     return {
       type: 'group',
-      heading: 'API 代理',
+      heading: t('settingsTab.proxyHeading'),
       items: [
         {
-          name: 'API 代理地址',
-          desc: '如果您的网络 IP 经常变化（如多地办公或使用移动热点），可配置代理服务以解决微信 IP 白名单漂移导致的同步失败问题。必须使用 HTTPS。',
+          name: t('settingsTab.proxyUrlName'),
+          desc: t('settingsTab.proxyUrlDesc'),
           control: {
             type: 'text',
             key: 'proxyUrl',
@@ -373,8 +320,8 @@ export class AppleStyleSettingTab extends PluginSettingTab {
           },
         },
         {
-          name: '测试代理',
-          desc: '测试代理是否连通、能否转发到微信',
+          name: t('settingsTab.testProxyName'),
+          desc: t('settingsTab.testProxyDesc'),
           action: () => { void this.testProxyConnection(); },
         },
       ],
@@ -425,9 +372,6 @@ export class AppleStyleSettingTab extends PluginSettingTab {
         writeSettingPath(settings, key, value);
     }
     await this.plugin.saveSettings();
-    if (key === 'usePhoneFrame' || key === 'enableWatermark') {
-      new Notice(PANEL_RESTART_NOTICE);
-    }
     if (key.startsWith('ai.')) {
       this.refreshOpenConverterAiState();
     }
@@ -444,7 +388,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
   validateProxyUrl(value) {
     const trimmed = String(value || '').trim();
     if (trimmed && !trimmed.toLowerCase().startsWith('https://')) {
-      return '安全风险：代理地址必须使用 HTTPS 以保护您的 AppSecret。';
+      return t('settingsTab.proxyUrlHttpsRequired');
     }
     return undefined;
   }
@@ -464,16 +408,16 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     return [
       {
         type: 'group',
-        heading: '微信公众号账号',
+        heading: t('settingsTab.wechatAccountsHeading'),
         items: [
           {
-            name: '获取凭证',
-            desc: '请在微信公众号后台 [设置与开发] → [基本配置] 中获取 AppID 和 AppSecret，并确保已将当前 IP 加入白名单。',
+            name: t('settingsTab.wechatCredentialsName'),
+            desc: t('settingsTab.wechatCredentialsDesc'),
             searchable: false,
           },
           {
-            name: '默认账号',
-            desc: '同步到微信草稿箱时默认选中的公众号。',
+            name: t('settingsTab.defaultAccountName'),
+            desc: t('settingsTab.defaultAccountDesc'),
             visible: () => (this.plugin.settings.wechatAccounts || []).length > 0,
             control: { type: 'dropdown', key: 'defaultAccountId', options: accountOptions },
           },
@@ -481,20 +425,20 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       },
       {
         type: 'list',
-        heading: '账号列表',
-        emptyState: '暂无账号，点击右上角「+」添加。',
+        heading: t('settingsTab.accountListHeading'),
+        emptyState: t('settingsTab.accountListEmpty'),
         items: accounts.map((account) => ({
-          name: account.id === defaultId ? `${account.name}（默认）` : account.name,
-          desc: `AppID: ${String(account.appId || '').substring(0, 8)}... · 点击编辑或测试连接`,
+          name: account.id === defaultId ? t('settingsTab.defaultItemName', { name: account.name }) : account.name,
+          desc: t('settingsTab.accountItemDesc', { appId: String(account.appId || '').substring(0, 8) }),
           action: (/** @type {HTMLElement} */ _el, /** @type {number} */ index) => {
             this.showEditAccountModal(this.plugin.settings.wechatAccounts[index]);
           },
         })),
         addItem: {
-          name: '添加账号',
+          name: t('settingsTab.addAccount'),
           action: () => {
             if ((this.plugin.settings.wechatAccounts || []).length >= MAX_ACCOUNTS) {
-              new Notice(`已达到最大账号数量 (${MAX_ACCOUNTS})`);
+              new Notice(t('settingsTab.maxAccountsReached', { max: MAX_ACCOUNTS }));
               return;
             }
             this.showEditAccountModal(null);
@@ -514,7 +458,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     const defaultProviderId = this.plugin.settings.ai.defaultProviderId;
     const runnableProviders = providers.filter((provider) => isAiProviderRunnable(provider) && provider.enabled !== false);
     /** @type {Record<string, string>} */
-    const providerOptions = { '': '自动选择' };
+    const providerOptions = { '': t('settingsTab.aiProviderAuto') };
     providers.forEach((provider) => {
       providerOptions[provider.id] = `${provider.name} (${summarizeAiProviderIssues(provider)})`;
     });
@@ -523,26 +467,33 @@ export class AppleStyleSettingTab extends PluginSettingTab {
         type: 'group',
         heading: 'AI Provider',
         items: [{
-          name: '默认 AI Provider',
-          desc: `${runnableProviders.length > 0
-            ? '生成 AI 编排时会优先使用这里选中的 Provider。'
-            : '还没有可直接用于 AI 编排的 Provider，请先补全 Base URL、API Key 和模型。'}「AI 编排」与「标题 AI 润色」都复用它的凭证（当前 DeepSeek），各自的开关与模型质量在下方区块单独设置。`,
+          name: t('settingsTab.defaultAiProviderName'),
+          desc: t('settingsTab.defaultAiProviderDesc', {
+            lead: t(runnableProviders.length > 0
+              ? 'settingsTab.defaultAiProviderDescRunnable'
+              : 'settingsTab.defaultAiProviderDescMissing'),
+          }),
           control: { type: 'dropdown', key: 'ai.defaultProviderId', options: providerOptions },
         }],
       },
       {
         type: 'list',
-        heading: 'AI Provider 列表',
-        emptyState: '暂无 AI Provider，点击右上角「+」添加。',
+        heading: t('settingsTab.aiProviderListHeading'),
+        emptyState: t('settingsTab.aiProviderListEmpty'),
         items: providers.map((provider) => ({
-          name: provider.id === defaultProviderId ? `${provider.name}（默认）` : provider.name,
-          desc: `${this.describeAiProviderStatus(provider)} · ${provider.kind} · ${provider.model || '未设置模型'} · ${summarizeAiProviderIssues(provider)} · 点击编辑或测试连接`,
+          name: provider.id === defaultProviderId ? t('settingsTab.defaultItemName', { name: provider.name }) : provider.name,
+          desc: t('settingsTab.aiProviderItemDesc', {
+            status: this.describeAiProviderStatus(provider),
+            kind: provider.kind,
+            model: provider.model || t('settingsTab.aiProviderNoModel'),
+            issues: summarizeAiProviderIssues(provider),
+          }),
           action: (/** @type {HTMLElement} */ _el, /** @type {number} */ index) => {
             this.showEditAiProviderModal(this.plugin.settings.ai.providers[index]);
           },
         })),
         addItem: {
-          name: '添加 AI Provider',
+          name: t('settingsTab.addAiProvider'),
           action: () => this.showEditAiProviderModal(null),
         },
         onDelete: (/** @type {number} */ index) => { void this.deleteAiProvider(index); },
@@ -555,9 +506,9 @@ export class AppleStyleSettingTab extends PluginSettingTab {
    * @returns {string}
    */
   describeAiProviderStatus(provider) {
-    if (provider.enabled === false) return '已停用';
-    if (isAiProviderRunnable(provider)) return '可用';
-    return '待补全';
+    if (provider.enabled === false) return t('settingsTab.aiProviderStatusDisabled');
+    if (isAiProviderRunnable(provider)) return t('settingsTab.aiProviderStatusReady');
+    return t('settingsTab.aiProviderStatusIncomplete');
   }
 
   /** @returns {SettingDefinitionGroup} */
@@ -565,21 +516,21 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     const cache = this.getAiLayoutCacheSummary();
     return {
       type: 'group',
-      heading: 'AI 编排',
+      heading: t('settingsTab.aiLayoutHeading'),
       items: [
         {
-          name: '启用 AI 编排',
-          desc: '关闭后会隐藏右侧工具栏中的 AI 编排入口，但不会删除已生成的缓存结果。',
+          name: t('settingsTab.aiLayoutEnabledName'),
+          desc: t('settingsTab.aiLayoutEnabledDesc'),
           control: { type: 'toggle', key: 'ai.enabled', defaultValue: false },
         },
         {
-          name: '模型质量',
-          desc: 'AI 编排使用的模型质量，复用上方「默认 AI Provider」的凭证。',
-          control: { type: 'dropdown', key: 'ai.layoutModel', options: AI_MODEL_QUALITY_OPTIONS, defaultValue: DEFAULT_AI_MODEL_QUALITY },
+          name: t('settingsTab.modelQualityName'),
+          desc: t('settingsTab.aiLayoutModelQualityDesc'),
+          control: { type: 'dropdown', key: 'ai.layoutModel', options: getAiModelQualityOptions(), defaultValue: DEFAULT_AI_MODEL_QUALITY },
         },
         {
-          name: '默认布局',
-          desc: '打开 AI 编排面板时默认选中的布局。保持“自动推荐”时，AI 会根据文章内容推荐布局风格。',
+          name: t('settingsTab.defaultLayoutName'),
+          desc: t('settingsTab.defaultLayoutDesc'),
           control: {
             type: 'dropdown',
             key: 'ai.defaultLayoutFamily',
@@ -588,8 +539,8 @@ export class AppleStyleSettingTab extends PluginSettingTab {
           },
         },
         {
-          name: '默认颜色',
-          desc: '打开 AI 编排面板时默认选中的颜色。保持“自动推荐”时，AI 会推荐一个配色；生成后也可手动切换。',
+          name: t('settingsTab.defaultColorName'),
+          desc: t('settingsTab.defaultColorDesc'),
           control: {
             type: 'dropdown',
             key: 'ai.defaultColorPalette',
@@ -598,13 +549,13 @@ export class AppleStyleSettingTab extends PluginSettingTab {
           },
         },
         {
-          name: '编排时参考图片',
-          desc: '开启后，AI 会把文中的配图和截图作为排版素材参考，但不会直接改写你的正文。',
+          name: t('settingsTab.includeImagesName'),
+          desc: t('settingsTab.includeImagesDesc'),
           control: { type: 'toggle', key: 'ai.includeImagesInLayout', defaultValue: true },
         },
         {
-          name: 'AI 请求超时（秒）',
-          desc: '默认 120 秒；较快模型可设 15 到 45 秒，较慢或本地模型建议保持 60 到 120 秒（范围 5–180）。',
+          name: t('settingsTab.aiTimeoutName'),
+          desc: t('settingsTab.aiTimeoutDesc'),
           control: {
             type: 'number',
             key: AI_REQUEST_TIMEOUT_SECONDS_KEY,
@@ -616,17 +567,62 @@ export class AppleStyleSettingTab extends PluginSettingTab {
         },
         cache.layoutCount > 0
           ? {
-            name: '清空 AI 编排缓存',
-            desc: `当前已缓存 ${cache.docCount} 篇文章、共 ${cache.layoutCount} 份编排风格结果。清空后需重新生成。`,
+            name: t('settingsTab.clearAiLayoutCacheName'),
+            desc: t('settingsTab.clearAiLayoutCacheDesc', { docCount: cache.docCount, layoutCount: cache.layoutCount }),
             action: () => { void this.clearAiLayoutCache(); },
           }
           : {
-            name: 'AI 编排缓存',
-            desc: '当前还没有缓存的 AI 编排结果。',
+            name: t('settingsTab.aiLayoutCacheName'),
+            desc: t('settingsTab.aiLayoutCacheEmptyDesc'),
             searchable: false,
           },
+        // 3.12.0：费用可见性——本机累计用量 + 单价（元 / 百万 tokens）
+        {
+          name: t('settingsTab.aiUsageName'),
+          desc: this.describeAiUsageTotals(),
+          searchable: false,
+        },
+        {
+          name: t('settingsTab.aiUsageResetName'),
+          desc: t('settingsTab.aiUsageResetDesc'),
+          visible: () => normalizeAiUsageTotals(this.plugin.settings.ai.usageTotals).requests > 0,
+          action: () => { void this.resetAiUsageTotals(); },
+        },
+        {
+          name: t('settingsTab.aiPriceInputName'),
+          desc: t('settingsTab.aiPriceInputDesc'),
+          control: { type: 'number', key: 'ai.usagePricePerMillion.input', min: 0, max: 100000, step: 0.01, placeholder: '0', defaultValue: 0 },
+        },
+        {
+          name: t('settingsTab.aiPriceOutputName'),
+          desc: t('settingsTab.aiPriceOutputDesc'),
+          control: { type: 'number', key: 'ai.usagePricePerMillion.output', min: 0, max: 100000, step: 0.01, placeholder: '0', defaultValue: 0 },
+        },
       ],
     };
+  }
+
+  /**
+   * 「本机累计用量」说明：次数 + 输入 / 输出 tokens，填了单价再带上估算费用。
+   * @returns {string}
+   */
+  describeAiUsageTotals() {
+    const totals = normalizeAiUsageTotals(this.plugin.settings.ai.usageTotals);
+    if (totals.requests === 0) return t('settingsTab.aiUsageDescEmpty');
+    const cost = estimateAiUsageCost(totals, this.plugin.settings.ai.usagePricePerMillion);
+    const base = t('settingsTab.aiUsageDesc', {
+      requests: totals.requests,
+      prompt: totals.promptTokens.toLocaleString('zh-CN'),
+      completion: totals.completionTokens.toLocaleString('zh-CN'),
+      total: totals.totalTokens.toLocaleString('zh-CN'),
+    });
+    return cost === null ? base : `${base}${t('settingsTab.aiUsageCostSuffix', { cost: cost.toFixed(2) })}`;
+  }
+
+  async resetAiUsageTotals() {
+    await this.plugin.resetAiUsageTotals();
+    new Notice(t('settingsTab.aiUsageResetDone'));
+    this.update();
   }
 
   /** @returns {{ docCount: number, layoutCount: number }} */
@@ -651,19 +647,19 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     const provider = providers.find((item) => item.id === defaultProviderId);
     return {
       type: 'group',
-      heading: '标题 AI 润色',
+      heading: t('settingsTab.titlePolishHeading'),
       items: [
         {
-          name: '启用标题 AI 润色',
-          desc: '开启后，在「发布与分发」的文章标题旁显示「AI 润色标题」按钮，一键让 LLM 根据正文优化标题（给 5 个候选）。',
+          name: t('settingsTab.titlePolishEnabledName'),
+          desc: t('settingsTab.titlePolishEnabledDesc'),
           control: { type: 'toggle', key: 'titlePolishEnabled', defaultValue: true },
         },
         {
-          name: '模型质量',
+          name: t('settingsTab.modelQualityName'),
           desc: provider
-            ? `使用 Provider「${provider.name}」的凭证；当前 DeepSeek 可选 V4 Pro / V4 Lite。`
-            : '尚未配置默认 AI Provider。请先在上方「AI Provider」里添加并选中一个 Provider（DeepSeek），标题润色才能用。',
-          control: { type: 'dropdown', key: 'titlePolishModel', options: AI_MODEL_QUALITY_OPTIONS, defaultValue: DEFAULT_AI_MODEL_QUALITY },
+            ? t('settingsTab.titlePolishModelDesc', { name: provider.name })
+            : t('settingsTab.titlePolishModelDescNoProvider'),
+          control: { type: 'dropdown', key: 'titlePolishModel', options: getAiModelQualityOptions(), defaultValue: DEFAULT_AI_MODEL_QUALITY },
         },
       ],
     };
@@ -674,42 +670,6 @@ export class AppleStyleSettingTab extends PluginSettingTab {
   // ==========================================================================
 
   /** 选择本地图片作为水印头像（Base64 存储） */
-  pickLocalAvatar() {
-    const activeDocument = getActiveDocumentCompat();
-    if (!activeDocument) return;
-    const input = activeDocument.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = (e) => {
-      const target = e.target instanceof HTMLInputElement ? e.target : null;
-      const file = target?.files?.[0] || null;
-      if (!file) return;
-
-      if (file.size > 100 * 1024) {
-        new Notice('❌ 图片太大，请选择 100 千字节以内的图片');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const result = event.target?.result;
-        this.plugin.settings.avatarBase64 = typeof result === 'string' ? result : '';
-        await this.plugin.saveSettings();
-        new Notice('✅ 头像已上传');
-        this.update();
-      };
-      reader.readAsDataURL(file);
-    };
-    input.click();
-  }
-
-  async clearLocalAvatar() {
-    this.plugin.settings.avatarBase64 = '';
-    await this.plugin.saveSettings();
-    new Notice('已清除本地头像');
-    this.update();
-  }
-
   /**
    * 删除公众号账号（列表 onDelete）：确认后删除；删的是默认账号则回退到第一个。
    * @param {number} index
@@ -722,9 +682,9 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       throw new Error(`账号列表索引越界：${index}`);
     }
     const confirmed = await this.confirmDestructiveAction({
-      title: '删除公众号账号',
-      message: `确定要删除账号 "${account.name}" 吗？`,
-      confirmText: '删除',
+      title: t('settingsTab.deleteAccountTitle'),
+      message: t('settingsTab.deleteAccountConfirm', { name: account.name }),
+      confirmText: t('settingsTab.delete'),
     });
     if (!confirmed) return;
     settings.wechatAccounts = accounts.filter((item) => item.id !== account.id);
@@ -749,9 +709,9 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       throw new Error(`AI Provider 列表索引越界：${index}`);
     }
     const confirmed = await this.confirmDestructiveAction({
-      title: '删除 AI Provider',
-      message: `确定要删除 AI Provider "${provider.name}" 吗？`,
-      confirmText: '删除',
+      title: t('settingsTab.deleteAiProviderTitle'),
+      message: t('settingsTab.deleteAiProviderConfirm', { name: provider.name }),
+      confirmText: t('settingsTab.delete'),
     });
     if (!confirmed) return;
     ai.providers = providers.filter((item) => item.id !== provider.id);
@@ -767,15 +727,15 @@ export class AppleStyleSettingTab extends PluginSettingTab {
   async clearAiLayoutCache() {
     const cache = this.getAiLayoutCacheSummary();
     const confirmed = await this.confirmDestructiveAction({
-      title: '清空 AI 编排缓存',
-      message: `确定要清空 ${cache.docCount} 篇文章、共 ${cache.layoutCount} 份 AI 编排缓存吗？`,
-      confirmText: '清空',
+      title: t('settingsTab.clearAiLayoutCacheName'),
+      message: t('settingsTab.clearAiLayoutCacheConfirm', { docCount: cache.docCount, layoutCount: cache.layoutCount }),
+      confirmText: t('settingsTab.clear'),
     });
     if (!confirmed) return;
     this.plugin.settings.ai.articleLayoutsByPath = {};
     await this.plugin.saveSettings();
     this.refreshOpenConverterAiState();
-    new Notice('已清空 AI 编排缓存');
+    new Notice(t('settingsTab.aiLayoutCacheCleared'));
     this.update();
   }
 
@@ -787,26 +747,26 @@ export class AppleStyleSettingTab extends PluginSettingTab {
   async testProxyConnection() {
     const proxyUrl = String(this.plugin.settings.proxyUrl || '').trim();
     if (!proxyUrl) {
-      new Notice('请先填写 API 代理地址');
+      new Notice(t('settingsTab.proxyUrlRequired'));
       return;
     }
     if (!proxyUrl.toLowerCase().startsWith('https://')) {
-      new Notice('❌ 代理地址必须以 HTTPS 开头');
+      new Notice(t('settingsTab.proxyUrlMustBeHttps'));
       return;
     }
-    const progress = new Notice('⏳ 正在测试代理…', 0);
+    const progress = new Notice(t('settingsTab.proxyTesting'), 0);
     try {
       // 哑凭证 + 哑请求：只验证"代理能否把请求转发到微信并带回响应"，不涉及真实账号
       const api = new WechatAPI('PROXY_TEST', 'PROXY_TEST', proxyUrl, this.plugin.settings.clientId);
       const testUrl = 'https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=PROXY_TEST&secret=PROXY_TEST';
       const result = await api.sendRequest(testUrl, { method: 'GET' });
       if (result && result.errcode !== undefined) {
-        new Notice(`✅ 代理生效：请求已经代理转发到微信并收到响应（errcode ${toText(result.errcode)}）`, 6000);
+        new Notice(t('settingsTab.proxyTestSuccessWithErrcode', { errcode: toText(result.errcode) }), 6000);
       } else {
-        new Notice('✅ 代理已连通', 5000);
+        new Notice(t('settingsTab.proxyTestConnected'), 5000);
       }
     } catch (error) {
-      new Notice(`❌ 代理测试失败：${toReadableError(error).message}`, 9000);
+      new Notice(t('settingsTab.proxyTestFailed', { message: toReadableError(error).message }), 9000);
     } finally {
       progress.hide();
     }
@@ -832,26 +792,26 @@ export class AppleStyleSettingTab extends PluginSettingTab {
    */
   showEditAiProviderModal(provider) {
     const modal = createObsidianModal(this.app);
-    modal.titleEl.setText(provider ? '编辑 AI Provider' : '添加 AI Provider');
+    modal.titleEl.setText(provider ? t('settingsTab.editAiProviderTitle') : t('settingsTab.addAiProvider'));
 
     const form = modal.contentEl.createDiv();
 
     const nameGroup = form.createDiv({ cls: 'wechat-form-group' });
-    nameGroup.createEl('label', { text: '名称' });
+    nameGroup.createEl('label', { text: t('settingsTab.nameLabel') });
     const nameInput = nameGroup.createEl('input', {
       type: 'text',
-      placeholder: '例如：OpenAI / OpenRouter / 自建网关',
+      placeholder: t('settingsTab.aiProviderNamePlaceholder'),
       value: provider?.name || ''
     });
 
     const kindGroup = form.createDiv({ cls: 'wechat-form-group' });
-    kindGroup.createEl('label', { text: '类型' });
+    kindGroup.createEl('label', { text: t('settingsTab.kindLabel') });
     const kindSelectWrap = kindGroup.createDiv({ cls: 'wechat-form-select-wrap' });
     const kindSelect = kindSelectWrap.createEl('select', { cls: 'wechat-form-select' });
     const providerKinds = [
-      { value: AI_PROVIDER_KINDS.OPENAI_COMPATIBLE, label: 'OpenAI 兼容接口' },
-      { value: AI_PROVIDER_KINDS.GEMINI, label: 'Gemini 兼容格式' },
-      { value: AI_PROVIDER_KINDS.ANTHROPIC, label: 'Anthropic 兼容格式' },
+      { value: AI_PROVIDER_KINDS.OPENAI_COMPATIBLE, label: t('settingsTab.aiProviderKindOpenaiCompatible') },
+      { value: AI_PROVIDER_KINDS.GEMINI, label: t('settingsTab.aiProviderKindGemini') },
+      { value: AI_PROVIDER_KINDS.ANTHROPIC, label: t('settingsTab.aiProviderKindAnthropic') },
     ];
     providerKinds.forEach((kind) => {
       const option = kindSelect.createEl('option', { value: kind.value, text: kind.label });
@@ -864,12 +824,12 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     baseUrlGroup.createEl('label', { text: 'Base URL' });
     const baseUrlInput = baseUrlGroup.createEl('input', {
       type: 'text',
-      placeholder: 'https://api.openai.com/v1 或 http://localhost:11434/v1',
+      placeholder: t('settingsTab.aiProviderBaseUrlPlaceholder'),
       value: provider?.baseUrl || 'https://api.deepseek.com/v1'
     });
 
     const apiKeyGroup = form.createDiv({ cls: 'wechat-form-group' });
-    apiKeyGroup.createEl('label', { text: 'API 密钥' });
+    apiKeyGroup.createEl('label', { text: t('settingsTab.apiKeyLabel') });
     const apiKeyInput = apiKeyGroup.createEl('input', {
       type: 'password',
       placeholder: 'sk-...',
@@ -878,7 +838,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
     // 模型：Provider 层只标明模型家族一项（见 AI_MODEL_FAMILY_OPTION），不放质量选项。
     const modelGroup = form.createDiv({ cls: 'wechat-form-group' });
-    modelGroup.createEl('label', { text: '模型' });
+    modelGroup.createEl('label', { text: t('settingsTab.modelLabel') });
     const modelSelectWrap = modelGroup.createDiv({ cls: 'wechat-form-select-wrap' });
     const modelSelect = modelSelectWrap.createEl('select', { cls: 'wechat-form-select' });
     const opt = modelSelect.createEl('option', { value: AI_MODEL_FAMILY_OPTION.value, text: AI_MODEL_FAMILY_OPTION.label });
@@ -887,7 +847,8 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     const applyKindDefaults = () => {
       const kind = kindSelect.value || AI_PROVIDER_KINDS.OPENAI_COMPATIBLE;
       // 未知类型按 OpenAI 兼容处理
-      const defaults = AI_PROVIDER_BASE_URL_DEFAULTS[kind] || AI_PROVIDER_BASE_URL_DEFAULTS[AI_PROVIDER_KINDS.OPENAI_COMPATIBLE];
+      const baseUrlDefaults = getAiProviderBaseUrlDefaults();
+      const defaults = baseUrlDefaults[kind] || baseUrlDefaults[AI_PROVIDER_KINDS.OPENAI_COMPATIBLE];
       baseUrlInput.placeholder = defaults.placeholder;
       if ((!provider || provider.kind !== kind) && !baseUrlInput.value.trim()) {
         baseUrlInput.value = defaults.baseUrl;
@@ -897,7 +858,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     applyKindDefaults();
 
     const enabledGroup = form.createDiv({ cls: 'wechat-form-group' });
-    enabledGroup.createEl('label', { text: '启用' });
+    enabledGroup.createEl('label', { text: t('settingsTab.enabledLabel') });
     const enabledWrap = enabledGroup.createDiv({ cls: 'wechat-provider-enabled' });
     const enabledLabel = enabledWrap.createEl('label', { cls: 'apple-toggle' });
     const enabledToggle = enabledLabel.createEl('input', { type: 'checkbox', cls: 'apple-toggle-input' });
@@ -905,18 +866,18 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     enabledLabel.createEl('span', { cls: 'apple-toggle-slider' });
     enabledWrap.createEl('span', {
       cls: 'wechat-provider-enabled-text',
-      text: '保存后可用于 AI 编排和连接测试',
+      text: t('settingsTab.aiProviderEnabledHint'),
     });
 
     const btnRow = form.createDiv({ cls: 'wechat-modal-buttons' });
-    const cancelBtn = btnRow.createEl('button', { text: '取消' });
+    const cancelBtn = btnRow.createEl('button', { text: t('settingsTab.cancel') });
     cancelBtn.onclick = () => modal.close();
 
-    const testBtn = btnRow.createEl('button', { text: '测试连接', cls: 'wechat-btn-test' });
+    const testBtn = btnRow.createEl('button', { text: t('settingsTab.testConnection'), cls: 'wechat-btn-test' });
     testBtn.onclick = async () => {
       const candidate = normalizeAiProvider({
         id: provider?.id,
-        name: nameInput.value.trim() || '未命名 Provider',
+        name: nameInput.value.trim() || t('settingsTab.unnamedAiProvider'),
         kind: kindSelect.value,
         baseUrl: baseUrlInput.value.trim(),
         apiKey: apiKeyInput.value.trim(),
@@ -925,26 +886,26 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       });
       const issueSummary = summarizeAiProviderIssues(candidate);
       if (!isAiProviderRunnable(candidate)) {
-        new Notice(`请先补全 Provider 配置：${issueSummary}`);
+        new Notice(t('settingsTab.aiProviderIncompleteBeforeTest', { issues: issueSummary }));
         return;
       }
       testBtn.disabled = true;
-      testBtn.textContent = '测试中...';
+      testBtn.textContent = t('settingsTab.testing');
       try {
         await testAiProviderConnection(candidate, createObsidianFetchAdapter({ requestUrl: getObsidianRequestUrl(), request: getObsidianRequest() }));
-        new Notice('✅ 连接成功！');
+        new Notice(t('settingsTab.connectionSuccess'));
       } catch (error) {
-        new Notice(`❌ 连接失败: ${toReadableError(error).message}`);
+        new Notice(t('settingsTab.connectionFailed', { message: toReadableError(error).message }));
       }
       testBtn.disabled = false;
-      testBtn.textContent = '测试连接';
+      testBtn.textContent = t('settingsTab.testConnection');
     };
 
-    const saveBtn = btnRow.createEl('button', { text: '保存', cls: 'mod-cta' });
+    const saveBtn = btnRow.createEl('button', { text: t('settingsTab.save'), cls: 'mod-cta' });
     saveBtn.onclick = async () => {
       const nextProvider = normalizeAiProvider({
         id: provider?.id,
-        name: nameInput.value.trim() || '未命名 Provider',
+        name: nameInput.value.trim() || t('settingsTab.unnamedAiProvider'),
         kind: kindSelect.value,
         baseUrl: baseUrlInput.value.trim(),
         apiKey: apiKeyInput.value.trim(),
@@ -954,7 +915,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
       const issues = getAiProviderIssues(nextProvider).filter((issue) => issue !== 'disabled');
       if (issues.length > 0) {
-        new Notice(`请补全 Provider 配置：${summarizeAiProviderIssues(nextProvider)}`);
+        new Notice(t('settingsTab.aiProviderIncompleteBeforeSave', { issues: summarizeAiProviderIssues(nextProvider) }));
         return;
       }
 
@@ -976,7 +937,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       this.refreshOpenConverterAiState();
       modal.close();
       this.update();
-      new Notice(provider ? '✅ AI Provider 已更新' : '✅ AI Provider 已添加');
+      new Notice(provider ? t('settingsTab.aiProviderUpdated') : t('settingsTab.aiProviderAdded'));
     };
 
     modal.open();
@@ -988,23 +949,23 @@ export class AppleStyleSettingTab extends PluginSettingTab {
    */
   showEditAccountModal(account) {
     const modal = createObsidianModal(this.app);
-    modal.titleEl.setText(account ? '编辑账号' : '添加账号');
+    modal.titleEl.setText(account ? t('settingsTab.editAccountTitle') : t('settingsTab.addAccount'));
 
     const form = modal.contentEl.createDiv();
     const publishDefaults = getWechatAccountPublishOptions(account);
 
     // 账号名称
     const nameGroup = form.createDiv({ cls: 'wechat-form-group' });
-    nameGroup.createEl('label', { text: '账号名称' });
+    nameGroup.createEl('label', { text: t('settingsTab.accountNameLabel') });
     const nameInput = nameGroup.createEl('input', {
       type: 'text',
-      placeholder: '例如：我的公众号',
+      placeholder: t('settingsTab.accountNamePlaceholder'),
       value: account?.name || ''
     });
 
     // AppID
     const appIdGroup = form.createDiv({ cls: 'wechat-form-group' });
-    appIdGroup.createEl('label', { text: '开发者 ID' });
+    appIdGroup.createEl('label', { text: t('settingsTab.appIdLabel') });
     const appIdInput = appIdGroup.createEl('input', {
       type: 'text',
       placeholder: 'wx...',
@@ -1013,38 +974,38 @@ export class AppleStyleSettingTab extends PluginSettingTab {
 
     // AppSecret
     const secretGroup = form.createDiv({ cls: 'wechat-form-group' });
-    secretGroup.createEl('label', { text: '开发者密码' });
+    secretGroup.createEl('label', { text: t('settingsTab.appSecretLabel') });
     const secretInput = secretGroup.createEl('input', {
       type: 'password',
-      placeholder: '开发者密钥',
+      placeholder: t('settingsTab.appSecretPlaceholder'),
       value: account?.appSecret || ''
     });
 
     // 默认作者
     const authorGroup = form.createDiv({ cls: 'wechat-form-group' });
-    authorGroup.createEl('label', { text: '默认作者（可选）' });
+    authorGroup.createEl('label', { text: t('settingsTab.defaultAuthorLabel') });
     const authorInput = authorGroup.createEl('input', {
       type: 'text',
-      placeholder: '留空则不显示作者',
+      placeholder: t('settingsTab.defaultAuthorPlaceholder'),
       value: account?.author || ''
     });
 
     const publishOptions = form.createEl('details', { cls: 'wechat-sync-advanced wechat-account-publish-options' });
     publishOptions.createEl('summary', {
-      text: '发布选项',
+      text: t('settingsTab.publishOptionsSummary'),
       cls: 'wechat-sync-advanced-summary',
     });
     const publishSection = publishOptions.createDiv({ cls: 'wechat-sync-advanced-body wechat-account-publish-body' });
     publishSection.createEl('div', {
-      text: '可为当前公众号预设原文链接与留言相关的默认发布策略。',
+      text: t('settingsTab.publishOptionsHelp'),
       cls: 'wechat-form-help',
     });
 
     const sourceUrlGroup = publishSection.createDiv({ cls: 'wechat-form-group' });
-    sourceUrlGroup.createEl('label', { text: '默认原文链接（可选）' });
+    sourceUrlGroup.createEl('label', { text: t('settingsTab.sourceUrlLabel') });
     const sourceUrlInput = sourceUrlGroup.createEl('input', {
       type: 'url',
-      placeholder: '留空则不同步原文链接',
+      placeholder: t('settingsTab.sourceUrlPlaceholder'),
       value: publishDefaults.contentSourceUrl,
     });
 
@@ -1052,15 +1013,15 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     const commentLabel = commentGroup.createEl('label', { cls: 'wechat-form-checkbox-label' });
     const commentInput = commentLabel.createEl('input', { type: 'checkbox' });
     commentInput.checked = publishDefaults.openComment;
-    commentLabel.appendText('默认开启留言');
+    commentLabel.appendText(t('settingsTab.openCommentLabel'));
 
     const fansCommentGroup = publishSection.createDiv({ cls: 'wechat-form-checkbox-group' });
     const fansCommentLabel = fansCommentGroup.createEl('label', { cls: 'wechat-form-checkbox-label' });
     const fansCommentInput = fansCommentLabel.createEl('input', { type: 'checkbox' });
     fansCommentInput.checked = publishDefaults.openComment && publishDefaults.onlyFansCanComment;
-    fansCommentLabel.appendText('默认仅粉丝可留言');
+    fansCommentLabel.appendText(t('settingsTab.fansOnlyCommentLabel'));
     fansCommentGroup.createEl('div', {
-      text: '关闭留言时，此选项不会生效。',
+      text: t('settingsTab.fansOnlyCommentHelp'),
       cls: 'wechat-form-help',
     });
 
@@ -1076,36 +1037,36 @@ export class AppleStyleSettingTab extends PluginSettingTab {
     // 按钮区
     const btnRow = form.createDiv({ cls: 'wechat-modal-buttons' });
 
-    const cancelBtn = btnRow.createEl('button', { text: '取消' });
+    const cancelBtn = btnRow.createEl('button', { text: t('settingsTab.cancel') });
     cancelBtn.onclick = () => modal.close();
 
-    const testBtn = btnRow.createEl('button', { text: '测试连接', cls: 'wechat-btn-test' });
+    const testBtn = btnRow.createEl('button', { text: t('settingsTab.testConnection'), cls: 'wechat-btn-test' });
     testBtn.onclick = async () => {
       if (!appIdInput.value || !secretInput.value) {
-        new Notice('请填写开发者 ID 和开发者密码');
+        new Notice(t('settingsTab.appCredentialsRequired'));
         return;
       }
       testBtn.disabled = true;
-      testBtn.textContent = '测试中...';
+      testBtn.textContent = t('settingsTab.testing');
       try {
         const api = new WechatAPI(appIdInput.value.trim(), secretInput.value.trim(), this.plugin.settings.proxyUrl, this.plugin.settings.clientId);
         await api.getAccessToken();
-        new Notice('✅ 连接成功！');
+        new Notice(t('settingsTab.connectionSuccess'));
       } catch (err) {
-        new Notice(`❌ 连接失败: ${toReadableError(err).message}`);
+        new Notice(t('settingsTab.connectionFailed', { message: toReadableError(err).message }));
       }
       testBtn.disabled = false;
-      testBtn.textContent = '测试连接';
+      testBtn.textContent = t('settingsTab.testConnection');
     };
 
-    const saveBtn = btnRow.createEl('button', { text: '保存', cls: 'mod-cta' });
+    const saveBtn = btnRow.createEl('button', { text: t('settingsTab.save'), cls: 'mod-cta' });
     saveBtn.onclick = async () => {
-      const name = nameInput.value.trim() || '未命名账号';
+      const name = nameInput.value.trim() || t('settingsTab.unnamedAccount');
       const appId = appIdInput.value.trim();
       const appSecret = secretInput.value.trim();
 
       if (!appId || !appSecret) {
-        new Notice('请填写开发者 ID 和开发者密码');
+        new Notice(t('settingsTab.appCredentialsRequired'));
         return;
       }
 
@@ -1142,7 +1103,7 @@ export class AppleStyleSettingTab extends PluginSettingTab {
       await this.plugin.saveSettings();
       modal.close();
       this.update();
-      new Notice(account ? '✅ 账号已更新' : '✅ 账号已添加');
+      new Notice(account ? t('settingsTab.accountUpdated') : t('settingsTab.accountAdded'));
     };
 
     modal.open();

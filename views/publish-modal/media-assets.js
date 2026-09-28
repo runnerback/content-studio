@@ -14,6 +14,7 @@ import { obsidianApi, getObsidianRequestUrl, getActiveDocumentCompat, createFall
 import { createHtmlContainer } from '../../services/dom-utils.js';
 import { toImageElements, dataUrlToBlob, pMap } from '../../services/input-utils.js';
 import { rasterizeSvgToPngBlob } from '../../services/svg-rasterizer.js';
+import { rasterizeMathContainer } from '../../services/math-export.js';
 import { processAllImages as processAllImagesService, processMathFormulas as processMathFormulasService } from '../../services/wechat-media.js';
 import { cleanHtmlForDraft as cleanHtmlForDraftService } from '../../services/wechat-html-cleaner.js';
 import { mapAppUrlImagesToAssetUrls } from '../../services/article-image-assets.js';
@@ -106,6 +107,8 @@ export const mediaAssetsMixin = {
         svgElement instanceof SVGElement ? svgElement : createFallbackSvgElement(),
         typeof scale === 'number' ? scale : 3
       ),
+      // 3.12.0：Obsidian 自带 MathJax 的 CHTML 公式，用 html-to-image 3x 栅格化
+      rasterizeMathContainer: (el) => rasterizeMathContainer(el),
     }));
   },
 

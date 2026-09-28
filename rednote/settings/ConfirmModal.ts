@@ -1,4 +1,5 @@
 import { App, Modal } from 'obsidian';
+import { t } from '../../services/i18n.js';
 
 export class ConfirmModal extends Modal {
 
@@ -39,7 +40,7 @@ export class ConfirmModal extends Modal {
 
         // 取消按钮
 
-        buttonContainer.createEl('button', { text: '取消' })
+        buttonContainer.createEl('button', { text: t('rednoteSettings.cancelButton') })
 
             .addEventListener('click', () => this.close());
 
@@ -49,7 +50,7 @@ export class ConfirmModal extends Modal {
 
             cls: 'mod-cta',
 
-            text: '确认'
+            text: t('rednoteSettings.confirmButton')
 
         });
 

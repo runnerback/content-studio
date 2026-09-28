@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> 版本 3.11.17 · 更新 2026-09-24 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
+> 版本 3.12.0 · 更新 2026-09-28 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
 
 把 Obsidian 笔记变成可直接发布的内容：**微信公众号**文章、**小红书**图文卡片、**飞书**云文档，全部在 Obsidian 内实时预览。
 
@@ -10,9 +10,12 @@
 - **小红书图文卡片**：预览切到「小红书」模式，每个标题生成一张图卡；标题下的图片与文字同卡混排（宽度撑满、高度按比例），装不下时自动把图片拆成独立卡。可选多套主题（含 iOS 备忘录风格），导出 PNG。
 - **飞书云文档**：同一篇笔记同步到飞书云文档。
 - **AI 编排与标题润色**（可选）：用你自己的 API Key 做 AI 排版与标题建议。
-- **小红书 / X 草稿发布**（可选）：通过配套浏览器扩展把渲染好的图卡推送到平台草稿箱。
+- **分发看板**：命令面板「打开分发看板」，按笔记列出目标平台（frontmatter `platform`，可写数组一稿多发）、已发布 / 待确认 / 未发布与最近时间，可筛选。界面语言跟随 Obsidian（中文 → 简体中文，其它 → 英文）。
+- **小红书 / X 草稿发布**（可选，**扩展尚未发行**）：通过配套浏览器扩展把渲染好的图卡推送到平台草稿箱；扩展上架前此功能仅作者内测。
 
 ## 快速上手
+
+> 桌面版专用（manifest `isDesktopOnly: true`，3.12.0 起）：本机 WebSocket 桥接与飞书图片处理依赖桌面端能力，手机端 Obsidian 不会加载本插件。
 
 1. 点击侧边栏 **Content Studio** 图标（或运行命令「打开预览面板」）打开预览面板；
 2. 编辑笔记，面板实时渲染，双向同步滚动；
@@ -24,7 +27,7 @@
 - **飞书**：在设置中填入飞书应用凭证。
 - **AI 功能**（可选）：在设置中配置 AI Provider 与 API Key，见 [AI Provider 设置](./docs/guides/ai-provider.md)。
 - **小红书 / X 草稿发布**（可选，按日计量）：需要配套浏览器扩展 **Crosspost**，该扩展单独分发、目前尚未公开发布。没有扩展时其余功能不受影响：图卡预览、PNG/ZIP 导出、复制均可用。
-  发布按日计量：**Free** 每日 3 次，**Pro** 每日 30 次，**Max** 不限。Pro / Max 为付费许可，在 [爱发电](https://afdian.com/a/note_content_studio) 购买（海外的 Lemon Squeezy 渠道稍后开通），密钥填在 设置 → 分发设置 → 其他平台。详见 [额度与许可](./docs/guides/quota-and-license.md)。
+  发布按日计量：**Free** 每日 3 次，**Pro** 每日 30 次，**Max** 不限。Pro / Max 为付费许可，在 [爱发电](https://afdian.com/a/note_content_studio) 购买（海外的 Lemon Squeezy 渠道稍后开通），密钥填在 设置 → 分发设置 → 小红书 / X（浏览器扩展）。详见 [额度与许可](./docs/guides/quota-and-license.md)。
 
 ## 网络访问与隐私
 

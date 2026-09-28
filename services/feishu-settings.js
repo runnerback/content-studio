@@ -10,7 +10,7 @@ import { toText } from './input-utils.js';
  * @typedef {{ title: string, url: string, uploadTime: string, docToken: string, sourcePath: string }} FeishuUploadHistoryItemLike
  * @typedef {{ mode: 'source' | 'remote-image', provider: 'kroki', updatedAt: number }} FeishuMermaidPreferenceLike
  * @typedef {{ month: string, count: number, updatedAt: number }} FeishuApiUsageStatsLike
- * @typedef {{ enabled: boolean, appId: string, appSecret: string, folderToken: string, userId: string, enableSmartUpdate: boolean, enableDoubleLinkMode: boolean, debugLoggingEnabled: boolean, uploadHistory: FeishuUploadHistoryItemLike[], mermaidPreferences: Record<string, FeishuMermaidPreferenceLike>, apiUsage: FeishuApiUsageStatsLike }} FeishuSyncSettingsLike
+ * @typedef {{ enabled: boolean, appId: string, appSecret: string, folderToken: string, userId: string, uploadHistory: FeishuUploadHistoryItemLike[], mermaidPreferences: Record<string, FeishuMermaidPreferenceLike>, apiUsage: FeishuApiUsageStatsLike }} FeishuSyncSettingsLike
  */
 
 const FEISHU_FREE_MONTHLY_API_LIMIT = 10000;
@@ -102,9 +102,6 @@ function createDefaultFeishuSyncSettings() {
     appSecret: '',
     folderToken: '',
     userId: '', // Required for transferring ownership from Bot to User
-    enableSmartUpdate: true,
-    enableDoubleLinkMode: false,
-    debugLoggingEnabled: false,
     uploadHistory: [], // [{ title, url, uploadTime, docToken, sourcePath }]
     mermaidPreferences: {},
     apiUsage: createDefaultFeishuApiUsageStats(),
@@ -223,9 +220,6 @@ function normalizeFeishuSyncSettings(value) {
     appSecret: toTrimmedString(source.appSecret),
     folderToken: toTrimmedString(source.folderToken),
     userId: toTrimmedString(source.userId),
-    enableSmartUpdate: source.enableSmartUpdate !== false,
-    enableDoubleLinkMode: source.enableDoubleLinkMode === true,
-    debugLoggingEnabled: source.debugLoggingEnabled === true,
     uploadHistory,
     mermaidPreferences: normalizeMermaidPreferences(rawMermaidPreferences),
     apiUsage: normalizeFeishuApiUsageStats(source.apiUsage || source.apiUsageStats),

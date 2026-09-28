@@ -1,0 +1,101 @@
+// services/locales/zh-cn/multi-platform.js —— 命名空间 multi-platform 的简体中文文案（3.12.0）。key 与另一语言文件一一对应，tests/i18n.test.js 校验。
+// 覆盖「小红书 / X（浏览器扩展）」设置子页面（views/settings/multi-platform-tab.js）以及发布弹窗里的扩展未发行提示。
+
+/** @type {Readonly<Record<string, string>>} */
+export default Object.freeze({
+  // 页面引导与标题
+  'multiPlatform.intro': '连接浏览器插件，并选择要保存草稿的内容平台。',
+  'multiPlatform.headingName': '浏览器插件发布',
+  'multiPlatform.headingDesc': 'Obsidian 负责写作、预览和平台选择；浏览器插件使用当前的浏览器登录态，把文章保存到小红书、X 的草稿箱。微信公众号走上方的公众号 API。',
+
+  // 配套扩展引导（已发行 / 未发行两种）
+  'multiPlatform.onboardingTitle': '多平台发布依赖配套浏览器扩展「{name}」',
+  'multiPlatform.onboardingStepInstall': '安装：从浏览器应用商店安装扩展。',
+  'multiPlatform.onboardingStepPair': '配对：打开扩展弹窗 → 设置 → 复制「连接令牌」，填到下方；两端令牌一致即完成配对。',
+  'multiPlatform.onboardingStepPublish': '发布：在「发布与分发」选择小红书或 X，图卡与正文会经扩展用你的浏览器登录态存入草稿箱。',
+  'multiPlatform.extensionUnreleasedTitle': '浏览器扩展「{name}」尚未发行',
+  'multiPlatform.extensionUnreleasedDesc': '小红书 / X 草稿发布依赖该扩展，它目前仅作者内测、尚未上架浏览器应用商店。发行后本页会提供安装地址与配对步骤。没有扩展时图卡预览、PNG / ZIP 导出与复制均不受影响。',
+
+  // 开关与连接参数
+  'multiPlatform.enableName': '启用浏览器插件发布',
+  'multiPlatform.enableDescReleased': '开启后，Obsidian 会把文章发送给浏览器插件，由插件使用浏览器登录态保存到各平台草稿箱。在下方填入「连接令牌」即可完成配对。',
+  'multiPlatform.enableDescUnreleased': '扩展尚未发行，普通用户无需开启。已持有内测扩展时开启后在下方填入「连接令牌」完成配对。',
+  'multiPlatform.portName': '本地服务端口',
+  'multiPlatform.portDesc': '默认 9527。只有当浏览器插件中的本地服务地址使用了其他端口时才需要修改。',
+  'multiPlatform.tokenName': '连接令牌',
+  'multiPlatform.tokenDesc': '填入浏览器插件本地服务中显示的连接令牌，用于确认 Obsidian 与插件属于同一组连接。',
+  'multiPlatform.tokenPlaceholder': '粘贴扩展弹窗中显示的连接令牌',
+
+  // 许可密钥兑换与额度
+  'multiPlatform.redeemName': '第一步：用爱发电订单号兑换密钥',
+  'multiPlatform.redeemDesc': '小红书 / X 发布按日计量，免费档每日 3 次。在爱发电购买付费档后，把订单号粘贴到这里点「兑换」，许可密钥会自动填入下方。',
+  'multiPlatform.redeemPlaceholder': '爱发电订单号',
+  'multiPlatform.redeemButton': '兑换',
+  'multiPlatform.redeemNoNetwork': '❌ 当前环境不支持网络请求，无法兑换',
+  'multiPlatform.redeemSuccess': '✅ 已兑换 {tier} 许可并填入下方「许可密钥」',
+  'multiPlatform.redeemSuccessWithExpiry': '✅ 已兑换 {tier} 许可并填入下方「许可密钥」，有效期至 {date}',
+  'multiPlatform.redeemFailed': '❌ 兑换失败：{message}',
+  'multiPlatform.licenseKeyName': '第二步：许可密钥（付费档）',
+  'multiPlatform.licenseKeyDesc': '兑换成功后自动填入；也可手动粘贴已有密钥。留空按免费档计量（每日 3 次），付费档的每日次数见下方档位说明。',
+  'multiPlatform.licenseKeyPlaceholder': '兑换后自动填入，也可手动粘贴已有密钥',
+  'multiPlatform.quotaLabel': '额度',
+  'multiPlatform.tierLoading': '档位：读取中…',
+  'multiPlatform.quotaOffline': '连接浏览器插件后显示当前方案、今日用量与到期时间。',
+  'multiPlatform.quotaLoading': '正在读取当前方案…',
+  'multiPlatform.quotaBuy': '购买 Pro / Max',
+  'multiPlatform.quotaRenew': '续费 / 升级',
+  'multiPlatform.quotaFailed': '当前方案读取失败：{message}',
+  'multiPlatform.tierLine': '档位：{tiers}',
+  'multiPlatform.tierFailed': '档位：{message}',
+  'multiPlatform.tierNoNetwork': '档位：当前环境不支持网络请求',
+
+  // 统一连接状态栏
+  'multiPlatform.browserFallback': '浏览器',
+  'multiPlatform.timeJustNow': '刚刚',
+  'multiPlatform.timeMinutesAgo': '{count} 分钟前',
+  'multiPlatform.timeHoursAgo': '{count} 小时前',
+  'multiPlatform.timeDaysAgo': '{count} 天前',
+  'multiPlatform.statusTokenMissing': '未填写',
+  'multiPlatform.statusTokenMissingDesc': '连接令牌尚未填写。请到浏览器扩展弹窗复制令牌。',
+  'multiPlatform.statusReady': '已就绪',
+  'multiPlatform.statusDisconnected': '已断开',
+  'multiPlatform.statusDisconnectedDesc': ' 已断开，请重启浏览器扩展重新连接。',
+  'multiPlatform.statusConnectedChecked': '浏览器扩展已连接，可以发布。上次检查 {checkedAt}。',
+  'multiPlatform.statusConnected': '浏览器扩展已连接，可以发布。',
+  'multiPlatform.statusFailed': '连接失败',
+  'multiPlatform.statusFailedDescWithMessage': '{message}。请检查端口和令牌后点击「测试连接」。',
+  'multiPlatform.statusFailedDesc': '请检查端口和令牌后点击「测试连接」。',
+  'multiPlatform.statusWaiting': '等待连接',
+  'multiPlatform.statusWaitingDesc': '令牌已填写，请点击下方「测试连接」确认连接。',
+
+  // 发布平台区块
+  'multiPlatform.platformsTitle': '发布平台',
+  'multiPlatform.platformsDesc': '以下平台已接入，可在「发布与分发」中选择发布；更多平台规划中。',
+  'multiPlatform.platformsEmpty': '尚未读取到已接入平台，请点击下方「测试连接」。',
+  'multiPlatform.platformEnabledTitle': '{name} · 已接入',
+  'multiPlatform.plannedSummary': '计划支持（{count}）',
+  'multiPlatform.platformPlannedTitle': '{name}（计划支持）',
+  'multiPlatform.platformPlannedStatus': '计划中',
+
+  // 测试连接
+  'multiPlatform.testConnectionName': '测试连接',
+  'multiPlatform.testConnectionDesc': '验证 Obsidian 与浏览器插件是否连通，并逐个检测已接入平台（小红书、X）的登录状态。',
+  'multiPlatform.testButton': '测试',
+  'multiPlatform.testButtonWaiting': '等待插件...',
+  'multiPlatform.errorTokenInvalid': '连接令牌校验失败。请确认 Obsidian 与浏览器插件使用同一个连接令牌。',
+  'multiPlatform.errorHealthFailed': '浏览器插件健康检查失败',
+  'multiPlatform.connectedWithAuth': '已连接，并已检测各发布平台的登录状态。',
+  'multiPlatform.connectedTokenVerified': '已连接，连接令牌已通过插件校验。未检测到平台登录状态。',
+  'multiPlatform.connectedNoHealth': '已连接。当前插件版本未提供健康校验，平台登录状态未自动检测。',
+  'multiPlatform.noticeConnectedVerified': '✅ 已连接浏览器插件，连接令牌校验通过',
+  'multiPlatform.noticeConnected': '✅ 已连接浏览器插件',
+  'multiPlatform.errorConnectFailed': '浏览器插件连接失败',
+  'multiPlatform.errorTokenMismatch': '配对令牌不一致。如果你刚刚在浏览器插件设置中重置过令牌，请复制新令牌并粘贴到下方"连接令牌"输入框。',
+  'multiPlatform.errorHelloTimeout': '浏览器插件连接后未在限定时间内完成握手。可能扩展版本过旧或未启用握手。',
+  'multiPlatform.errorInvalidPayload': '浏览器插件发送的握手数据格式不正确。请升级浏览器插件到支持安全握手的版本。',
+  'multiPlatform.errorVersionUnsupported': '浏览器插件版本与 Obsidian 不兼容，握手被拒绝。请升级浏览器插件。',
+  'multiPlatform.errorHelloRejected': '浏览器插件握手失败（{reason}）。请检查浏览器插件版本与连接令牌。',
+  'multiPlatform.hintCheckBridge': '请确认浏览器正在运行、已安装浏览器插件，并检查地址、端口和连接令牌与这里一致。',
+  'multiPlatform.errorNotAuthenticated': '浏览器插件已连接但尚未通过认证。请确认插件已升级到支持安全握手的版本，且使用与 Obsidian 一致的连接令牌。',
+  'multiPlatform.noticeTestFailed': '❌ {message}',
+});

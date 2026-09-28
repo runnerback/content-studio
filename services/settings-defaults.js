@@ -8,6 +8,7 @@ import { createEmptyDraftCache } from './wechat-draft-cache.js';
 import { createDefaultMultiPlatformSyncSettings } from './wechatsync-settings.js';
 import { createDefaultFeishuSyncSettings } from './feishu-settings.js';
 import { createDefaultAiSettings } from './ai-layout.js';
+import { t } from './i18n.js';
 
 // 默认设置
 export const DEFAULT_SETTINGS = {
@@ -44,9 +45,7 @@ export const DEFAULT_SETTINGS = {
   // 这里单独控制开关与模型质量（当前 DeepSeek：v4 pro / v4 flash(lite)）。
   titlePolishEnabled: true,
   titlePolishModel: 'deepseek-v4-pro',
-  // 旧字段保留用于迁移检测
-  wechatAppId: '',
-  wechatAppSecret: '',
+  // 3.12.0：旧单账号字段 wechatAppId / wechatAppSecret 不再进默认设置；loadSettings 只在旧 data.json 里读到时迁移并删除
   ai: createDefaultAiSettings(),
 };
 
@@ -94,6 +93,9 @@ export function normalizeWechatAccountPublishOptions(values = {}) {
 }
 
 // UI constants shared between the entry file and the settings tab module.
-export const MULTI_PLATFORM_TAB_LABEL = '其他平台（小红书/知乎/抖音等）';
+// 3.12.0：按真实能力命名（扩展只接了小红书与 X），不再写知乎 / 抖音；随界面语言切换，所以是函数不是常量。
+export function getMultiPlatformTabLabel() {
+  return t('settingsTab.multiPlatformTabLabel');
+}
 // 视图标题（ribbon / command / 视图 tab / 设置面板顶栏 共用）
 export const APPLE_STYLE_VIEW_TITLE = 'Content Studio';

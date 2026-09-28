@@ -7,7 +7,6 @@ const ROOT = process.cwd();
 const SOURCE_FILES = {
   markdownIt: path.join(ROOT, 'lib', 'markdown-it.min.js'),
   highlight: path.join(ROOT, 'lib', 'highlight.min.js'),
-  mathjax: path.join(ROOT, 'lib', 'mathjax-plugin.js'),
 };
 
 async function ensureOrGenerateDeps() {
@@ -45,47 +44,7 @@ async function ensureOrGenerateDeps() {
   fs.writeFileSync(hljsDest, hljsCode, 'utf8');
   console.log('[generate-embedded-deps] Generated lib/highlight.min.js via esbuild');
 
-  // 3. Bundle mathjax-plugin.js
-  const mathEntry = path.join(ROOT, 'lib', 'math-entry.js');
-  const mathDest = SOURCE_FILES.mathjax;
-  if (!fs.existsSync(mathEntry)) {
-    throw new Error('Missing lib/math-entry.js for MathJax bundling.');
-  }
-  console.log('[generate-embedded-deps] Bundling MathJax plugin...');
-  const banner = `/* Obsidian WeChat MathJax Plugin (Bundled) */`;
-  const mathResult = await esbuild.build({
-    entryPoints: [mathEntry],
-    bundle: true,
-    write: false,
-    format: 'iife',
-    minify: true,
-    banner: { js: banner },
-    platform: 'browser',
-    define: {
-      'process.env.NODE_ENV': '"production"',
-      'PACKAGE_VERSION': '"3.2.2"'
-    },
-    external: ['katex'],
-    plugins: [
-      {
-        name: 'package-json-stub',
-        setup(build) {
-          build.onResolve({ filter: /package\.json$/ }, args => {
-            return { path: args.path, namespace: 'package-json-stub' }
-          })
-          build.onLoad({ filter: /.*/, namespace: 'package-json-stub' }, () => {
-            return {
-              contents: JSON.stringify({ version: "0.0.0" }),
-              loader: 'json',
-            }
-          })
-        },
-      }
-    ]
-  });
-  const mathCode = mathResult.outputFiles[0].text;
-  fs.writeFileSync(mathDest, mathCode, 'utf8');
-  console.log('[generate-embedded-deps] Generated lib/mathjax-plugin.js via esbuild');
+  // 3.12.0：公式改用 Obsidian 自带 MathJax（services/math-renderer.js），不再打包 mathjax-plugin.js
 }
 
 async function main() {
