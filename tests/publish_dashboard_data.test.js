@@ -80,7 +80,7 @@ describe('collect / filter / summarize', () => {
   it('汇总按状态与平台计数', () => {
     const summary = summarizePublishDashboard(rows);
     expect(summary.total).toBe(3);
-    expect(summary.byStatus).toEqual({ unpublished: 1, pending: 1, partial: 0, synced: 1 });
+    expect(summary.byStatus).toEqual({ unpublished: 1, pending: 1, failed: 0, partial: 0, synced: 1 });
     expect(summary.byPlatform.x).toEqual({ targets: 2, published: 0, pending: 0 });
     expect(summary.byPlatform.rednote).toEqual({ targets: 1, published: 0, pending: 1 });
     expect(summary.byPlatform.wechat).toEqual({ targets: 1, published: 1, pending: 0 });

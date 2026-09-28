@@ -72,7 +72,7 @@
  * @typedef {{ updateConfig?: (values: Record<string, unknown>) => void, reinit?: () => void, initMarkdownIt?: () => Promise<void> }} ConverterRuntimeLike
  * @typedef {{ renderForPreview: (markdown: string, context: { sourcePath: string, settings: PluginSettingsLike }) => Promise<string> }} RenderPipelineLike
  * @typedef {{ updateAiToolbarState?: () => void, refreshAiLayoutPanel?: () => void }} ConverterViewRefreshLike
- * @typedef {PluginBaseLike & { settings: PluginSettingsLike, obsidianApi?: ObsidianApiLike, _wechatSyncBridgeService?: WechatSyncBridgeServiceLike, _wechatSyncBridgeCacheKey?: string, settingTab?: SettingTabCompatLike, _lastSaveSettingsErrorAt?: number, openConverter: () => Promise<void>, openPublishDashboard: () => Promise<void>, recordAiUsage?: (usage: import('./services/ai-layout.js').AiUsageLike | null | undefined) => Promise<void>, resetAiUsageTotals?: () => Promise<void>, openExternalUrl?: (url: string) => boolean, getConverterView?: () => AppleStyleViewInstance | null, getWechatSyncBridgeService?: () => WechatSyncBridgeServiceLike, saveSettings: () => Promise<boolean>, settingsManager: import('./rednote/index.ts').SettingsManager, themeManager: import('./rednote/index.ts').ThemeManager, startWechatSyncBridgeInBackground?: (reason?: string) => void, getArticleLayoutState?: (sourcePath: string, selection?: AiLayoutSelectionLike | Record<string, unknown>) => AiLayoutStateLike | null, saveArticleLayoutState?: (sourcePath: string, nextState: AiLayoutStateLike | Record<string, unknown>, selection?: AiLayoutSelectionLike | Record<string, unknown>) => Promise<AiLayoutStateLike | null> }} AppleStylePluginLike
+ * @typedef {PluginBaseLike & { settings: PluginSettingsLike, obsidianApi?: ObsidianApiLike, _wechatSyncBridgeService?: WechatSyncBridgeServiceLike, _wechatSyncBridgeCacheKey?: string, settingTab?: SettingTabCompatLike, _lastSaveSettingsErrorAt?: number, openConverter: () => Promise<void>, openPublishDashboard: () => Promise<void>, registerBridgeTask?: (syncId: unknown, task: { path: string, title?: string, platforms: string[] }) => void, recordAiUsage?: (usage: import('./services/ai-layout.js').AiUsageLike | null | undefined) => Promise<void>, resetAiUsageTotals?: () => Promise<void>, openExternalUrl?: (url: string) => boolean, getConverterView?: () => AppleStyleViewInstance | null, getWechatSyncBridgeService?: () => WechatSyncBridgeServiceLike, saveSettings: () => Promise<boolean>, settingsManager: import('./rednote/index.ts').SettingsManager, themeManager: import('./rednote/index.ts').ThemeManager, startWechatSyncBridgeInBackground?: (reason?: string) => void, getArticleLayoutState?: (sourcePath: string, selection?: AiLayoutSelectionLike | Record<string, unknown>) => AiLayoutStateLike | null, saveArticleLayoutState?: (sourcePath: string, nextState: AiLayoutStateLike | Record<string, unknown>, selection?: AiLayoutSelectionLike | Record<string, unknown>) => Promise<AiLayoutStateLike | null> }} AppleStylePluginLike
  * @typedef {{ settings?: PluginSettingsLike | Record<string, unknown> }} PluginWithSettingsLike
  * @typedef {{ update?: () => void, activeSettingPage?: { display: () => void } | null, [key: string]: unknown }} SettingTabCompatLike
  * @typedef {{ message: string, isFatal?: boolean, isProxyAuth?: boolean }} ReadableErrorLike
@@ -201,6 +201,8 @@ import {
 import { getImageSwipeCommandCopy, createImageSwipeCalloutMarkdown } from './services/image-swipe.js';
 import { t } from './services/i18n.js';
 import { PublishDashboardView, PUBLISH_DASHBOARD_VIEW } from './views/dashboard/publish-dashboard.js';
+import { BridgeSyncTaskRegistry } from './services/bridge-sync-tasks.js';
+import { applyPublishStatusToFile } from './services/publish-status.js';
 
 import {
   DEFAULT_SETTINGS,
@@ -1489,6 +1491,8 @@ class AppleStylePlugin extends Plugin {
     this._wechatSyncBridgeService = null;
     /** @type {string} */
     this._wechatSyncBridgeCacheKey = '';
+    /** @type {BridgeSyncTaskRegistry} 投递中的任务（syncId → 笔记路径），收到扩展结果回推时落 frontmatter（3.12.0） */
+    this._bridgeSyncTasks = new BridgeSyncTaskRegistry();
     /** @type {number} */
     this._lastSaveSettingsErrorAt = 0;
   }
@@ -1738,8 +1742,43 @@ class AppleStylePlugin extends Plugin {
       onClientRegistryChange: (clients) => {
         void this.handleBridgeClientRegistryChange(clients);
       },
+      onSyncEvent: (event) => {
+        void this.handleBridgeSyncEvent(event);
+      },
     });
     return this._wechatSyncBridgeService;
+  }
+
+  /**
+   * 投递给扩展后记住 syncId ↔ 笔记，等结果回推（3.12.0）。
+   * @param {unknown} syncId
+   * @param {{ path: string, title?: string, platforms: string[] }} task
+   */
+  registerBridgeTask(syncId, task) {
+    this._bridgeSyncTasks.register(syncId, task);
+  }
+
+  /**
+   * 扩展回推的发布结果：成功 → frontmatter 记确认（platform_<name>: 1，移出待确认）；失败 → publish_failed；
+   * 找不到对应笔记（Obsidian 重启过）只提示。
+   * @param {import('./services/bridge-sync-tasks.js').SyncEventLike} event
+   */
+  async handleBridgeSyncEvent(event) {
+    const decision = this._bridgeSyncTasks.decide(event);
+    if (decision.kind === 'ignored' || decision.kind === 'done') return;
+    if (decision.notice) new Notice(decision.notice, 10000);
+    if (!decision.task || !decision.statusPayload) return;
+    const file = this.app.vault?.getAbstractFileByPath?.(decision.task.path);
+    const fileManager = this.app.fileManager;
+    if (!file || !fileManager || typeof fileManager.processFrontMatter !== 'function') {
+      new Notice(`发布结果已收到，但找不到笔记 ${decision.task.path}，frontmatter 未更新`, 10000);
+      return;
+    }
+    try {
+      await applyPublishStatusToFile(fileManager, file, decision.statusPayload);
+    } catch (error) {
+      console.warn('写入扩展回推的发布结果失败:', error);
+    }
   }
 
   /**

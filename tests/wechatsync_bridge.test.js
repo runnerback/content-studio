@@ -7,6 +7,7 @@ import {
   HELLO_ERROR_TIMEOUT,
   HELLO_ERROR_TOKEN_MISMATCH,
   HELLO_ERROR_VERSION_UNSUPPORTED,
+  isSupportedBridgeProtocolVersion,
   HELLO_ERROR_DUPLICATE_SESSION,
   HELLO_ERROR_TOO_MANY_CLIENTS,
   DEFAULT_MAX_CLIENTS,
@@ -218,6 +219,33 @@ describe('Wechatsync bridge service', () => {
 
     expect(platforms).toHaveLength(2);
     expect(platforms[0].id).toBe('zhihu');
+  });
+
+  it('3.12.0：扩展主动发来的 sync_event 交给 onSyncEvent，不当成未知响应', async () => {
+    const port = await getFreePort();
+    const onSyncEvent = vi.fn();
+    const service = createWechatSyncBridgeService({
+      WebSocketServer,
+      http,
+      port,
+      token: 'secret-token',
+      requestTimeoutMs: 1000,
+      connectTimeoutMs: 1000,
+      onSyncEvent,
+    });
+    cleanup.push(service);
+    await service.start();
+
+    const extension = await connectExtension(port, () => ({ result: [] }));
+    cleanup.push(extension);
+    await service.waitForConnection(1000);
+
+    extension.send(JSON.stringify({ type: 'sync_event', event: 'platform_result', syncId: 's-1', platform: 'x', ok: true, url: 'https://x.com/i/drafts', at: 1 }));
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    expect(onSyncEvent).toHaveBeenCalledTimes(1);
+    expect(onSyncEvent.mock.calls[0][0]).toMatchObject({ type: 'sync_event', event: 'platform_result', syncId: 's-1', platform: 'x', ok: true, url: 'https://x.com/i/drafts' });
+    expect(typeof onSyncEvent.mock.calls[0][0].extensionInstanceId).toBe('string');
   });
 
   it('checks bridge health through the extension so token errors are surfaced', async () => {
@@ -1170,6 +1198,30 @@ describe('§3.1 / §3.2 extension_hello handshake', () => {
     expect(ack?.error).toBe(HELLO_ERROR_TIMEOUT);
     await waitForSocketClose(ws, 1000);
     expect(service.getActiveClientDescriptor()).toBeNull();
+  });
+
+  it('协议 v1.1：capabilities.protocolVersion 主版本不同 → version_unsupported；1.x 或未上报 → 接受', async () => {
+    const port = await getFreePort();
+    const service = createWechatSyncBridgeService({ WebSocketServer, http, port, token: 'secret-token', helloTimeoutMs: 1000 });
+    cleanup.push(service);
+    await service.start();
+
+    const wsBad = await openSocket(port);
+    cleanup.push(wsBad);
+    wsBad.send(JSON.stringify({ type: 'extension_hello', token: 'secret-token', ...DEFAULT_TEST_HELLO, capabilities: { protocolVersion: '2.0', syncEvents: true } }));
+    const badAck = await waitForAck(wsBad);
+    expect(badAck).toMatchObject({ type: 'extension_hello_ack', ok: false, error: HELLO_ERROR_VERSION_UNSUPPORTED });
+    await waitForSocketClose(wsBad, 1000);
+
+    const wsOk = await openSocket(port);
+    cleanup.push(wsOk);
+    wsOk.send(JSON.stringify({ type: 'extension_hello', token: 'secret-token', ...DEFAULT_TEST_HELLO, capabilities: { protocolVersion: '1.1' } }));
+    const okAck = await waitForAck(wsOk);
+    expect(okAck).toMatchObject({ type: 'extension_hello_ack', ok: true });
+    expect(isSupportedBridgeProtocolVersion('1.0')).toBe(true);
+    expect(isSupportedBridgeProtocolVersion('1.7')).toBe(true);
+    expect(isSupportedBridgeProtocolVersion('2.0')).toBe(false);
+    expect(isSupportedBridgeProtocolVersion('')).toBe(false);
   });
 
   it('rejects extension_hello with a mismatching token and closes the connection', async () => {

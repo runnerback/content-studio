@@ -14,6 +14,7 @@ export default Object.freeze({
   'dashboard.platformX': 'X',
   'dashboard.statusUnpublished': '未发布',
   'dashboard.statusPending': '待确认',
+  'dashboard.statusFailed': '发布失败',
   'dashboard.statusPartial': '部分发布',
   'dashboard.statusSynced': '已发布',
   'dashboard.summaryTotal': '共 {count} 篇',

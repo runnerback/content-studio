@@ -1,6 +1,20 @@
 # Changelog / 更新日志
 
-> 版本 v1.0 ｜ 更新时间 2026-09-28 ｜ 面向用户的变更记录（中英）。每个版本的英文详情见 `RELEASE_NOTES/v<version>.md`。
+> 版本 v1.1 ｜ 更新时间 2026-09-28 ｜ 面向用户的变更记录（中英）。每个版本的英文详情见 `RELEASE_NOTES/v<version>.md`。
+
+## 3.12.1（2026-09-28）
+
+**中文**
+
+- 扩展结果回推：Crosspost 3.1.0（桥接协议 v1.1）起写完草稿会把每个平台的结果推回 Obsidian，frontmatter 自动从「待确认」变为已确认（`platform_<name>: 1`）或 `publish_failed`，分发看板同步显示失败；Obsidian 重启后收到的结果只提示不改文档。旧扩展保持 3.12.0 行为（一直待确认，需自行到草稿箱核对）。
+- 设置页「测试连接」显示扩展自检：每个平台的探针结论（登录态、创作者页是否打开、X 写草稿接口是否与前端一致）与最近一次发布结果，来自扩展的 `health.adapters`；旧扩展不显示。
+- 桥接协议主版本校验：扩展握手上报 `protocolVersion`，主版本不同则拒绝并提示更新扩展或插件。
+
+**English**
+
+- Result push-back from Crosspost 3.1.0+ (bridge protocol v1.1): per-platform outcomes update the note's frontmatter from pending to confirmed or `publish_failed`; the dashboard shows failures.
+- "Test connection" shows the extension's self-check per platform (sign-in, creator tab, X draft endpoint) and the last publish outcome (`health.adapters`).
+- Handshake rejects a different protocol major version and asks to update the extension or the plugin.
 
 ## 3.12.0（2026-09-28）
 

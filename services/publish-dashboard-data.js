@@ -9,7 +9,7 @@ import { FRONTMATTER_KEYS, PUBLISH_STATUS_PENDING, PUBLISH_STATUS_PARTIAL, PUBLI
 import { resolvePlatformTargetsFromFrontmatter } from './platform-property.js';
 
 /** @typedef {'wechat' | 'rednote' | 'x'} DashboardPlatform */
-/** @typedef {'unpublished' | 'pending' | 'partial' | 'synced'} DashboardStatus */
+/** @typedef {'unpublished' | 'pending' | 'failed' | 'partial' | 'synced'} DashboardStatus */
 /**
  * @typedef {{
  *   path: string,
@@ -17,6 +17,7 @@ import { resolvePlatformTargetsFromFrontmatter } from './platform-property.js';
  *   targets: DashboardPlatform[],
  *   published: string[],
  *   pending: string[],
+ *   failed: string[],
  *   missing: string[],
  *   status: DashboardStatus,
  *   publishAt: string,
@@ -25,7 +26,7 @@ import { resolvePlatformTargetsFromFrontmatter } from './platform-property.js';
  */
 
 export const DASHBOARD_PLATFORMS = Object.freeze(/** @type {DashboardPlatform[]} */ (['wechat', 'rednote', 'x']));
-export const DASHBOARD_STATUSES = Object.freeze(/** @type {DashboardStatus[]} */ (['unpublished', 'pending', 'partial', 'synced']));
+export const DASHBOARD_STATUSES = Object.freeze(/** @type {DashboardStatus[]} */ (['unpublished', 'pending', 'failed', 'partial', 'synced']));
 
 /**
  * @param {unknown} value
@@ -67,12 +68,13 @@ export function buildPublishDashboardRow({ path, basename, frontmatter }) {
     .map((key) => normalizePlatformName(key.slice('platform_'.length)))
     .filter(Boolean);
   const pending = toPlatformNameList(fm[FRONTMATTER_KEYS.pending]).filter((name) => !published.includes(name));
-  const missing = targets.filter((name) => !published.includes(name) && !pending.includes(name));
+  const failed = toPlatformNameList(fm[FRONTMATTER_KEYS.failed]).filter((name) => !published.includes(name) && !pending.includes(name));
+  const missing = targets.filter((name) => !published.includes(name) && !pending.includes(name) && !failed.includes(name));
 
   /** @type {DashboardStatus} */
   let status;
   if (published.length === 0 && pending.length === 0) {
-    status = 'unpublished';
+    status = failed.length > 0 ? 'failed' : 'unpublished';
   } else if (published.length === 0) {
     status = 'pending';
   } else {
@@ -93,6 +95,7 @@ export function buildPublishDashboardRow({ path, basename, frontmatter }) {
     targets,
     published,
     pending,
+    failed,
     missing,
     status,
     publishAt: typeof publishAt === 'string' ? publishAt : '',
@@ -132,7 +135,8 @@ export function filterPublishDashboardRows(rows, { platform = 'all', status = 'a
     if (platform !== 'all') {
       const involved = row.targets.includes(/** @type {DashboardPlatform} */ (platform))
         || row.published.includes(platform)
-        || row.pending.includes(platform);
+        || row.pending.includes(platform)
+        || row.failed.includes(platform);
       if (!involved) return false;
     }
     if (status !== 'all' && row.status !== status) return false;
@@ -147,7 +151,7 @@ export function filterPublishDashboardRows(rows, { platform = 'all', status = 'a
  */
 export function summarizePublishDashboard(rows) {
   /** @type {Record<DashboardStatus, number>} */
-  const byStatus = { unpublished: 0, pending: 0, partial: 0, synced: 0 };
+  const byStatus = { unpublished: 0, pending: 0, failed: 0, partial: 0, synced: 0 };
   /** @type {Record<DashboardPlatform, { targets: number, published: number, pending: number }>} */
   const byPlatform = {
     wechat: { targets: 0, published: 0, pending: 0 },

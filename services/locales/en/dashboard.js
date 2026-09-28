@@ -14,6 +14,7 @@ export default Object.freeze({
   'dashboard.platformX': 'X',
   'dashboard.statusUnpublished': 'Unpublished',
   'dashboard.statusPending': 'Awaiting confirmation',
+  'dashboard.statusFailed': 'Failed',
   'dashboard.statusPartial': 'Partially published',
   'dashboard.statusSynced': 'Published',
   'dashboard.summaryTotal': '{count} notes',

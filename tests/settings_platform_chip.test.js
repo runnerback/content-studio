@@ -140,4 +140,49 @@ describe('settings page - platform section (方案 i read-only)', () => {
     expect(picker).not.toBeNull();
     expect(picker.querySelectorAll('input[type="checkbox"]').length).toBe(0);
   });
+
+  it('连接里带扩展自检快照时,chip 显示探针一句话与最近发布结果;头部显示自检时间', () => {
+    const checkedAt = Date.now() - 60000;
+    const page = renderPlatformPage(makePlugin({
+      connection: {
+        status: 'connected',
+        checkedAt,
+        platforms: [
+          { id: 'xiaohongshu', name: '小红书', authKnown: true, authenticated: true, username: 'Lin' },
+          { id: 'x', name: 'X', authKnown: true, authenticated: true, username: 'lin' },
+        ],
+        capabilities: { adapterHealth: true },
+        message: '',
+        adapterHealth: {
+          checkedAt,
+          platforms: {
+            xiaohongshu: { authenticated: true, username: 'Lin', creatorTabOpen: false, lastPublishOk: true, lastPublishAt: checkedAt, lastError: '', probe: { ok: true, detail: '已登录,但未打开创作者发布页' } },
+            x: { authenticated: true, lastPublishOk: false, lastPublishAt: checkedAt, lastError: 'HTTP 404', probe: { ok: false, detail: '未能从 x.com 前端解析 CreateDraftTweet queryId' } },
+          },
+        },
+      },
+    }));
+    expect(page.containerEl.querySelector('.wechat-platform-picker-health')?.textContent).toContain('扩展自检于');
+
+    const xhs = findChipByName(page, '小红书');
+    const xhsProbe = xhs.querySelector('.wechat-platform-chip-probe');
+    expect(xhsProbe.classList.contains('is-ok')).toBe(true);
+    expect(xhsProbe.textContent).toContain('已登录,但未打开创作者发布页');
+    expect(xhsProbe.textContent).toContain('创作者发布页未打开');
+    expect(xhs.querySelector('.wechat-platform-chip-last')?.textContent).toContain('最近发布成功');
+
+    const x = findChipByName(page, 'X');
+    const xProbe = x.querySelector('.wechat-platform-chip-probe');
+    expect(xProbe.classList.contains('is-error')).toBe(true);
+    expect(xProbe.textContent).toContain('CreateDraftTweet');
+    const xLast = x.querySelector('.wechat-platform-chip-last');
+    expect(xLast.classList.contains('is-error')).toBe(true);
+    expect(xLast.textContent).toContain('HTTP 404');
+  });
+
+  it('没有自检快照(旧扩展)时不渲染探针行与自检时间', () => {
+    const page = renderPlatformPage(makePlugin());
+    expect(page.containerEl.querySelector('.wechat-platform-picker-health')).toBeNull();
+    expect(page.containerEl.querySelector('.wechat-platform-chip-probe')).toBeNull();
+  });
 });

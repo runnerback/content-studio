@@ -29,6 +29,16 @@ import {
  *   error?: string,
  *   custom?: boolean,
  * }} PlatformLike
+ * @typedef {{
+ *   authenticated: boolean,
+ *   username: string,
+ *   creatorTabOpen: boolean | null,
+ *   lastPublishOk: boolean | null,
+ *   lastPublishAt: number,
+ *   lastError: string,
+ *   probe: { ok: boolean, detail: string },
+ * }} AdapterHealthEntryLike
+ * @typedef {{ checkedAt: number, platforms: Record<string, AdapterHealthEntryLike> }} AdapterHealthSnapshotLike
  */
 
 /**
@@ -73,6 +83,7 @@ export function createDefaultMultiPlatformSyncSettings() {
       checkedAt: 0,
       platforms: [],
       message: '',
+      adapterHealth: null,
     },
   };
 }
@@ -155,6 +166,11 @@ export function normalizeWechatSyncCapabilities(value = {}) {
     'openSyncTask',
     'getAuthSnapshot',
     'quotaPolicy',
+    // 协议 v1.1（Crosspost 3.1.0）：结果回推、自检快照、额度查询、同步方言
+    'syncArticle',
+    'quotaStatus',
+    'syncEvents',
+    'adapterHealth',
     // Set by Obsidian Publisher >= 0.2.6 when LicenseManager reports an
     // active Pro tier; the publish modal hides upgrade affordances when true.
     'proLicensed',
@@ -199,6 +215,39 @@ export function normalizeWechatSyncRecentTasks(value = []) {
     .slice(0, 10);
 }
 
+/**
+ * 扩展 `health.adapters`（桥接协议 v1.1 §5）归一：每个平台的登录态、创作者页、最近发布与探针一句话。
+ * 不是对象或没有 platforms 记录时返回 null（扩展 < 3.1.0 或尚未自检）。
+ * @param {unknown} value
+ * @returns {AdapterHealthSnapshotLike | null}
+ */
+export function normalizeAdapterHealthSnapshot(value) {
+  if (!isRecord(value)) return null;
+  const source = asRecord(value);
+  const platformsSource = asRecord(source.platforms);
+  /** @type {Record<string, AdapterHealthEntryLike>} */
+  const platforms = {};
+  for (const [id, raw] of Object.entries(platformsSource)) {
+    if (!id || !isRecord(raw)) continue;
+    const entry = asRecord(raw);
+    const probe = asRecord(entry.probe);
+    platforms[id] = {
+      authenticated: entry.authenticated === true,
+      username: toText(entry.username),
+      creatorTabOpen: typeof entry.creatorTabOpen === 'boolean' ? entry.creatorTabOpen : null,
+      lastPublishOk: typeof entry.lastPublishOk === 'boolean' ? entry.lastPublishOk : null,
+      lastPublishAt: Number.isFinite(Number(entry.lastPublishAt)) ? Number(entry.lastPublishAt) : 0,
+      lastError: toText(entry.lastError),
+      probe: { ok: probe.ok === true, detail: toText(probe.detail) },
+    };
+  }
+  if (Object.keys(platforms).length === 0) return null;
+  return {
+    checkedAt: Number.isFinite(Number(source.checkedAt)) ? Number(source.checkedAt) : 0,
+    platforms,
+  };
+}
+
 export function normalizeMultiPlatformConnection(value = {}) {
   const source = asRecord(value);
   const status = ['connected', 'failed', 'untested'].includes(source.status)
@@ -207,6 +256,7 @@ export function normalizeMultiPlatformConnection(value = {}) {
   return {
     status,
     checkedAt: Number.isFinite(Number(source.checkedAt)) ? Number(source.checkedAt) : 0,
+    adapterHealth: normalizeAdapterHealthSnapshot(source.adapterHealth),
     platforms: Array.isArray(source.platforms)
       ? /** @type {PlatformLike[]} */ (
           source.platforms

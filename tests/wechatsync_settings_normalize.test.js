@@ -20,6 +20,7 @@ const {
   hasWechatSyncProLicense,
   normalizeMultiPlatformSyncSettings,
   normalizeWechatSyncCapabilities,
+  normalizeAdapterHealthSnapshot,
 } = require('../services/wechatsync-settings');
 
 describe('Sprint 1 §4.1 normalizeMultiPlatformSyncSettings — security defaults', () => {
@@ -245,5 +246,42 @@ describe('§16 Phase 1 normalizeConnectedClient / normalizeConnectedClients', ()
     const once = normalizeMultiPlatformSyncSettings({ connectedClients: [VALID_CLIENT] });
     const twice = normalizeMultiPlatformSyncSettings(once);
     expect(twice.connectedClients).toEqual(once.connectedClients);
+  });
+});
+
+describe('协议 v1.1 health.adapters → connection.adapterHealth', () => {
+  it('normalizeAdapterHealthSnapshot 归一每个平台字段;非对象 / 空 platforms → null', () => {
+    expect(normalizeAdapterHealthSnapshot(undefined)).toBeNull();
+    expect(normalizeAdapterHealthSnapshot('x')).toBeNull();
+    expect(normalizeAdapterHealthSnapshot({ checkedAt: 1, platforms: {} })).toBeNull();
+    const snap = normalizeAdapterHealthSnapshot({
+      checkedAt: '1790000000000',
+      platforms: {
+        xiaohongshu: { authenticated: true, username: 'Lin', creatorTabOpen: true, lastPublishOk: true, lastPublishAt: 1790000000001, probe: { ok: true, detail: 'web_session 有效' } },
+        x: { authenticated: false, probe: { ok: false, detail: '未登录' }, lastError: { nested: true } },
+        bad: 'nope',
+      },
+    });
+    expect(snap).toEqual({
+      checkedAt: 1790000000000,
+      platforms: {
+        xiaohongshu: { authenticated: true, username: 'Lin', creatorTabOpen: true, lastPublishOk: true, lastPublishAt: 1790000000001, lastError: '', probe: { ok: true, detail: 'web_session 有效' } },
+        x: { authenticated: false, username: '', creatorTabOpen: null, lastPublishOk: null, lastPublishAt: 0, lastError: '', probe: { ok: false, detail: '未登录' } },
+      },
+    });
+  });
+
+  it('normalizeMultiPlatformSyncSettings 保留 connection.adapterHealth,默认 null;capabilities 认识 v1.1 的新键', () => {
+    const none = normalizeMultiPlatformSyncSettings({ connection: { status: 'connected' } });
+    expect(none.connection.adapterHealth).toBeNull();
+    const withHealth = normalizeMultiPlatformSyncSettings({
+      connection: {
+        status: 'connected',
+        adapterHealth: { checkedAt: 5, platforms: { x: { authenticated: true, probe: { ok: true, detail: 'ok' } } } },
+        capabilities: { syncEvents: true, adapterHealth: true, getSyncTask: true, quotaStatus: false },
+      },
+    });
+    expect(withHealth.connection.adapterHealth?.platforms.x.probe.detail).toBe('ok');
+    expect(withHealth.connection.capabilities).toEqual({ syncEvents: true, adapterHealth: true, getSyncTask: true, quotaStatus: false });
   });
 });

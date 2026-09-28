@@ -13,6 +13,10 @@ export const HELLO_ERROR_VERSION_UNSUPPORTED = 'version_unsupported';
 export const HELLO_ERROR_DUPLICATE_SESSION = 'duplicate_session';
 export const HELLO_ERROR_TOO_MANY_CLIENTS = 'too_many_clients';
 export const DEFAULT_MAX_CLIENTS = 4;
+// 桥接协议版本（docs/bridge-protocol.md，v1.1 起扩展在 hello.capabilities.protocolVersion 上报）：
+// 主版本相同才接受；扩展没报（< 3.1.0）按 1.0 兼容。
+export const BRIDGE_PROTOCOL_VERSION = '1.1';
+export const BRIDGE_PROTOCOL_MAJOR = 1;
 // 小红书 / X 发布额度与许可密钥的服务端（计量在扩展侧调用；插件只用它兑换密钥）
 export const LICENSE_API_BASE = 'https://api.runfast.xyz/license';
 // 配套浏览器扩展「多栖 Crosspost」的发行状态（3.12.0）：未上架应用商店前，公开构建里的相关入口只说明"尚未发行"，

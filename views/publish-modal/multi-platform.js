@@ -81,7 +81,7 @@ const MAX_MATERIAL_COVER_ASSET_CACHE_ENTRIES = 3;
  * @typedef {{ start: () => Promise<unknown>, waitForConnection: (timeoutMs?: number) => Promise<unknown>, health?: (options?: Record<string, unknown>) => Promise<unknown>, quotaStatus?: (options?: { licenseKey?: string }) => Promise<unknown>, getActiveClientDescriptor?: () => unknown, getStatus?: () => unknown, enqueueSyncArticle?: (payload: Record<string, unknown>) => Promise<unknown>, sendArticle?: (payload: Record<string, unknown>) => Promise<unknown> }} BridgeLike
  * @typedef {{ article: Record<string, unknown>, dirPath: string, cardCount: number }} CardArticlePrepLike
  * @typedef {{ successfulTargets: { platform: string, kind?: string, url?: string }[], requestedCount?: number }} PublishStatusPayloadLike
- * @typedef {{ settings: { multiPlatformSync?: unknown }, obsidianApi?: Partial<ObsidianApiLike>, getWechatSyncBridgeService: () => BridgeLike, saveSettings: () => Promise<void> }} PluginLike
+ * @typedef {{ settings: { multiPlatformSync?: unknown }, obsidianApi?: Partial<ObsidianApiLike>, getWechatSyncBridgeService: () => BridgeLike, saveSettings: () => Promise<void>, registerBridgeTask?: (syncId: unknown, task: { path: string, title?: string, platforms: string[] }) => void }} PluginLike
  * @typedef {{ path: string, basename: string }} FileLike
  * @typedef {{ title?: string, cover?: string }} PublishMetaLike
  * @typedef {{ markdown: string, assets: BridgeAssetLike[], cover?: string, firstImageSrc?: string, warnings?: unknown[] }} ResolvedImagesLike
@@ -863,7 +863,11 @@ function showMultiPlatformPublishModal(view, options = {}) {
           }
           // 3.12.0：扩展只回「已接收」，真正写入草稿箱的结果不会回到 Obsidian，
           // 所以这里只能说"已投递、等待确认"，frontmatter 记 pending 而不是 draft。
-          new Notice(`📤 小红书图卡已投递，等待浏览器扩展确认（${prep.cardCount} 张，已存 ${prep.dirPath}/）。请到扩展任务窗口或小红书草稿箱确认是否写入成功。`, 10000);
+          new Notice(`📤 小红书图卡已投递，等待浏览器扩展确认（${prep.cardCount} 张，已存 ${prep.dirPath}/）。写入结果会回推到这里并更新文档属性。`, 10000);
+          // 3.12.0：记住 syncId ↔ 笔记，扩展写完草稿会回推结果（扩展 3.1.0+；老扩展没有 syncId 就只能等用户自己核对）
+          if (activeFile && typeof view.plugin.registerBridgeTask === 'function') {
+            view.plugin.registerBridgeTask(redResult.syncId, { path: activeFile.path, title: prep.article.title, platforms: [xhsPlatformId] });
+          }
           // 属性标签:与微信/飞书/多平台复用同一 recordPublishStatus
           //(publish_status / publish_platforms / publish_pending / publish_time … 英文 key,累加去重)
           if (activeFile && typeof view.recordPublishStatus === 'function') {
@@ -899,7 +903,10 @@ function showMultiPlatformPublishModal(view, options = {}) {
             view.showMultiPlatformQuotaBlockedModal({ quotaResult: xResult, requestedPlatformIds: [xPlatformId] });
             return;
           }
-          new Notice(`📤 X 图卡已投递，等待浏览器扩展确认（${prep.cardCount} 张，已存 ${prep.dirPath}/）。请到扩展任务窗口或 X 草稿箱确认是否写入成功。`, 10000);
+          new Notice(`📤 X 图卡已投递，等待浏览器扩展确认（${prep.cardCount} 张，已存 ${prep.dirPath}/）。写入结果会回推到这里并更新文档属性。`, 10000);
+          if (activeFile && typeof view.plugin.registerBridgeTask === 'function') {
+            view.plugin.registerBridgeTask(xResult.syncId, { path: activeFile.path, title: prep.article.title, platforms: [xPlatformId] });
+          }
           if (activeFile && typeof view.recordPublishStatus === 'function') {
             await view.recordPublishStatus(activeFile, {
               successfulTargets: [{ platform: 'x', kind: PUBLISH_KIND_PENDING }],
@@ -1073,6 +1080,13 @@ function showMultiPlatformPublishModal(view, options = {}) {
       );
       notice.hide();
       modal.close();
+      // 3.12.0：通用文字链路同样登记 syncId ↔ 笔记，等扩展回推结果
+      {
+        const taskFile = typeof view.getPublishContextFile === 'function' ? view.getPublishContextFile() : null;
+        if (taskFile && result?.syncId && typeof view.plugin.registerBridgeTask === 'function') {
+          view.plugin.registerBridgeTask(result.syncId, { path: taskFile.path, title, platforms: requestedPlatformIds });
+        }
+      }
       const nextRecentTasks = result?.syncId
         ? normalizeWechatSyncRecentTasks([
           {

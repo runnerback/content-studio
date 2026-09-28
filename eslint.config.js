@@ -133,6 +133,7 @@ export default [
       "services/i18n.js",
       "services/locales/**/*.js",
       "services/publish-dashboard-data.js",
+      "services/bridge-sync-tasks.js",
       "views/dashboard/publish-dashboard.js",
       "views/connection-status-bar.js",
       "views/publish-modal/feishu.js",

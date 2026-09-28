@@ -11,6 +11,8 @@ import {
   HELLO_ERROR_INVALID_PAYLOAD,
   HELLO_ERROR_TIMEOUT,
   HELLO_ERROR_VERSION_UNSUPPORTED,
+  BRIDGE_PROTOCOL_VERSION,
+  BRIDGE_PROTOCOL_MAJOR,
   HELLO_ERROR_DUPLICATE_SESSION,
   HELLO_ERROR_TOO_MANY_CLIENTS,
   DEFAULT_MAX_CLIENTS,
@@ -49,7 +51,8 @@ const MAX_CONNECTED_CLIENT_REGISTRY = 20;
  * @typedef {{ forceRefresh?: boolean, timeoutMs?: number }} BridgeListPlatformsOptionsLike
  * @typedef {{ timeoutMs?: number }} BridgeTimeoutOptionsLike
  * @typedef {{ platforms?: unknown, title?: unknown, markdown?: unknown, content?: unknown, cover?: unknown, coverThumbnail?: unknown, assets?: unknown, quotaPolicy?: unknown, timeoutMs?: number, source?: string }} BridgeArticleOptionsLike
- * @typedef {{ WebSocketServer?: WebSocketServerCtorLike | null, http?: BridgeHttpModuleLike | null, httpLoader?: () => Promise<BridgeHttpModuleLike | null>, port?: number, token?: string, requestTimeoutMs?: number, connectTimeoutMs?: number, helloTimeoutMs?: number, allowRemote?: boolean, originAllowlist?: Array<string | RegExp> | null, serverVersion?: string, logger?: BridgeLoggerLike, idFactory?: () => string, connectionIdFactory?: () => string, onClientRegistryChange?: ((clients: ConnectedClientLike[]) => void) | null, initialConnectedClients?: ConnectedClientLike[], maxClients?: number }} BridgeServiceOptionsLike
+ * @typedef {{ WebSocketServer?: WebSocketServerCtorLike | null, http?: BridgeHttpModuleLike | null, httpLoader?: () => Promise<BridgeHttpModuleLike | null>, port?: number, token?: string, requestTimeoutMs?: number, connectTimeoutMs?: number, helloTimeoutMs?: number, allowRemote?: boolean, originAllowlist?: Array<string | RegExp> | null, serverVersion?: string, logger?: BridgeLoggerLike, idFactory?: () => string, connectionIdFactory?: () => string, onClientRegistryChange?: ((clients: ConnectedClientLike[]) => void) | null, onSyncEvent?: ((event: BridgeSyncEventLike) => void) | null, initialConnectedClients?: ConnectedClientLike[], maxClients?: number }} BridgeServiceOptionsLike
+ * @typedef {{ type: 'sync_event', event: string, syncId: string, at?: number, platform?: string, platformName?: string, ok?: boolean, url?: string, error?: string, results?: unknown, extensionInstanceId?: string }} BridgeSyncEventLike
  */
 
 /**
@@ -689,6 +692,16 @@ function loadDefaultHttpModule() {
 }
 
 /**
+ * 扩展上报的协议版本是否与本插件兼容（主版本相同）。
+ * @param {string} version 如 '1.1'
+ * @returns {boolean}
+ */
+function isSupportedBridgeProtocolVersion(version) {
+  const major = Number.parseInt(String(version || '').split('.')[0], 10);
+  return Number.isInteger(major) && major === BRIDGE_PROTOCOL_MAJOR;
+}
+
+/**
  * @param {BridgeServiceOptionsLike} [options={}]
  */
 function createWechatSyncBridgeService(options = {}) {
@@ -708,6 +721,7 @@ function createWechatSyncBridgeService(options = {}) {
     idFactory = () => `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
     connectionIdFactory = defaultConnectionIdFactory,
     onClientRegistryChange = null,
+    onSyncEvent = null,
     initialConnectedClients = [],
     maxClients = DEFAULT_MAX_CLIENTS,
   } = options;
@@ -1077,6 +1091,17 @@ function createWechatSyncBridgeService(options = {}) {
       });
       return;
     }
+    // 协议 v1.1（docs/bridge-protocol.md）：扩展上报 protocolVersion 时主版本必须一致；没报的老扩展按 1.0 兼容
+    const protocolVersion = toBridgeString(hello.capabilities.protocolVersion);
+    if (protocolVersion && !isSupportedBridgeProtocolVersion(protocolVersion)) {
+      rejectHello(pending, HELLO_ERROR_VERSION_UNSUPPORTED, {
+        extensionInstanceId: hello.extensionInstanceId,
+        extensionId: hello.extensionId,
+        protocolVersion,
+        supported: BRIDGE_PROTOCOL_VERSION,
+      });
+      return;
+    }
     registerSession(pending, hello, origin);
   }
 
@@ -1114,6 +1139,20 @@ function createWechatSyncBridgeService(options = {}) {
         } catch (err) {
           const readableError = toBridgeErrorLike(err);
           logger.warn?.('Failed to send heartbeat_ack:', readableError.message || err);
+        }
+      }
+      return;
+    }
+
+    // 3.12.0（扩展 3.1.0+）：发布结果回推——扩展主动发 sync_event（accepted / platform_result / done），不是对某个请求的响应
+    if (record.type === 'sync_event') {
+      refreshClientSeen(session.extensionInstanceId);
+      if (onSyncEvent) {
+        try {
+          onSyncEvent(/** @type {BridgeSyncEventLike} */ ({ ...record, extensionInstanceId: session.extensionInstanceId }));
+        } catch (err) {
+          const readableError = toBridgeErrorLike(err);
+          logger.warn?.('onSyncEvent handler failed:', readableError.message || err);
         }
       }
       return;
@@ -1773,6 +1812,7 @@ function createWechatSyncBridgeService(options = {}) {
 }
 
 export {
+  isSupportedBridgeProtocolVersion,
   DEFAULT_WECHATSYNC_PORT,
   DEFAULT_SYNC_REQUEST_TIMEOUT_MS,
   DEFAULT_HELLO_TIMEOUT_MS,

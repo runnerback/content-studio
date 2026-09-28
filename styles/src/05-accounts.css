@@ -398,6 +398,25 @@
   display: block;
 }
 
+/* === 已接入平台:扩展自检行(探针一句话 + 最近发布),允许换行 === */
+.wechat-platform-chip-probe,
+.wechat-platform-chip-last {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--apple-tertiary);
+}
+.wechat-platform-chip-probe.is-ok { color: var(--apple-success); }
+.wechat-platform-chip-probe.is-error { color: var(--apple-error); }
+.wechat-platform-chip-last.is-error { color: var(--apple-error); }
+.wechat-platform-picker-health {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--apple-tertiary);
+}
+
 /* === 计划支持平台:禁用态,灰显、不可点击 === */
 .wechat-platform-chip.is-disabled {
   cursor: default;

@@ -18,11 +18,14 @@ export const PUBLISH_STATUS_PARTIAL = 'partial';
 // 这类目标 kind 记 pending：进 publish_pending 列表、不点亮 platform_<name>，整体状态为 pending。
 export const PUBLISH_STATUS_PENDING = 'pending';
 export const PUBLISH_KIND_PENDING = 'pending';
+// 3.12.0：扩展回推「该平台写入失败」→ 从 publish_pending 移到 publish_failed；没有任何确认时整体状态 failed
+export const PUBLISH_STATUS_FAILED = 'failed';
 
 export const FRONTMATTER_KEYS = Object.freeze({
   status: 'publish_status',
   platforms: 'publish_platforms',
   pending: 'publish_pending',
+  failed: 'publish_failed',
   kind: 'publish_kind',
   time: 'publish_time',
   at: 'publish_at',
@@ -184,11 +187,12 @@ export function mergePlatformList(existing, incoming) {
  * Both timestamps are derived from the same instant (`date`):
  *   - `publish_time`: human-readable Beijing time with week/weekday
  *   - `publish_at`:   standard ISO-8601 (+08:00) for sorting/filtering
+ * `failedTargets`（3.12.0）：扩展回推的失败平台，从待确认移到 publish_failed，不写时间戳。
  * @param {Record<string, unknown>} frontmatter
- * @param {{ targets: PublishTargetInput[], requestedCount?: number, date?: Date }} options
+ * @param {{ targets?: PublishTargetInput[], failedTargets?: Array<{ platform: string }>, requestedCount?: number, date?: Date }} options
  * @returns {Record<string, unknown>}
  */
-export function updatePublishFrontmatter(frontmatter, { targets, requestedCount, date } = { targets: [] }) {
+export function updatePublishFrontmatter(frontmatter, { targets, failedTargets, requestedCount, date } = { targets: [] }) {
   const fm = frontmatter && typeof frontmatter === 'object' ? frontmatter : {};
   const when = date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date();
   const readableTime = formatBeijingTimestamp(when);
@@ -197,8 +201,20 @@ export function updatePublishFrontmatter(frontmatter, { targets, requestedCount,
   const normalized = (Array.isArray(targets) ? targets : [])
     .map((t) => buildPublishTarget(t, readableTime))
     .filter((t) => t !== null);
+  const failedNames = mergePlatformList([], (Array.isArray(failedTargets) ? failedTargets : []).map((t) => t && t.platform));
 
-  if (normalized.length === 0) return fm; // never write an empty/false status
+  if (normalized.length === 0 && failedNames.length === 0) return fm; // never write an empty/false status
+
+  if (normalized.length === 0) {
+    // 只有失败：待确认 → 失败；没有任何已确认平台时整体状态记 failed
+    const pendingLeft = mergePlatformList(fm[FRONTMATTER_KEYS.pending], []).filter((name) => !failedNames.includes(name));
+    if (pendingLeft.length > 0) fm[FRONTMATTER_KEYS.pending] = pendingLeft;
+    else if (fm[FRONTMATTER_KEYS.pending] !== undefined) delete fm[FRONTMATTER_KEYS.pending];
+    fm[FRONTMATTER_KEYS.failed] = mergePlatformList(fm[FRONTMATTER_KEYS.failed], failedNames);
+    const hasConfirmed = Object.keys(fm).some((key) => key.startsWith('platform_') && fm[key] === 1);
+    if (!hasConfirmed && pendingLeft.length === 0) fm[FRONTMATTER_KEYS.status] = PUBLISH_STATUS_FAILED;
+    return fm;
+  }
 
   const latest = normalized[normalized.length - 1];
   const confirmed = normalized.filter((t) => t.kind !== PUBLISH_KIND_PENDING);
@@ -211,9 +227,14 @@ export function updatePublishFrontmatter(frontmatter, { targets, requestedCount,
   // 待确认列表:新投递的进列表;本次已确认的平台从列表移出
   const confirmedNames = new Set(confirmed.map((t) => t.platform));
   const nextPending = mergePlatformList(fm[FRONTMATTER_KEYS.pending], pending.map((t) => t.platform))
-    .filter((name) => !confirmedNames.has(name));
+    .filter((name) => !confirmedNames.has(name) && !failedNames.includes(name));
   if (nextPending.length > 0) fm[FRONTMATTER_KEYS.pending] = nextPending;
   else if (fm[FRONTMATTER_KEYS.pending] !== undefined) delete fm[FRONTMATTER_KEYS.pending];
+  // 失败列表：本次失败的进列表；本次确认或重新投递的平台移出
+  const nextFailed = mergePlatformList(fm[FRONTMATTER_KEYS.failed], failedNames)
+    .filter((name) => !confirmedNames.has(name) && !pending.some((t) => t.platform === name));
+  if (nextFailed.length > 0) fm[FRONTMATTER_KEYS.failed] = nextFailed;
+  else if (fm[FRONTMATTER_KEYS.failed] !== undefined) delete fm[FRONTMATTER_KEYS.failed];
   fm[FRONTMATTER_KEYS.kind] = latest.kind;
   fm[FRONTMATTER_KEYS.time] = readableTime;
   fm[FRONTMATTER_KEYS.at] = isoTime;
@@ -230,3 +251,26 @@ export function updatePublishFrontmatter(frontmatter, { targets, requestedCount,
   }
   return fm;
 }
+
+/**
+ * 把发布状态写进笔记 frontmatter（视图「发布与分发」与扩展结果回推共用，3.12.0）。
+ * @param {{ processFrontMatter: (file: unknown, fn: (frontmatter: Record<string, unknown>) => void) => Promise<void> }} fileManager Obsidian app.fileManager
+ * @param {unknown} file TFile
+ * @param {{ targets?: PublishTargetInput[], failedTargets?: Array<{ platform: string }>, requestedCount?: number, date?: Date }} payload
+ * @returns {Promise<void>}
+ */
+export async function applyPublishStatusToFile(fileManager, file, payload) {
+  const targets = Array.isArray(payload?.targets) ? payload.targets : [];
+  const failedTargets = Array.isArray(payload?.failedTargets) ? payload.failedTargets : [];
+  if (!file || (targets.length === 0 && failedTargets.length === 0)) return;
+  const now = payload?.date instanceof Date ? payload.date : new Date();
+  await fileManager.processFrontMatter(file, (frontmatter) => {
+    updatePublishFrontmatter(frontmatter, {
+      targets,
+      failedTargets,
+      requestedCount: typeof payload?.requestedCount === 'number' ? payload.requestedCount : targets.length,
+      date: now,
+    });
+  });
+}
+

@@ -98,4 +98,10 @@ export default Object.freeze({
   'multiPlatform.hintCheckBridge': '请确认浏览器正在运行、已安装浏览器插件，并检查地址、端口和连接令牌与这里一致。',
   'multiPlatform.errorNotAuthenticated': '浏览器插件已连接但尚未通过认证。请确认插件已升级到支持安全握手的版本，且使用与 Obsidian 一致的连接令牌。',
   'multiPlatform.noticeTestFailed': '❌ {message}',
+
+  // 扩展自检（协议 v1.1 health.adapters）
+  'multiPlatform.healthCheckedAt': '扩展自检于 {time}',
+  'multiPlatform.healthLastPublishOk': '最近发布成功 · {time}',
+  'multiPlatform.healthLastPublishFailed': '最近发布失败 · {time} · {error}',
+  'multiPlatform.healthCreatorTabClosed': '创作者发布页未打开',
 });

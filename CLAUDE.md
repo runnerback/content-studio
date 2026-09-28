@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **版本**: v3.12.0 ｜ **更新时间**: 2026-09-28（公式改用 Obsidian 自带 MathJax、包体 1.3MB；桌面版专用；设置项 i18n；分发看板；AI 用量；入口与 AI 服务拆分；本文件按当前结构全文校对）
+> **版本**: v3.12.1 ｜ **更新时间**: 2026-09-28（3.12.1：接收 Crosspost 3.1.0 结果回推、测试连接展示扩展自检、桥接协议 v1.1 主版本校验。3.12.0：公式改用 Obsidian 自带 MathJax、包体 1.3MB；桌面版专用；设置项 i18n；分发看板；AI 用量；入口与 AI 服务拆分；本文件按当前结构全文校对）
 
 ## Language Preferences
 - Detect the language of the user's prompt (English or Chinese). Always reply in the same language unless explicitly asked otherwise.
@@ -35,7 +35,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
     - `lib/`: generated `markdown-it.min.js` and `highlight.min.js` only (`npm run generate:embedded`).
 - **Build System**: `esbuild.config.mjs` → `main.js`, target es2018 / CommonJS; `obsidian`, `electron` and `@codemirror/*` are externals provided by the app.
 - **WeChat Integration**: draft sync through the official API (needs the user's proxy for IP whitelisting), copy-to-editor with inline styles, image / cover / formula upload.
-- **Companion extension**: Xiaohongshu / X drafts go through the private Crosspost extension over `ws://127.0.0.1:9527`. Until it is released, `CROSSPOST_EXTENSION_RELEASED` in `services/wechatsync-constants.js` is `false` and the UI says "尚未发行". Deliveries are recorded as `publish_status: pending`, never as a confirmed draft, because the extension only acknowledges receipt.
+- **Companion extension**: Xiaohongshu / X drafts go through the private Crosspost extension over `ws://127.0.0.1:9527`; the contract is `../crosspost/docs/bridge-protocol.md` (v1.1). Until it is released, `CROSSPOST_EXTENSION_RELEASED` in `services/wechatsync-constants.js` is `false` and the UI says "尚未发行". Deliveries are recorded as `publish_status: pending`; Crosspost 3.1.0+ pushes `sync_event` results back (`services/bridge-sync-tasks.js` maps `syncId` → note) and its `health.adapters` self-check is normalized by `normalizeAdapterHealthSnapshot` and shown on the extension settings page.
 
 ## Development Notes
 

@@ -10,7 +10,7 @@ import { toReadableError, toRecord, toText } from '../../services/input-utils.js
 import { isUnsupportedBridgeMethodError as isWechatSyncUnsupportedMethodError } from '../../services/wechatsync-bridge.js';
 import { showMultiPlatformPublishModal } from './multi-platform.js';
 import { renderFeishuPublishTab } from './feishu.js';
-import { updatePublishFrontmatter } from '../../services/publish-status.js';
+import { applyPublishStatusToFile } from '../../services/publish-status.js';
 import { resolveSyncAccount, toSyncFriendlyMessage } from '../../services/sync-context.js';
 import { createWechatSyncService } from '../../services/wechat-sync.js';
 import { WechatAPI } from '../../services/wechat-api.js';
@@ -182,13 +182,9 @@ export const wechatSyncActionsMixin = {
       if (!file || targets.length === 0) return;
       const fileManager = this.app?.fileManager;
       if (!fileManager || typeof fileManager.processFrontMatter !== 'function') return;
-      const now = new Date();
-      await fileManager.processFrontMatter(file, (frontmatter) => {
-        updatePublishFrontmatter(frontmatter, {
-          targets,
-          requestedCount: typeof payload.requestedCount === 'number' ? payload.requestedCount : targets.length,
-          date: now,
-        });
+      await applyPublishStatusToFile(fileManager, file, {
+        targets,
+        requestedCount: typeof payload.requestedCount === 'number' ? payload.requestedCount : targets.length,
       });
     } catch (error) {
       console.warn('记录发布状态到 frontmatter 失败:', error);

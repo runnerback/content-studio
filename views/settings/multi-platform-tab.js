@@ -34,6 +34,7 @@ import {
   getAvailableWechatsyncPlatforms,
   normalizeMultiPlatformSyncSettings,
   normalizeWechatSyncCapabilities,
+  normalizeAdapterHealthSnapshot,
 } from '../../services/wechatsync-settings.js';
 
 import {
@@ -69,8 +70,9 @@ import { t } from '../../services/i18n.js';
  * @typedef {{ Setting: WechatSettingConstructor, Notice: WechatNoticeConstructor, requestUrl?: WechatRequestUrlLike }} WechatObsidianApiLike
  * @typedef {{ color: string, path: string }} BrowserIconDef
  * @typedef {{ id: string, name: string, authKnown?: boolean, authStatus?: string, authenticated?: boolean }} WechatPlatformLike
- * @typedef {{ status?: string, checkedAt?: number, platforms?: unknown, capabilities?: Record<string, unknown>, message?: string }} WechatConnectionLike
- * @typedef {{ ok?: boolean, tokenValid?: boolean, error?: string, capabilities?: Record<string, unknown> }} WechatHealthLike
+ * @typedef {import('../../services/wechatsync-settings.js').AdapterHealthSnapshotLike} AdapterHealthSnapshotLike
+ * @typedef {{ status?: string, checkedAt?: number, platforms?: unknown, capabilities?: Record<string, unknown>, message?: string, adapterHealth?: AdapterHealthSnapshotLike | null }} WechatConnectionLike
+ * @typedef {{ ok?: boolean, tokenValid?: boolean, error?: string, capabilities?: Record<string, unknown>, adapters: AdapterHealthSnapshotLike | null }} WechatHealthLike
  * @typedef {{ helloRejections?: number, lastHelloRejection?: { reason?: string } }} WechatDiagnosticsLike
  * @typedef {{ cls: string, text: string, status?: string }} PlatformStatusBadgeLike
  */
@@ -183,6 +185,8 @@ function toHealthResult(value) {
     tokenValid: typeof record.tokenValid === 'boolean' ? record.tokenValid : undefined,
     error: toText(record.error),
     capabilities,
+    // 协议 v1.1 §5：扩展每日自检快照；旧扩展没有该字段 → null
+    adapters: normalizeAdapterHealthSnapshot(record.adapters),
   };
 }
 
@@ -614,6 +618,14 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
     text: t('multiPlatform.platformsDesc'),
     cls: 'wechat-platform-picker-desc',
   });
+  // 协议 v1.1 §5：扩展自检快照（测试连接时随 health 带回）。扩展 < 3.1.0 或未自检 → 不显示。
+  const adapterHealth = normalizeAdapterHealthSnapshot(multiPlatformSettings.connection?.adapterHealth);
+  if (adapterHealth && adapterHealth.checkedAt) {
+    platformPickerTitle.createEl('div', {
+      text: t('multiPlatform.healthCheckedAt', { time: formatWechatsyncCheckedAt(adapterHealth.checkedAt) }),
+      cls: 'wechat-platform-picker-health',
+    });
+  }
 
   // 已接入平台(只读,显示上次登录状态)
   const enabledGrid = platformPicker.createDiv({ cls: 'wechat-platform-grid' });
@@ -630,6 +642,25 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
     const chipBody = chip.createEl('span', { cls: 'wechat-platform-chip-body' });
     chipBody.createEl('span', { text: platform.name, cls: 'wechat-platform-chip-name' });
     chipBody.createEl('span', { text: authBadge.text, cls: `wechat-platform-chip-status ${authBadge.cls}` });
+    const healthEntry = adapterHealth ? adapterHealth.platforms[platform.id] : undefined;
+    if (healthEntry) {
+      const probeText = healthEntry.creatorTabOpen === false
+        ? `${healthEntry.probe.detail} · ${t('multiPlatform.healthCreatorTabClosed')}`
+        : healthEntry.probe.detail;
+      chipBody.createEl('span', {
+        text: probeText,
+        cls: `wechat-platform-chip-probe ${healthEntry.probe.ok ? 'is-ok' : 'is-error'}`,
+      });
+      if (healthEntry.lastPublishAt && healthEntry.lastPublishOk !== null) {
+        const time = formatWechatsyncCheckedAt(healthEntry.lastPublishAt);
+        chipBody.createEl('span', {
+          text: healthEntry.lastPublishOk
+            ? t('multiPlatform.healthLastPublishOk', { time })
+            : t('multiPlatform.healthLastPublishFailed', { time, error: healthEntry.lastError }),
+          cls: `wechat-platform-chip-last ${healthEntry.lastPublishOk ? 'is-ok' : 'is-error'}`,
+        });
+      }
+    }
   }
 
   // 计划支持(禁用,默认折叠)
@@ -768,6 +799,7 @@ function renderMultiPlatformSettingsTab(tab, containerEl, options = {}) {
               checkedAt: Date.now(),
               platforms: nextPlatforms,
               capabilities,
+              adapterHealth: health ? health.adapters : null,
               message: gotAuth
                 ? t('multiPlatform.connectedWithAuth')
                 : (health

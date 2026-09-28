@@ -98,4 +98,10 @@ export default Object.freeze({
   'multiPlatform.hintCheckBridge': 'Make sure the browser is running with the extension installed, and that the address, port and connection token match the values here.',
   'multiPlatform.errorNotAuthenticated': 'The browser extension is connected but not yet authenticated. Make sure the extension is upgraded to a version with the secure handshake and uses the same connection token as Obsidian.',
   'multiPlatform.noticeTestFailed': '❌ {message}',
+
+  // Extension self-check (protocol v1.1 health.adapters)
+  'multiPlatform.healthCheckedAt': 'Extension self-check at {time}',
+  'multiPlatform.healthLastPublishOk': 'Last publish succeeded · {time}',
+  'multiPlatform.healthLastPublishFailed': 'Last publish failed · {time} · {error}',
+  'multiPlatform.healthCreatorTabClosed': 'Creator publish page is not open',
 });

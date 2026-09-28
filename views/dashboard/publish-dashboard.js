@@ -35,6 +35,7 @@ const PLATFORM_LABEL_KEYS = {
 const STATUS_LABEL_KEYS = {
   unpublished: 'dashboard.statusUnpublished',
   pending: 'dashboard.statusPending',
+  failed: 'dashboard.statusFailed',
   partial: 'dashboard.statusPartial',
   synced: 'dashboard.statusSynced',
 };
@@ -208,7 +209,7 @@ export class PublishDashboardView extends ItemView {
       this.renderPlatformCell(tr, row.targets);
       this.renderPlatformCell(tr, row.published);
       this.renderPlatformCell(tr, row.pending);
-      this.renderPlatformCell(tr, row.missing);
+      this.renderPlatformCell(tr, row.missing, row.failed);
       tr.createEl('td', { cls: 'ncs-dashboard-time', text: row.publishTime || row.publishAt || t('dashboard.none') });
       tr.createEl('td').createEl('span', { cls: `ncs-dashboard-status is-${row.status}`, text: t(STATUS_LABEL_KEYS[row.status]) });
     }
@@ -217,15 +218,19 @@ export class PublishDashboardView extends ItemView {
   /**
    * @param {ObsidianElementLike} tr
    * @param {string[]} names
+   * @param {string[]} [failedNames] 扩展回推失败的平台，同列显示并带失败标记（3.12.0）
    */
-  renderPlatformCell(tr, names) {
+  renderPlatformCell(tr, names, failedNames = []) {
     const cell = tr.createEl('td', { cls: 'ncs-dashboard-platforms' });
-    if (names.length === 0) {
+    if (names.length === 0 && failedNames.length === 0) {
       cell.setText(t('dashboard.none'));
       return;
     }
     for (const name of names) {
       cell.createEl('span', { cls: `ncs-dashboard-tag is-${name}`, text: platformLabel(name) });
+    }
+    for (const name of failedNames) {
+      cell.createEl('span', { cls: `ncs-dashboard-tag is-${name} is-failed`, text: `${platformLabel(name)} · ${t('dashboard.statusFailed')}` });
     }
   }
 }
