@@ -1,6 +1,16 @@
 # Changelog / 更新日志
 
-> 版本 v1.1 ｜ 更新时间 2026-09-28 ｜ 面向用户的变更记录（中英）。每个版本的英文详情见 `RELEASE_NOTES/v<version>.md`。
+> 版本 v1.2 ｜ 更新时间 2026-10-08 ｜ 面向用户的变更记录（中英）。每个版本的英文详情见 `RELEASE_NOTES/v<version>.md`。
+
+## 3.12.2（2026-10-08）
+
+**中文**
+
+- 修复社区目录自动审核失败：3.12.1 的「Source review dependency installation failed」是因为仓库只能用 `npm install --legacy-peer-deps` 装通——误装的 `eslint-plugin-obsidian`（react-obsidian 的 lint 插件，只认 ESLint 8，项目并未使用）与 ESLint 9 冲突。已删除该包，`@types/node` 跟上 Vite 支持范围，普通 `npm install` / `npm ci` 可直接装通；CI 与发布工作流同步去掉该参数。插件功能无变化。
+
+**English**
+
+- Fixes the community directory's automated source review (dependency install failure in 3.12.1): removed the unused `eslint-plugin-obsidian`, which pins ESLint 8; plain `npm install` / `npm ci` now resolve. No functional changes.
 
 ## 3.12.1（2026-09-28）
 

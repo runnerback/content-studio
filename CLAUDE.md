@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **版本**: v3.12.1 ｜ **更新时间**: 2026-09-28（3.12.1：接收 Crosspost 3.1.0 结果回推、测试连接展示扩展自检、桥接协议 v1.1 主版本校验。3.12.0：公式改用 Obsidian 自带 MathJax、包体 1.3MB；桌面版专用；设置项 i18n；分发看板；AI 用量；入口与 AI 服务拆分；本文件按当前结构全文校对）
+> **版本**: v3.12.2 ｜ **更新时间**: 2026-10-08（3.12.2：删掉误装的 eslint-plugin-obsidian（只认 eslint 8，导致普通 npm install ERESOLVE、社区目录源码审核失败），工作流与文档不再用 --legacy-peer-deps；3.12.1：接收 Crosspost 3.1.0 结果回推、测试连接展示扩展自检、桥接协议 v1.1 主版本校验。3.12.0：公式改用 Obsidian 自带 MathJax、包体 1.3MB；桌面版专用；设置项 i18n；分发看板；AI 用量；入口与 AI 服务拆分；本文件按当前结构全文校对）
 
 ## Language Preferences
 - Detect the language of the user's prompt (English or Chinese). Always reply in the same language unless explicitly asked otherwise.
@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
-- **Install Dependencies**: `npm install --legacy-peer-deps`
+- **Install Dependencies**: `npm install`（必须能不带 `--legacy-peer-deps` 装通：社区目录的源码审核用的是普通 `npm install`，peer 冲突会让整次审核 Failed，3.12.1 就栽在这）
 - **Build for Production**: `npm run build` (generate:runtime + esbuild, minified, no sourcemaps)
 - **Start Development Watcher**: `npm run dev`
 - **Install into the vault**: `bash dev-install.sh` (target pinned by `.vault-path.local`; run after every change)
