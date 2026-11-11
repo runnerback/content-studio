@@ -1,6 +1,22 @@
 # Changelog / 更新日志
 
-> 版本 v1.2 ｜ 更新时间 2026-10-08 ｜ 面向用户的变更记录（中英）。每个版本的英文详情见 `RELEASE_NOTES/v<version>.md`。
+> 版本 v1.3 ｜ 更新时间 2026-11-11 ｜ 面向用户的变更记录（中英）。每个版本的英文详情见 `RELEASE_NOTES/v<version>.md`。
+
+## 3.12.3（2026-11-11）
+
+**中文**
+
+- 许可服务换域名：`https://api.runfast.xyz/license` → `https://api.runfast.ren/license`（`services/wechatsync-constants.js` 的 `LICENSE_API_BASE`）。作者服务器 2026-11-04 迁到新机房，旧域名随旧服务器关机失效；不升级的话，设置页「小红书 / X（浏览器扩展）」里的购买档位信息加载不出来、爱发电订单号兑换密钥会报网络错误。公众号、小红书图卡、飞书、AI 编排都不经过这个服务，不受影响。
+- 需要同时把浏览器扩展 Crosspost 升到 3.1.7：发布计量由扩展直接请求许可服务，旧版扩展连的是旧域名，会提示「无法连接许可服务」并拒绝发布。
+- 已有的许可密钥、当日已用次数都存在服务端，升级后不变；`data.json` 不需要迁移。
+- README 的网络访问披露、`docs/guides/quota-and-license.md` 同步改成新域名。
+- 验证：`npm run review:guard` 全过（lint、目录扫描 0 问题、85 个测试文件 1047 例、打包校验）；`main.js` 里只剩 `api.runfast.ren/license`；新域名 `GET /v1/plans` 实测 200。回滚：把常量改回旧域名重新构建，只在旧服务器还开着时有效。
+
+**English**
+
+- The license service moved from `api.runfast.xyz/license` to `api.runfast.ren/license` (the author's server was relocated on 2026-11-04; the old domain stops working when the old server is shut down). Without this update the plan list on the "Xiaohongshu / X (browser extension)" settings page fails to load and redeeming an Afdian order number returns a network error. WeChat, image cards, Feishu and AI layout never use this service.
+- Update the Crosspost browser extension to 3.1.7 as well: quota metering is requested by the extension, and older versions still point at the old domain.
+- License keys and the daily count live on the server and are unchanged; no settings migration.
 
 ## 3.12.2（2026-10-08）
 

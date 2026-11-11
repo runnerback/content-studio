@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> 版本 3.12.2 · 更新 2026-10-08 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
+> 版本 3.12.3 · 更新 2026-11-11 · [English](./README.md) · [爱发电支持作者](https://afdian.com/a/note_content_studio)
 
 把 Obsidian 笔记变成可直接发布的内容：**微信公众号**文章、**小红书**图文卡片、**飞书**云文档，全部在 Obsidian 内实时预览。
 
@@ -37,7 +37,7 @@
 - **飞书开放平台**（`open.feishu.cn`）：同步笔记到飞书时访问；飞书同步中的 Mermaid 图通过 `kroki.io` 远程渲染。
 - **你配置的 AI 服务端点**（DeepSeek / OpenAI 兼容 / Anthropic 兼容，取决于你的设置）：执行 AI 编排或标题润色时访问。
 - **本机 WebSocket 服务**（`127.0.0.1:9527`，端口可改）：用于配对可选的 Crosspost 扩展，仅在设置里开启多平台发布后启动，只接受本机连接。
-- **许可服务**（`api.runfast.xyz/license`）：小红书 / X 发布计量用。扩展只发送匿名设备 ID、许可密钥（如有）和平台名做计数；插件仅在用爱发电订单号兑换密钥时访问。不发送任何笔记内容。
+- **许可服务**（`api.runfast.ren/license`）：小红书 / X 发布计量用。扩展只发送匿名设备 ID、许可密钥（如有）和平台名做计数；插件仅在用爱发电订单号兑换密钥时访问。不发送任何笔记内容。
 
 凭证（AppID/Secret、Token、API Key、许可密钥）保存在 vault 内插件目录的 `data.json`，只发送给上述服务。没有任何遥测或统计上报。**超出免费每日额度的小红书 / X 发布需要付费许可。**
 

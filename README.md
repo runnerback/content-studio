@@ -1,6 +1,6 @@
 # Note Content Studio
 
-> Version 3.12.2 · Updated 2026-10-08 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
+> Version 3.12.3 · Updated 2026-11-11 · [简体中文](./README.zh-CN.md) · [Support on Afdian / 爱发电](https://afdian.com/a/note_content_studio)
 
 Turn your Obsidian notes into ready-to-publish content: **WeChat Official Account** articles, **Xiaohongshu (rednote)** image cards, and **Feishu** cloud docs, all previewed live inside Obsidian.
 
@@ -37,7 +37,7 @@ The plugin makes network requests only when you trigger an action, and only to s
 - **Feishu Open API** (`open.feishu.cn`) when you sync a note to Feishu. Mermaid diagrams in Feishu sync are rendered remotely through `kroki.io`.
 - **Your AI provider endpoint** (DeepSeek, OpenAI-compatible or Anthropic-compatible, whichever you configure) when you run AI layout or title polish.
 - **Local WebSocket server** on `127.0.0.1:9527` (port configurable) for pairing the optional Crosspost extension. It only starts when multi-platform publishing is enabled in settings and accepts local connections only.
-- **License service** (`api.runfast.xyz/license`) for the metered Xiaohongshu / X publishing: the extension sends an anonymous device ID, the license key (if any) and the platform name to count publishes; the plugin calls it only when you redeem an Afdian order number. No note content is sent.
+- **License service** (`api.runfast.ren/license`) for the metered Xiaohongshu / X publishing: the extension sends an anonymous device ID, the license key (if any) and the platform name to count publishes; the plugin calls it only when you redeem an Afdian order number. No note content is sent.
 
 Credentials (AppID/Secret, tokens, API keys, license key) are stored in the plugin's `data.json` inside your vault and are sent only to the services above. There is no telemetry or analytics. **Payment is required for full access** to Xiaohongshu / X publishing beyond the free daily quota.
 

@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **版本**: v3.12.2 ｜ **更新时间**: 2026-10-08（3.12.2：删掉误装的 eslint-plugin-obsidian（只认 eslint 8，导致普通 npm install ERESOLVE、社区目录源码审核失败），工作流与文档不再用 --legacy-peer-deps；3.12.1：接收 Crosspost 3.1.0 结果回推、测试连接展示扩展自检、桥接协议 v1.1 主版本校验。3.12.0：公式改用 Obsidian 自带 MathJax、包体 1.3MB；桌面版专用；设置项 i18n；分发看板；AI 用量；入口与 AI 服务拆分；本文件按当前结构全文校对）
+> **版本**: v3.12.3 ｜ **更新时间**: 2026-11-11（3.12.3：许可服务 `LICENSE_API_BASE` 换到 `https://api.runfast.ren/license`（服务器迁腾讯云，`runfast.xyz` 随老机关机失效），配套扩展 Crosspost 3.1.7；3.12.2：删掉误装的 eslint-plugin-obsidian（只认 eslint 8，导致普通 npm install ERESOLVE、社区目录源码审核失败），工作流与文档不再用 --legacy-peer-deps；3.12.1：接收 Crosspost 3.1.0 结果回推、测试连接展示扩展自检、桥接协议 v1.1 主版本校验。3.12.0：公式改用 Obsidian 自带 MathJax、包体 1.3MB；桌面版专用；设置项 i18n；分发看板；AI 用量；入口与 AI 服务拆分；本文件按当前结构全文校对）
 
 ## Language Preferences
 - Detect the language of the user's prompt (English or Chinese). Always reply in the same language unless explicitly asked otherwise.
