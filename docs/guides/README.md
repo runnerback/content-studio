@@ -1,6 +1,6 @@
 # 使用说明 Guides
 
-> 适用插件版本：v3.12.1 ｜ 最后更新：2026-09-28 ｜ 编码：UTF-8
+> 适用插件版本：v3.12.3 ｜ 最后更新：2026-11-11（相关文档加扩展隐私政策）｜ 编码：UTF-8
 
 「Note Content Studio」的功能使用说明，按主题拆分。
 
@@ -40,3 +40,4 @@
 ## 相关文档
 
 - 代理服务端部署（自建 ECS）：[`../../server/README.md`](../../server/README.md)
+- 配套浏览器扩展「多栖 Crosspost」的隐私政策（中英）：[`../crosspost-privacy.md`](../crosspost-privacy.md)
